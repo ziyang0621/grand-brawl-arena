@@ -62,7 +62,7 @@
 
 ## 文件结构
 
-- `index.html`：主大厅和 2D/3D 模式入口
+- `index.html`：纯 3D 入口页，会进入 `three-preview.html`
 - `three-preview.html`：3D 对战页面
 - `arena.js`：Three.js 场景、人物模型、特效、输入、UI、PeerJS 联机逻辑
 - `arena-core.js`：与渲染无关的确定性战斗逻辑，适合写测试
@@ -71,6 +71,7 @@
 - `serve.js`：本地静态服务器
 - `package.json`：本地启动和测试脚本
 - `vendor/three.module.js`、`vendor/three.core.js`：本地 Three.js 文件
+- 旧版 2D Canvas 大厅和游戏入口已从网页中移除；当前网页只保留 3D 版本
 - `README.md`：项目快速说明
 
 ## 本地运行
@@ -177,4 +178,3 @@ git status
 git log --oneline -5
 git remote -v
 ```
-

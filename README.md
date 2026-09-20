@@ -2,7 +2,7 @@
 
 ## 3D 港湾乱斗（v3）
 
-`three-preview.html` 是 3D 竞技场：港口甲板、持刀角色、战斗 AI、血条和胜负结算，也支持两人 PeerJS 房间联机。
+网页现在只保留 `three-preview.html` 这一套 3D 竞技场：港口甲板、持刀角色、战斗 AI、血条和胜负结算，也支持 PeerJS 房间联机。打开 `index.html` 会进入 3D 版本。
 WASD / 方向键在场地中移动，空格二段跳，J 三段连斩，K 炸弹，L 旋风斩，Shift 闪避。
 注意：3D 版的 W 是向场地后方移动，跳跃改为空格。
 
@@ -41,5 +41,5 @@ Grand Battle 风格的网页派对乱斗游戏：横版竞技场、百分比击�
 
 ## 技术
 
-单文件 `index.html`，Canvas 2D + PeerJS（公共免费信令云 0.peerjs.com）P2P 联机，
+3D 页面通过 PeerJS（公共免费信令云 0.peerjs.com）进行 P2P 联机，
 房主为权威端做 60Hz 模拟。直接用浏览器打开即可玩，也可部署到 GitHub Pages。
