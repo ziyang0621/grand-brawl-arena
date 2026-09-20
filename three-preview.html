@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grand Brawl · 港湾乱斗</title><link rel="icon" href="data:,"><link rel="stylesheet" href="arena.css?v=4">
+</head>
+<body>
+<main id="arena" aria-label="港湾乱斗 3D 竞技场"></main>
+<header>
+<a class="brand" href="index.html">GRAND BRAWL <small>港湾乱斗 / 3D 联机测试 · v10</small></a>
+<div class="actions"><button id="training">对手：战斗 AI</button><button id="livesMode">三命模式：关</button><button id="platformPractice">跳台练习</button><button id="restart">重新开局</button><a href="index.html">联机大厅 ↗</a></div>
+</header>
+<section class="network" aria-label="3D 联机房间">
+<strong id="netStatus">单人练习</strong><button id="host3d">创建 3D 房间</button><input id="room3d" maxlength="4" placeholder="房间码" aria-label="四位 3D 房间码"><button id="join3d">加入 3D 房间</button><button id="leave3d" class="hide">退出房间</button><span id="room3dLabel"></span>
+</section>
+<section class="scoreboard" aria-label="对战状态">
+<div class="fighter-card red"><div><b>红帆 · 海盗剑士</b><span>YOU</span></div><meter id="playerHP" min="0" max="100" value="100">100</meter><p id="playerInfo">100 / 100</p><small class="status-badge" id="playerStatus" hidden></small></div>
+<div class="versus"><strong id="time">120</strong><span>港口争夺战</span><meter id="energy" min="0" max="3" value="1" step="0.1"></meter><small id="energyLabel">能量 1.0 / 3</small></div>
+<div class="fighter-card blue"><div><b>蓝潮 · 港口守卫</b><span>CPU</span></div><meter id="rivalHP" min="0" max="100" value="100">100</meter><p id="rivalInfo">100 / 100</p><small class="status-badge" id="rivalStatus" hidden></small></div>
+</section>
+<div id="callout" role="status">准备开打！</div><div id="loading" role="status">正在装载港湾…</div>
+<footer>
+<div class="skills"><button id="jumpButton"><b>SPACE</b><span>二段跳</span></button><button id="attackButton"><b>J</b><span>三段连斩 / 打箱子</span></button><button id="heavyButton"><b>U</b><span>重击 / 破防</span></button><button id="grabButton"><b>I</b><span>抓取投摔</span></button><button id="bombButton"><b>K</b><span id="bombLabel">先打碎箱子</span></button><button id="skillButton"><b>L</b><span id="skillLabel">旋风斩</span></button></div>
+<p><b>W A S D / 方向键</b> 移动　·　<b>空格</b> 二段跳　·　<b>J</b> 轻攻击 / 开箱 / 空中斩　·　<b>U</b> 重击 / 空中坠落重击　·　<b>I</b> 抓取投摔　·　<b>K</b> 使用道具　·　<b>L</b> 消耗能量必杀　·　<b>R</b> 挡 / 短按完美反击　·　<b>Shift</b> 闪避（中毒/冰冻时禁用）　·　靠近楼梯按方向键爬升</p>
+<p class="hint" id="hint">靠近木箱按 J 一刀打开，掉落物会保留 24 秒并自动吸附拾取；新箱子约 10–17 秒后从随机位置空投；炸弹瞬间爆炸，毒瓶制造毒雾，病毒瓶制造病毒云，冰冻瓶制造减速冰雾；按住 R 防御，刚按下 R 的瞬间可完美反击；重击能破防，抓取会先抱起再投摔。</p>
+<output id="movement">地面</output>
+</footer>
+<dialog id="result"><small>港湾争夺战</small><h1 id="resultTitle"></h1><p>挥刀、炸弹和旋风斩都能造成伤害。</p><button id="playAgain">再战一回合</button><a href="index.html">返回联机大厅</a></dialog>
+<script type="module" src="arena.js?v=22"></script>
+</body>
+</html>

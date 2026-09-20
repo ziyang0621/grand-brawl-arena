@@ -134,6 +134,7 @@
           <div class="buttons">
             <button id="hostBtn" class="btn primary">创建房间</button>
             <button id="practiceBtn" class="btn">单人练习</button>
+            <button id="threeBtn" class="btn" type="button">试试 3D 预览</button>
           </div>
           <div class="join-row">
             <input id="roomInput" type="text" maxlength="4" placeholder="房间码" aria-label="四位房间码" />
@@ -146,6 +147,7 @@
       <section id="roomCard" class="card room-card" aria-label="等待房间">
         <h2>把房间码发给朋友</h2>
         <div id="roomCode" class="room-code">----</div>
+        <button id="copyRoomBtn" class="btn" type="button">复制房间码</button>
         <div id="players" class="players"></div>
         <button id="startBtn" class="btn primary" disabled>等待玩家加入</button>
         <button id="leaveBtn" class="btn" style="margin-left:8px">离开房间</button>
@@ -166,6 +168,7 @@
             <h2 id="endTitle">回合结束</h2>
             <p id="endText"></p>
             <button id="againBtn" class="btn primary">再来一局</button>
+            <button id="lobbyBtn" class="btn">返回大厅</button>
           </div>
         </div>
       </div>
@@ -203,6 +206,10 @@
       if(peer){ try{peer.destroy()}catch(_){} peer=null; }
     }
     function resetToLobby(){ closeAll(); role='none'; room=''; myId=''; latestState=null; hostLeft=false; game=blankGame(); $('#gameView').classList.remove('visible'); $('#lobbyView').classList.remove('hide'); showSetup(); $('#endOverlay').classList.remove('visible'); setStatus(defaultStatus()); }
+    function clearKeys(){ keys.mask=0; }
+    addEventListener('blur',clearKeys);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)clearKeys();});
+    addEventListener('beforeunload',closeAll);
 
     let peerLibPromise=null;
     function loadPeerJS(){
@@ -232,7 +239,7 @@
         let settled=false;
         peer.on('open',()=>{
           settled=true; myId='p1'; game=blankGame(); game.players=[makePlayer('p1',cleanName(),chosenColor(),false,true)];
-          peer.on('connection',acceptConnection); showRoom(); setStatus(''); resolve();
+          peer.on('connection',acceptConnection); showRoom(); $('#netState').textContent=' · 房主已连接'; setStatus(''); resolve();
         });
         peer.on('error',err=>{
           if(err && err.type==='unavailable-id' && !settled){ try{peer.destroy()}catch(_){} createHost().then(resolve).catch(reject); }
@@ -263,6 +270,7 @@
         if(game.status==='lobby') game.players=game.players.filter(x=>x.id!==id); else if(p){p.lives=0;p.spectator=true;}
         broadcastLobby(); renderLobby();
       });
+      conn.on('error',()=>setStatus('有玩家的连接出现问题，请让对方重新加入。',true));
     }
     function sendAll(data){ connections.forEach(c=>{if(c.open) try{c.send(data)}catch(_){}}); }
     function lobbyPayload(){ return {t:'lobby',players:game.players.map(p=>({id:p.id,name:p.name,color:p.color,host:p.host}))}; }
@@ -298,22 +306,28 @@
       else if(d.t==='state'){ latestState=d.state; game=d.state; showGame(); $('#netState').textContent=' · 已连接'; updateEndOverlay(); }
       else if(d.t==='reject'){ setStatus(d.reason,true); closeAll(); role='none'; showSetup(); $('#joinBtn').disabled=false; }
     }
-    function guestDisconnected(){ if(role!=='guest')return; hostLeft=true; $('#netState').textContent=' · 连接已断开'; $('#endTitle').textContent='房主已离开'; $('#endText').textContent='这局已经结束，请返回大厅重新建房。'; $('#againBtn').classList.add('hide'); $('#endOverlay').classList.add('visible'); }
+    function guestDisconnected(){ if(role!=='guest')return; hostLeft=true; $('#netState').textContent=' · 连接已断开'; $('#endTitle').textContent='房主已离开'; $('#endText').textContent='这局已经结束，请返回大厅重新建房。'; $('#againBtn').classList.add('hide'); $('#lobbyBtn').classList.remove('hide'); $('#endOverlay').classList.add('visible'); }
     function startInputSender(){ clearInterval(sendTimer); sendTimer=setInterval(()=>{const c=connections.get('host');if(c&&c.open)c.send({t:'input',m:keys.mask});},1000/30); }
 
     $('#leaveBtn').onclick=resetToLobby;
     $('#exitGameBtn').onclick=resetToLobby;
+    $('#copyRoomBtn').onclick=async()=>{
+      try{ await navigator.clipboard.writeText(room); setStatus('房间码 '+room+' 已复制，发给朋友即可加入。'); }
+      catch(_){ setStatus('请手动复制房间码：'+room); }
+    };
     $('#startBtn').onclick=()=>{ if(role==='host'&&game.players.length>=2) startRound(false); };
     $('#practiceBtn').onclick=()=>{
       role='practice'; room=''; myId='p1'; game=blankGame();
       game.players=[makePlayer('p1',cleanName(),chosenColor(),false,true),makePlayer('ai','铁皮训练员','#66bb6a',true,false)];
       showGame(); startRound(false);
     };
+    $('#threeBtn').onclick=()=>{ window.location.href='three-preview.html'; };
     $('#againBtn').onclick=()=>{
       if(role!=='host'&&role!=='practice') return;
       if(game.championId) game.players.forEach(p=>p.wins=0);
       startRound(true);
     };
+    $('#lobbyBtn').onclick=resetToLobby;
     $('#roomInput').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase().replace(/[^A-Z2-9]/g,''));
 
     function makePlayer(id,name,color,ai=false,host=false){ return {id,name,color,ai,host,x:0,y:0,vx:0,vy:0,w:34,h:48,damage:0,lives:3,wins:0,item:null,itemUses:0,input:0,prevInput:0,facing:1,grounded:false,jumps:0,invuln:0,attackCd:0,attackTimer:0,poison:0,poisonTick:0,spectator:false,respawn:0}; }
@@ -432,6 +446,7 @@
       if(game.status!=='roundover'){ $('#endOverlay').classList.remove('visible'); return; }
       $('#endTitle').textContent=game.championId?'冠军诞生！':'回合结束'; $('#endText').textContent=game.message;
       const can=role==='host'||role==='practice'; $('#againBtn').classList.toggle('hide',!can); $('#endOverlay').classList.add('visible');
+      $('#lobbyBtn').classList.remove('hide');
     }
 
     function draw(){
