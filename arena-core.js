@@ -21,7 +21,7 @@ function gainEnergy(w,p,amount){if(!p||!Number.isFinite(p.energy)||!Number.isFin
 function hit(w,p,q,damage,force,options={}){
   if(q.hp<=0||q.invuln>0)return false;
   if(q.blocking&&q.parryWindow>0&&!options.grab&&!options.guardBreak){w.hitStop=Math.max(w.hitStop,.035);p.stun=.48;p.vx*=-.35;p.vz*=-.35;q.invuln=.18;emit(w,'parry',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});return true;}
-  if(q.blocking&&!options.guardBreak&&!options.grab){w.hitStop=Math.max(w.hitStop,.025);q.vx*=.35;q.vz*=.35;q.stun=.04;q.invuln=.08;emit(w,'guard',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});return true;}
+  if(q.blocking&&!options.guardBreak&&!options.grab){const reducedDamage=Math.max(1,Math.round(damage*.25));q.hp=Math.max(0,q.hp-reducedDamage);q.hurtTime=.16;q.hurtKind='guard';w.hitStop=Math.max(w.hitStop,.025);q.vx*=.2;q.vz*=.2;q.stun=.04;q.invuln=.08;emit(w,'guard',{x:q.x,y:q.y+1.4,z:q.z,id:q.id,damage:reducedDamage});emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force:1,kind:'guard'});emit(w,'hit',{x:q.x,y:q.y+1.2,z:q.z,damage:reducedDamage,id:q.id});return true;}
   const d=Math.max(.01,distance(p,q));const fx=d>.02?(q.x-p.x)/d:p.fx||1,fz=d>.02?(q.z-p.z)/d:p.fz||0;
   const brokeGuard=Boolean(q.blocking&&options.guardBreak);if(brokeGuard){q.blocking=false;emit(w,'guardBreak',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});}
   q.attackTime=0;q.skillTime=0;q.hitDone=true;q.jumpBuffer=0;

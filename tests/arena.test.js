@@ -60,9 +60,9 @@ test('virus status has its own visible duration and temporary status timers expi
   const w=createWorld();w.training=true;const p=w.fighters[0];w.clouds.push({id:0,owner:1,kind:'virus',x:p.x,y:0,z:p.z,life:.05,radius:2.8,tick:0});step(w);assert.ok(p.virusTime>0);assert.ok(p.slowTime>0);
   w.clouds.length=0;p.burnTime=.1;p.virusTime=.1;advance(w,.2);assert.equal(p.burnTime,0);assert.equal(p.virusTime,0);
 });
-test('holding guard blocks sword damage',()=>{
+test('holding guard reduces sword damage without negating it',()=>{
   const w=createWorld();w.training=true;w.online=true;w.remoteInput={x:0,z:0,guard:true};const [p,q]=w.fighters;p.x=0;q.x=1.7;
-  attack(w,p);advance(w,.4);assert.equal(q.hp,100);assert.ok(w.events.some(e=>e.type==='guard'||e.type==='parry'));
+  q.guardPrev=true;attack(w,p);advance(w,.4);assert.equal(q.hp,98);assert.ok(q.hp>91);assert.ok(w.events.some(e=>e.type==='guard'||e.type==='parry'));
 });
 test('skill deals area damage once and obeys cooldown',()=>{
   const w=createWorld();w.training=true;w.fighters[0].x=0;w.fighters[1].x=2;
