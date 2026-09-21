@@ -66,7 +66,7 @@ test('holding guard reduces sword damage without negating it',()=>{
 });
 test('skill deals area damage once and obeys cooldown',()=>{
   const w=createWorld();w.training=true;w.fighters[0].x=0;w.fighters[1].x=2;
-  skill(w,w.fighters[0]);skill(w,w.fighters[0]);assert.equal(w.fighters[1].hp,78);assert.equal(w.fighters[0].skillCD,1.2);assert.ok(w.fighters[0].energy<1);
+  skill(w,w.fighters[0]);skill(w,w.fighters[0]);assert.equal(w.fighters[1].hp,78);assert.equal(w.fighters[0].skillCD,1.35);assert.ok(w.fighters[0].energy<1);
 });
 test('heavy attack breaks guard and knocks down',()=>{
   const w=createWorld();w.training=true;w.online=true;w.remoteInput={x:0,z:0,guard:true};const [p,q]=w.fighters;p.x=0;q.x=1.7;
@@ -89,7 +89,23 @@ test('grab beats guard and produces a throw hit',()=>{
   grab(w,p);advance(w,.8);assert.ok(q.hp<100);assert.ok(w.events.some(e=>e.type==='throwHit'));
 });
 test('knockdown cancels queued actions and falls normally before wakeup',()=>{
-  const w=createWorld();w.training=true;const [p,q]=w.fighters;p.x=0;q.x=1.7;q.y=1.4;q.grounded=false;heavy(w,p);advance(w,.35);assert.ok(q.knocked>0);const height=q.y;attack(w,q);jump(q);assert.equal(q.attackTime,0);assert.equal(q.jumpBuffer,0);advance(w,.7);assert.ok(q.y<height);assert.ok(w.events.some(e=>e.type==='wakeup'));
+  const w=createWorld();w.training=true;const [p,q]=w.fighters;p.x=0;q.x=1.7;q.y=1.4;q.grounded=false;heavy(w,p);advance(w,.35);assert.ok(q.knocked>0);const height=q.y;attack(w,q);jump(q);assert.equal(q.attackTime,0);assert.equal(q.jumpBuffer,0);advance(w,1);assert.ok(q.y<height);assert.ok(w.events.some(e=>e.type==='wakeup'));
+});
+test('directional inputs create dash and uppercut attacks',()=>{
+  const w=createWorld();w.training=true;const p=w.fighters[0];attack(w,p,{x:1,z:0});assert.equal(p.attackType,'dash');advance(w,.5);heavy(w,p,{x:0,z:-1});assert.equal(p.attackType,'upper');assert.ok(w.events.some(e=>e.type==='slash'&&e.attackType==='upper'));
+});
+test('nearby containers can be lifted and thrown forward or upward',()=>{
+  const w=createWorld();w.training=true;const p=w.fighters[0],c=w.crates[0];p.x=c.x;p.z=c.z;grab(w,p);assert.deepEqual(p.carrying,{kind:'crate',id:c.id});assert.equal(c.heldBy,p.id);attack(w,p);assert.equal(p.carrying,null);assert.equal(w.props.length,1);assert.ok(w.props[0].vx!==0);
+  const c2=w.crates[1];p.x=c2.x;p.z=c2.z;grab(w,p);heavy(w,p);assert.equal(w.props.length,2);assert.ok(w.props[1].vy>=12);
+});
+test('three special levels spend matching energy and scale damage',()=>{
+  const w=createWorld();w.training=true;const [p,q]=w.fighters;p.energy=3;p.x=0;q.x=2;skill(w,p,3);assert.ok(p.energy<1);assert.equal(p.skillLevel,3);assert.equal(q.hp,58);assert.ok(w.events.some(e=>e.type==='skill'&&e.level===3));
+});
+test('container classes use separate loot pools',()=>{
+  const pools={barrel:['bomb','poison','virus','slow'],crate:['meat','beer','bomb'],chest:['sword','beer','meat']};for(const kind of Object.keys(pools)){const w=createWorld();w.training=true;const p=w.fighters[0],c=w.crates[0];c.kind=kind;p.x=c.x;p.z=c.z;skill(w,p);assert.ok(pools[kind].includes(w.pickups[0].type));}
+});
+test('port stage schedules cannon fire and a warning before the wave',()=>{
+  const w=createWorld();w.nextCannonTick=1;w.nextWaveTick=1;step(w);assert.equal(w.cannonballs.length,1);assert.ok(w.waveWarning>0);assert.ok(w.events.some(e=>e.type==='cannon'));assert.ok(w.events.some(e=>e.type==='waveWarning'));
 });
 test('the expanded dock has more walkable space',()=>{
   const p=createFighter(0,0,0);for(let i=0;i<5000;i++)stepFighter(p,{x:1},STEP);assert.ok(p.x>12);assert.ok(p.x<=14.5);
