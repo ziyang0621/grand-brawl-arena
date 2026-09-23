@@ -86,13 +86,25 @@ test('strong sword gives a longer melee reach',()=>{
 });
 test('grab beats guard and produces a throw hit',()=>{
   const w=createWorld();w.training=true;w.online=true;w.remoteInput={x:0,z:0,guard:true};const [p,q]=w.fighters;p.x=0;q.x=1.2;
-  grab(w,p);advance(w,.8);assert.ok(q.hp<100);assert.ok(w.events.some(e=>e.type==='throwHit'));
+  grab(w,p);advance(w,.3);assert.ok(q.hp<100);assert.equal(p.grabbedTarget,q.id);attack(w,p);assert.ok(w.events.some(e=>e.type==='throwHit'));
 });
 test('knockdown cancels queued actions and falls normally before wakeup',()=>{
   const w=createWorld();w.training=true;const [p,q]=w.fighters;p.x=0;q.x=1.7;q.y=1.4;q.grounded=false;heavy(w,p);advance(w,.35);assert.ok(q.knocked>0);const height=q.y;attack(w,q);jump(q);assert.equal(q.attackTime,0);assert.equal(q.jumpBuffer,0);advance(w,1);assert.ok(q.y<height);assert.ok(w.events.some(e=>e.type==='wakeup'));
 });
 test('directional inputs create dash and uppercut attacks',()=>{
   const w=createWorld();w.training=true;const p=w.fighters[0];attack(w,p,{x:1,z:0});assert.equal(p.attackType,'dash');advance(w,.5);heavy(w,p,{x:0,z:-1});assert.equal(p.attackType,'upper');assert.ok(w.events.some(e=>e.type==='slash'&&e.attackType==='upper'));
+});
+test('light attacks buffer and chain into a three-hit combo',()=>{
+  const w=createWorld();w.training=true;const p=w.fighters[0];attack(w,p);advance(w,.1);attack(w,p);advance(w,.3);assert.equal(p.combo,1);attack(w,p);advance(w,.3);assert.equal(p.combo,2);
+});
+test('red dash and blue shield bash are distinct character moves',()=>{
+  const w=createWorld();w.training=true;const [red,blue]=w.fighters;attack(w,red,{x:1});assert.equal(red.attackType,'dash');attack(w,blue,{x:-1});assert.equal(blue.attackType,'shieldBash');assert.ok(w.events.some(e=>e.type==='shieldBash'&&e.id===blue.id));
+});
+test('a grabbed opponent can be carried while walking and actively thrown',()=>{
+  const w=createWorld();w.training=true;const [holder,target]=w.fighters;holder.x=0;holder.z=0;target.x=1.2;target.z=0;grab(w,holder);advance(w,.3);assert.equal(holder.grabbedTarget,target.id);const start=holder.x;advance(w,.4,{x:1});assert.ok(holder.x>start+.5);assert.ok(Math.abs(Math.hypot(holder.x-target.x,holder.z-target.z)-.72)<.1);heavy(w,holder);assert.equal(holder.grabbedTarget,null);assert.ok(w.events.some(e=>e.type==='throwHit'&&e.id===target.id&&e.high));
+});
+test('a grabbed fighter can mash attacks to escape',()=>{
+  const w=createWorld();w.training=true;const [holder,target]=w.fighters;holder.x=0;holder.z=0;target.x=1.2;target.z=0;grab(w,holder);advance(w,.3);attack(w,target);attack(w,target);attack(w,target);assert.equal(target.grabbedBy,null);assert.equal(holder.grabbedTarget,null);assert.ok(w.events.some(e=>e.type==='grabEscape'&&e.id===target.id));
 });
 test('nearby containers can be lifted and thrown forward or upward',()=>{
   const w=createWorld();w.training=true;const p=w.fighters[0],c=w.crates[0];p.x=c.x;p.z=c.z;grab(w,p);assert.deepEqual(p.carrying,{kind:'crate',id:c.id});assert.equal(c.heldBy,p.id);attack(w,p);assert.equal(p.carrying,null);assert.equal(w.props.length,1);assert.ok(w.props[0].vx!==0);

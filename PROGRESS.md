@@ -4,10 +4,10 @@
 
 ## 当前状态
 
-- 当前版本：`v11` / 页面资源版本：`arena.js?v=25`
+- 当前版本：`v13` / 页面资源版本：`arena.js?v=27`
 - 主要玩法：3D 港口地图、绿色高台、楼梯、箱子、空投道具、战斗 AI、三命模式
 - 联机方式：PeerJS 房间码联机，房主负责主要游戏状态同步
-- 自动化测试：36 项通过
+- 自动化测试：45 项通过
 - 当前 Git 提交：`6710b65 feat: expand 3d grand brawl combat prototype`
 - GitHub 远程仓库：`https://github.com/ziyang0621/grand-brawl-arena.git`
 
@@ -26,6 +26,12 @@
 - 空中攻击和不同高度的攻击判定
 - 强攻击可以打破防御，抓取可以绕过防御
 - 移动中按 `J` 使用冲刺斩，`W + U` 使用上挑攻击
+- `J` 可在当前招式收招前缓冲，自动衔接三段连击；红方移动攻击使用快速冲刺斩，蓝方移动攻击使用带击退和破防效果的盾冲
+- `I` 抓中对手后，对手会被抬起并保持在身前；抓人方按 `J` 前投、`U` 高投。受抓方连按 `J/U/I` 三次可以挣脱；不操作时约 2.2 秒后自动投出，避免对局卡住
+- 人物增加跑步前倾、腾空收腿/展臂、落地缓冲、受击后仰、抓抱和盾冲动作
+- 战斗镜头跟随双方中点，并随玩家间距动态拉远，降低联机时一方跑出画面的情况
+- 抱住对手时仍可低速移动；禁用双方被抓期间的角色碰撞推开，避免位移互相抵消
+- 移除命中/爆炸的随机相机抖动，镜头跟随和视野缩放均平滑过渡
 - 红色剑士偏快速连斩，蓝色守卫的重击伤害和击飞能力更强（后续仍可继续扩大角色差异）
 - `L`、`Shift + L`、`R + L` 分别使用一、二、三级必杀；三级奥义带镜头拉近和更强破防
 - 靠近木桶、木箱或宝箱按 `I` 可以举起；举起后 `J` 前投、`U` 高投
@@ -97,7 +103,7 @@ http://127.0.0.1:4173/index.html
 直接打开 3D 页面：
 
 ```text
-http://127.0.0.1:4173/three-preview.html?v=25
+http://127.0.0.1:4173/three-preview.html?v=27
 ```
 
 运行测试：
@@ -123,7 +129,7 @@ git diff --check
 之前使用过的临时 Cloudflare 测试地址：
 
 ```text
-https://particles-diploma-reasonably-lookup.trycloudflare.com/three-preview.html?v=25
+https://particles-diploma-reasonably-lookup.trycloudflare.com/three-preview.html?v=27
 ```
 
 临时隧道可能失效；如果打不开，需要重新启动静态服务器和 Cloudflare quick tunnel。
