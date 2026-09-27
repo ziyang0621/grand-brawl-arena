@@ -15,16 +15,44 @@ export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z
 export function createFighter(id,x,z){return {id,x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:id===0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
 export function createWorld(){return {time:120,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,remoteInput:{x:0,z:0,guard:false},fighters:[createFighter(0,-3.4,2),createFighter(1,3.4,2)],bombs:[],clouds:[],props:[],cannonballs:[],events:[],pickups:[],crates:[{id:0,kind:'barrel',x:-6,z:3,y:0,hp:1,falling:false,heldBy:null,respawnTick:0},{id:1,kind:'crate',x:6,z:3,y:0,hp:1,falling:false,heldBy:null,respawnTick:0},{id:2,kind:'chest',x:0,z:-5,y:0,hp:1,falling:false,heldBy:null,respawnTick:0}],nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
-export function jump(p){if(p.hp<=0||p.knocked>0||p.stun>0)return;p.jumpBuffer=.14;}
+export function jump(p,input={}){
+  if(p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0)return;
+  if(p.knocked>0){
+    if(!p.grounded&&p.vy<0&&p.poisonTime<=0&&p.virusTime<=0&&p.slowTime<=0){
+      const x=Number.isFinite(input.x)?input.x:0,z=Number.isFinite(input.z)?input.z:0,len=Math.hypot(x,z);
+      p.recoveryBuffer=.16;p.recoveryDirection=len>0?{x:x/len,z:z/len}:{x:p.fx,z:p.fz};
+    }
+    return;
+  }
+  if(p.stun>0)return;p.jumpBuffer=.14;
+}
 function faceTarget(p,q){const d=distance(p,q);if(d>0.001){p.fx=(q.x-p.x)/d;p.fz=(q.z-p.z)/d;}}
+// Aim only at a nearby, reachable rival; a closer container remains a valid target.
+function assistAim(w,p,range=4.2){
+  if(p.aimAssist===false)return;
+  const q=w.fighters.find(q=>q.id!==p.id&&q.hp>0&&q.respawnTimer<=0&&Math.abs(p.y-q.y)<2.5);
+  if(!q||distance(p,q)>range)return;
+  const nearerCrate=w.crates.some(c=>c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(c.y-p.y)<1.4&&distance(p,c)<Math.min(2.5,distance(p,q)));
+  if(!nearerCrate)faceTarget(p,q);
+}
+export function toggleAim(p){p.aimAssist=p.aimAssist===false;}
 function gainEnergy(w,p,amount){if(!p||!Number.isFinite(p.energy)||!Number.isFinite(p.energyMax))return;const before=p.energy;p.energy=Math.min(p.energyMax,p.energy+amount);if(p.energy!==before)emit(w,'energy',{id:p.id,energy:p.energy,max:p.energyMax});}
+function cancelRecovery(p){p.recoveryBuffer=0;p.recoveryDirection=null;p.recoveryTime=0;p.dodgeTime=0;}
 function hit(w,p,q,damage,force,options={}){
-  if(q.hp<=0||q.invuln>0)return false;
-  if(q.grabbedBy!==null){const holder=w.fighters.find(f=>f.id===q.grabbedBy);if(holder)holder.grabbedTarget=null;q.grabbed=0;q.grabbedBy=null;q.grabEscape=0;}
-  if(q.blocking&&q.parryWindow>0&&!options.grab&&!options.guardBreak){w.hitStop=Math.max(w.hitStop,.035);p.stun=.48;p.vx*=-.35;p.vz*=-.35;q.invuln=.18;emit(w,'parry',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});return true;}
-  if(q.blocking&&!options.guardBreak&&!options.grab){const reducedDamage=Math.max(1,Math.round(damage*.25));q.hp=Math.max(0,q.hp-reducedDamage);q.hurtTime=.16;q.hurtKind='guard';w.hitStop=Math.max(w.hitStop,.025);q.vx*=.2;q.vz*=.2;q.stun=.04;q.invuln=.08;emit(w,'guard',{x:q.x,y:q.y+1.4,z:q.z,id:q.id,damage:reducedDamage});emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force:1,kind:'guard'});emit(w,'hit',{x:q.x,y:q.y+1.2,z:q.z,damage:reducedDamage,id:q.id});return true;}
+  if(q.hp<=0||q.invuln>0||q.respawnProtection>0)return false;
+  const melee=['light','dash','air','heavy','upper','slam','shieldBash'].includes(options.kind);
+  const separation=distance(p,q),front=separation<.3||((p.x-q.x)*q.fx+(p.z-q.z)*q.fz)/separation>=.25;
+  const guarded=q.blocking&&(!melee||front);
+  if(guarded&&q.parryWindow>0&&!options.grab&&!options.guardBreak){w.hitStop=Math.max(w.hitStop,.035);p.stun=.48;p.vx*=-.35;p.vz*=-.35;q.invuln=.18;emit(w,'parry',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});return true;}
+  if(guarded&&!options.guardBreak&&!options.grab){const reducedDamage=Math.max(1,Math.round(damage*.25));q.hp=Math.max(0,q.hp-reducedDamage);q.hurtTime=.16;q.hurtKind='guard';w.hitStop=Math.max(w.hitStop,.025);q.vx*=.2;q.vz*=.2;q.stun=.04;q.invuln=.08;emit(w,'guard',{x:q.x,y:q.y+1.4,z:q.z,id:q.id,damage:reducedDamage});emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force:1,kind:'guard'});emit(w,'hit',{x:q.x,y:q.y+1.2,z:q.z,damage:reducedDamage,id:q.id});return true;}
   const d=Math.max(.01,distance(p,q));const fx=d>.02?(q.x-p.x)/d:p.fx||1,fz=d>.02?(q.z-p.z)/d:p.fz||0;
-  const brokeGuard=Boolean(q.blocking&&options.guardBreak);if(brokeGuard){q.blocking=false;emit(w,'guardBreak',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});}
+  const brokeGuard=Boolean(guarded&&options.guardBreak);if(brokeGuard)emit(w,'guardBreak',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});
+  if(q.blocking&&melee&&!front)emit(w,'flank',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});
+  q.blocking=false;
+  dropHeld(w,q);
+  cancelRecovery(q);
+  cancelSkill(w,q);
+  if(q.grabbedBy!==null){const holder=w.fighters.find(f=>f.id===q.grabbedBy);if(holder)releaseGrab(w,holder,q,false,true);}
   q.attackTime=0;q.skillTime=0;q.hitDone=true;q.jumpBuffer=0;q.comboQueued=false;
   q.hp=Math.max(0,q.hp-damage);q.hurtTime=.45;q.hurtKind=options.kind||'melee';if(options.kind==='bomb')q.burnTime=1.25;q.vx=fx*force;q.vz=fz*force;q.vy=force*.45;q.grounded=false;q.support=null;q.stun=brokeGuard?.52:.28;q.invuln=.25;
   w.hitStop=Math.max(w.hitStop,options.grab?.08:force>=8?.075:.055);emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force,kind:options.kind||'melee'});
@@ -36,42 +64,130 @@ function hit(w,p,q,damage,force,options={}){
 }
 function beginAttack(w,p,type){
   if(w.ended||p.hp<=0||p.knocked>0||p.stun>0||p.blocking||p.attackCD>0||p.skillTime>0)return;
+  assistAim(w,p);
   const actual=!p.grounded&&type==='heavy'?'slam':!p.grounded&&type==='light'?'air':type;p.attackType=actual;p.combo=actual==='light'?(p.comboWindow>0?(p.combo+1)%3:0):0;p.comboWindow=actual==='light'?.9:0;p.attackTime=actual==='slam'||actual==='heavy'||actual==='upper'||actual==='shieldBash'?.5:actual==='grab'?.42:actual==='dash'?.38:.34;p.attackCD=actual==='slam'?.55:actual==='grab'?.65:actual==='upper'||actual==='shieldBash'?.5:p.id===0?.24:.3;p.hitDone=false;p.attackConnected=false;if(actual==='slam')p.vy=-14;if(actual==='upper')p.vy=5.5;if(actual==='dash'){p.vx=p.fx*(p.id===0?12:9);p.vz=p.fz*(p.id===0?12:9);}if(actual==='shieldBash'){p.vx=p.fx*7;p.vz=p.fz*7;}
-  const q=w.fighters.find(q=>q.id!==p.id);if(q&&distance(p,q)<3.3)faceTarget(p,q);
   emit(w,['light','air','slam','dash','upper'].includes(actual)?'slash':actual,{id:p.id,x:p.x,y:p.y+1.1,z:p.z,fx:p.fx,fz:p.fz,combo:p.combo,attackType:actual,weapon:p.weapon});
 }
 function carriedObject(w,p){if(!p.carrying)return null;return p.carrying.kind==='crate'?w.crates.find(c=>c.id===p.carrying.id):w.props.find(c=>c.id===p.carrying.id);}
 function throwCarried(w,p,high=false){const held=carriedObject(w,p);if(!held){p.carrying=null;return false;}let prop=held;if(p.carrying.kind==='crate'){held.hp=0;held.heldBy=null;held.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);prop={id:w.nextProp++,kind:held.kind,owner:p.id,x:p.x+p.fx*.8,y:p.y+2,z:p.z+p.fz*.8,vx:0,vy:0,vz:0,life:3,heldBy:null};w.props.push(prop);}else prop.heldBy=null;prop.owner=p.id;prop.life=3;prop.x=p.x+p.fx*.8;prop.y=p.y+2;prop.z=p.z+p.fz*.8;prop.hitIds=[];prop.vx=p.fx*(high?4.5:10);prop.vz=p.fz*(high?4.5:10);prop.vy=high?12:5;p.carrying=null;emit(w,'propThrow',{id:p.id,kind:prop.kind,x:prop.x,y:prop.y,z:prop.z,high});return true;}
-function releaseGrab(w,holder,target,high=false,escaped=false){if(!holder||!target)return;holder.grabbedTarget=null;holder.grabHoldTime=0;target.grabbed=0;target.grabbedBy=null;target.grabEscape=0;target.knocked=escaped?.2:.95;target.stun=escaped?0:.25;target.grounded=false;target.vx=(holder.fx||1)*(escaped?-4:high?4.5:10);target.vz=(holder.fz||0)*(escaped?-4:high?4.5:10);target.vy=escaped?3:high?12:7.8;emit(w,escaped?'grabEscape':'throwHit',{x:target.x,y:target.y+1.1,z:target.z,id:target.id,high});}
+function releaseGrab(w,holder,target,high=false,escaped=false){
+  if(!holder||!target)return;
+  holder.grabbedTarget=null;holder.grabHoldTime=0;
+  target.grabbed=0;target.grabbedBy=null;target.grabEscape=0;
+  target.knocked=escaped?.2:.95;target.stun=escaped?0:.25;target.grounded=false;
+  const length=Math.hypot(holder.fx,holder.fz),fx=length>.001?holder.fx/length:1,fz=length>.001?holder.fz/length:0;
+  const speed=escaped?-4:high?4.5:10;
+  target.vx=fx*speed;target.vz=fz*speed;target.vy=escaped?3:high?12:7.8;
+  target.thrownTime=escaped?0:.65;
+  if(!escaped){holder.throwTime=.3;holder.throwHigh=high;holder.attackTime=0;holder.attackCD=Math.max(holder.attackCD,.3);}
+  emit(w,escaped?'grabEscape':'throwHit',{x:target.x,y:target.y+1.1,z:target.z,id:target.id,holder:holder.id,high});
+}
+// Shared cleanup for being hit, losing a life, or an invalid holder/target pair.
+function dropHeld(w,p){
+  if(p.grabbedTarget!==null){const target=w.fighters.find(q=>q.id===p.grabbedTarget);if(target)releaseGrab(w,p,target,false,true);else{p.grabbedTarget=null;p.grabHoldTime=0;}}
+  const held=carriedObject(w,p);
+  if(held){held.heldBy=null;held.x=clamp(p.x,-14,14);held.z=clamp(p.z,-8,8);held.y=p.y+1;
+    if(p.carrying.kind==='crate'){held.falling=true;held.dropSpeed=0;}else{held.vx=0;held.vz=0;held.vy=0;held.life=3;}
+    emit(w,'dropHeld',{id:p.id,x:held.x,y:held.y,z:held.z});}
+  p.carrying=null;
+}
+function unableToAct(w,p){return w.ended||p.hp<=0||p.respawnTimer>0||p.knocked>0||p.stun>0||p.skillTime>0;}
 function throwGrabbed(w,p,high=false){const target=w.fighters.find(q=>q.id===p.grabbedTarget);if(!target)return false;releaseGrab(w,p,target,high);return true;}
 function struggle(w,p){if(p.grabbedBy===null)return false;p.grabEscape=(p.grabEscape||0)+1;if(p.grabEscape>=3){const holder=w.fighters.find(f=>f.id===p.grabbedBy);releaseGrab(w,holder,p,false,true);}return true;}
 export function attack(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,false);return;}if(p.carrying){throwCarried(w,p,false);return;}if(p.comboWindow>0&&['light','dash','air'].includes(p.attackType)){p.comboQueued=true;p.comboInput={...input};return;}const moving=Math.hypot(input.x||0,input.z||0)>.5;beginAttack(w,p,p.grounded&&moving?(p.id===0?'dash':'shieldBash'):'light');}
 export function heavy(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,true);return;}if(p.carrying){throwCarried(w,p,true);return;}beginAttack(w,p,p.grounded&&(input.z||0)<-.5?'upper':p.id===1&&Math.hypot(input.x||0,input.z||0)>.5?'shieldBash':'heavy');}
-export function grab(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,(input.z||0)<-.2);return;}if(p.carrying){throwCarried(w,p,(input.z||0)<-.2);return;}const prop=w.props.find(o=>!o.heldBy&&distance(p,o)<1.6&&Math.abs(p.y+1-o.y)<1.5);if(prop){prop.heldBy=p.id;prop.vx=prop.vy=prop.vz=0;p.carrying={kind:'prop',id:prop.id};emit(w,'lift',{id:p.id,kind:prop.kind,x:p.x,y:p.y+2,z:p.z});return;}const c=w.crates.find(c=>c.hp>0&&!c.falling&&!c.heldBy&&distance(p,c)<1.65&&Math.abs(p.y-c.y)<1.4);if(c){c.heldBy=p.id;p.carrying={kind:'crate',id:c.id};emit(w,'lift',{id:p.id,kind:c.kind,x:p.x,y:p.y+2,z:p.z});return;}p.grabThrow=(input.z||0)<-.5?'high':'forward';beginAttack(w,p,'grab');}
+export function grab(w,p,input={}){
+  if(w.ended||p.hp<=0||p.respawnTimer>0)return;
+  if(p.grabbedBy!==null){struggle(w,p);return;}
+  if(unableToAct(w,p))return;
+  if(p.grabbedTarget!==null){throwGrabbed(w,p,(input.z||0)<-.2);return;}
+  if(p.carrying){throwCarried(w,p,(input.z||0)<-.2);return;}
+  if(p.blocking||p.attackTime>0||p.attackCD>0)return;
+  const prop=w.props.find(o=>o.heldBy===null&&distance(p,o)<1.6&&Math.abs(p.y+1-o.y)<1.5);
+  if(prop){prop.heldBy=p.id;prop.vx=prop.vy=prop.vz=0;p.carrying={kind:'prop',id:prop.id};emit(w,'lift',{id:p.id,kind:prop.kind,x:p.x,y:p.y+2,z:p.z});return;}
+  const c=w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&distance(p,c)<1.65&&Math.abs(p.y-c.y)<1.4);
+  if(c){c.heldBy=p.id;p.carrying={kind:'crate',id:c.id};emit(w,'lift',{id:p.id,kind:c.kind,x:p.x,y:p.y+2,z:p.z});return;}
+  p.grabThrow=(input.z||0)<-.5?'high':'forward';beginAttack(w,p,'grab');
+}
 export function bomb(w,p){
-  if(w.ended||p.hp<=0||p.knocked>0||p.stun>0||!p.item)return;
+  if(unableToAct(w,p)||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||!p.item)return;
   if(p.item==='meat'){p.hp=Math.min(100,p.hp+20);emit(w,'heal',{id:p.id,x:p.x,y:p.y+1,z:p.z});p.item=null;return;}
   if(p.item==='beer'){p.attackBoost=1.55;p.attackBoostTime=8;emit(w,'power',{id:p.id,item:p.item,x:p.x,y:p.y+1,z:p.z});p.item=null;return;}
   if(p.item==='sword'){p.attackBoost=1.35;p.attackBoostTime=10;p.weapon='sword';emit(w,'ready',{id:p.id,item:p.item});p.item=null;return;}
   const kind=p.item;p.item=null;const bottle=kind==='poison'||kind==='virus'||kind==='slow',speed=kind==='slow'?6.2:5.8,arc=kind==='slow'?5.2:4.6;w.bombs.push({id:w.nextBomb++,owner:p.id,kind,x:p.x+p.fx*.8,y:p.y+1.3,z:p.z+p.fz*.8,vx:p.fx*(bottle?speed:7.5),vy:bottle?arc:6.5,vz:p.fz*(bottle?speed:7.5),life:bottle?1.05:1.2});emit(w,'throw',{id:p.id,kind});
 }
 export function skill(w,p,requestedLevel=1){
-  const level=clamp(Math.floor(requestedLevel)||1,1,3);if(w.ended||p.hp<=0||p.knocked>0||p.stun>0||p.skillCD>0||p.energy<level)return;
-  const radius=3.4+(level-1)*.8,damage=12+level*10,force=8+level*2;p.energy-=level;p.skillLevel=level;p.skillCD=1.1+level*.25;p.skillTime=.5+level*.18;p.invuln=p.skillTime;emit(w,'energy',{id:p.id,energy:p.energy,max:p.energyMax});
-  emit(w,'skill',{id:p.id,x:p.x,y:p.y+.7,z:p.z,level,radius});
-  for(const q of w.fighters)if(q!==p&&distance(p,q)<radius&&Math.abs(p.y-q.y)<2.5)hit(w,p,q,damage,force,{guardBreak:level===3});
-  for(const c of w.crates)if(c.hp>0&&distance(p,c)<radius)breakCrate(w,c,2);
+  const level=clamp(Math.floor(requestedLevel)||1,1,3);if(w.ended||p.hp<=0||p.knocked>0||p.stun>0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillCD>0||p.energy<level)return;
+  const guardian=p.id===1,windup=.25+level*.15;
+  p.pendingSkill={level,radius:(guardian?4.1:3.4)+(level-1)*.8,damage:(guardian?8:12)+level*10,force:(guardian?13:8)+level*2,kind:guardian?'shieldQuake':'whirlwind',windup};
+  p.energy-=level;p.skillLevel=level;p.skillCD=(guardian?1.45:1.1)+level*.25;
+  p.skillWindup=windup;p.skillTime=windup+.4;p.invuln=0;p.dodgeTime=0;p.vx=0;p.vz=0;
+  p.attackTime=0;p.comboWindow=0;p.comboQueued=false;p.jumpBuffer=0;p.blocking=false;p.parryWindow=0;
+  emit(w,'energy',{id:p.id,energy:p.energy,max:p.energyMax});
+  emit(w,'skillCharge',{id:p.id,x:p.x,y:p.y+.1,z:p.z,...p.pendingSkill});
 }
-export function dodge(p){if(p.dodgeCD>0||p.knocked>0||p.stun>0||p.hp<=0||p.poisonTime>0||p.slowTime>0)return;p.dodgeCD=1.2;p.dodgeTime=.18;p.invuln=.24;p.vx=p.fx*12;p.vz=p.fz*12;}
+function cancelSkill(w,p){
+  if(!p.pendingSkill)return;
+  p.pendingSkill=null;p.skillWindup=0;p.skillTime=0;
+  emit(w,'skillCancel',{id:p.id,x:p.x,y:p.y+1,z:p.z});
+}
+function releaseSkill(w,p){
+  const {level,radius,damage,force,kind}=p.pendingSkill,guardian=kind==='shieldQuake';
+  p.pendingSkill=null;p.skillWindup=0;p.skillTime=.4;p.invuln=.18;
+  emit(w,'skill',{id:p.id,x:p.x,y:p.y+.7,z:p.z,level,radius,kind});
+  for(const q of w.fighters)if(q!==p&&distance(p,q)<radius&&Math.abs(p.y-q.y)<(guardian?1.2:2.5))hit(w,p,q,damage,force,{guardBreak:level===3,kind:guardian?'shieldQuake':'whirlwind'});
+  for(const c of w.crates)if(c.hp>0&&distance(p,c)<radius&&Math.abs(p.y-c.y)<2.5)breakCrate(w,c,2);
+}
+export function dodge(p){if(p.dodgeCD>0||p.knocked>0||p.stun>0||p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0||p.poisonTime>0||p.virusTime>0||p.slowTime>0)return;p.dodgeCD=1.2;p.dodgeTime=.18;p.invuln=.24;p.vx=p.fx*12;p.vz=p.fz*12;}
 const LOOT={barrel:['bomb','bomb','poison','virus','slow'],crate:['meat','meat','beer','bomb'],chest:['sword','beer','meat','sword']};
 function dropLoot(w,kind,x,z){const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)];emit(w,'break',{x,y:.7,z,item,kind});w.pickups.push({type:item,x,y:0,z,life:24});return item;}
-function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
+function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
 function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const [x,z]=CRATE_SPAWNS[Math.floor(Math.random()*CRATE_SPAWNS.length)];c.x=x;c.z=z;c.y=9;c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=.48){c.y=.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
 function ai(w,p,q){
   if(w.training)return {x:0,z:0};
   const d=distance(p,q);faceTarget(p,q);
+  const hazards=[...w.clouds.filter(c=>c.life>0&&Math.abs(p.y+1-c.y)<2.8),
+    ...w.bombs.filter(b=>b.kind==='bomb'&&b.life<.65&&Math.abs(p.y+1-b.y)<2.8).map(b=>({...b,radius:3}))];
+  const danger=hazards.some(h=>distance(p,h)<h.radius+.6);
+  if(!danger)p.aiDangerSince=null;
+  else{
+    p.aiDangerSince??=w.tick;
+    if(w.tick-p.aiDangerSince>=22){
+      // Evaluate reachable directions, so an escape near the rail does not push into it.
+      let best=null;
+      for(let i=0;i<8;i++){
+        const angle=i*Math.PI/4,x=Math.cos(angle),z=Math.sin(angle);
+        const target={x:clamp(p.x+x*2,-14.3,14.3),z:clamp(p.z+z*2,-8.3,8.3)};
+        const score=Math.min(...hazards.map(h=>distance(target,h)-h.radius))-.01*distance(target,q);
+        if(!best||score>best.score)best={x,z,score};
+      }
+      return {x:best.x,z:best.z};
+    }
+  }
+  // React to the same visible charge state as a human, after a short reaction delay.
+  if(q.pendingSkill&&q.pendingSkill.windup-q.skillWindup>.18&&d<q.pendingSkill.radius+.5){
+    if(q.pendingSkill.kind==='shieldQuake'&&p.grounded)jump(p);
+    return {x:-p.fx,z:-p.fz};
+  }
+  // Decisions use visible fighters/items only, and share the player's action rules.
+  if(p.grabbedTarget!==null){if(p.grabHoldTime<1.6)attack(w,p);return {x:p.fx*.5,z:p.fz*.5};}
+  if(p.item==='sword'||p.item==='beer'||(p.item==='meat'&&p.hp<80))bomb(w,p);
+  if(d>3||p.hp<45){
+    const loot=w.pickups.filter(h=>h.life>0&&distance(p,h)<7&&
+      (h.type==='meat'?p.hp<80:h.type==='beer'||!p.item))
+      .sort((a,b)=>(distance(p,a)-(a.type==='meat'&&p.hp<45?3:0))-(distance(p,b)-(b.type==='meat'&&p.hp<45?3:0)))[0];
+    if(loot&&p.y<1.2){faceTarget(p,loot);return {x:p.fx,z:p.fz};}
+    const crate=!p.item&&d>4&&w.crates.filter(c=>c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(p.y-c.y)<1.4&&distance(p,c)<5)
+      .sort((a,b)=>distance(p,a)-distance(p,b))[0];
+    if(crate){faceTarget(p,crate);if(distance(p,crate)<2&&w.tick%36===0)attack(w,p);return distance(p,crate)>1.2?{x:p.fx,z:p.fz}:{x:0,z:0};}
+  }
+  if(d<3.5&&p.grounded&&w.tick>300&&w.tick%480===0&&p.energy>=1)skill(w,p,Math.min(3,Math.floor(p.energy)));
   if(q.y>p.y+.6&&p.grounded)jump(p);
-  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&w.tick%110===0)attack(w,p);
+  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&w.tick%110===0){
+    if(q.blocking||Math.floor(w.tick/110)%3===0)heavy(w,p);
+    else if(Math.floor(w.tick/110)%4===0)grab(w,p);
+    else attack(w,p);
+  }
   if(d>4&&d<8&&w.tick%420===0)bomb(w,p);
   const move=d>1.8?1:d<1.3?-.5:0;return {x:p.fx*move,z:p.fz*move};
 }
@@ -79,9 +195,9 @@ export function stepFighter(p,input,dt){
   for(const key of ['attackCD','comboWindow','bombCD','skillCD','skillTime','dodgeCD','dodgeTime','stun','invuln','parryWindow'])p[key]=Math.max(0,p[key]-dt);
   p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);p.coyote=p.grounded?.09:Math.max(0,p.coyote-dt);
   const wantsGuard=Boolean(input.guard);if(wantsGuard&&!p.guardPrev&&p.stun<=0&&p.attackTime<=0)p.parryWindow=.16;p.guardPrev=wantsGuard;
-  p.blocking=wantsGuard&&p.stun<=0&&p.attackTime<=0&&p.dodgeTime<=0;
-  let ix=input.x||0,iz=input.z||0;const len=Math.hypot(ix,iz);if(len>1){ix/=len;iz/=len;}
-  if(p.stun<=0&&p.dodgeTime<=0){
+  p.blocking=wantsGuard&&p.stun<=0&&p.attackTime<=0&&p.dodgeTime<=0&&p.grabbedTarget===null&&!p.carrying&&p.skillTime<=0;
+  let ix=p.skillTime>0?0:input.x||0,iz=p.skillTime>0?0:input.z||0;const len=Math.hypot(ix,iz);if(len>1){ix/=len;iz/=len;}
+  if(p.stun<=0&&p.dodgeTime<=0&&p.knocked<=0){
     const slow=p.slowTime>0?.55:1;const speed=p.blocking?1.2:(p.grabbedTarget!==null?4.8:p.attackTime>0?2:p.carrying?5.4:7.6)*slow,accel=p.blocking?18:14;
     p.vx+=(ix*speed-p.vx)*Math.min(1,accel*dt);p.vz+=(iz*speed-p.vz)*Math.min(1,accel*dt);
     if(len===0){p.vx*=Math.pow(.001,dt);p.vz*=Math.pow(.001,dt);}
@@ -92,11 +208,20 @@ export function stepFighter(p,input,dt){
     }
   }
   const oldY=p.y;
+  // Airborne knockback must survive until landing, rather than becoming walking friction.
+  if(p.knocked>0){const drag=Math.exp(-(p.grounded?5:1.2)*dt);p.vx*=drag;p.vz*=drag;}
+  p.wallImpact=null;
+  if(p.knocked>0&&Math.hypot(p.vx,p.vz)>4){
+    let bounced=false;
+    if(Math.abs(p.x+p.vx*dt)>14.5){p.vx*=-.55;bounced=true;}
+    if(Math.abs(p.z+p.vz*dt)>8.5){p.vz*=-.55;bounced=true;}
+    if(bounced){p.wallImpact={x:p.x,y:p.y+1,z:p.z};p.vy=Math.max(p.vy,3);}
+  }
   p.x=clamp(p.x+p.vx*dt,-14.5,14.5);p.z=clamp(p.z+p.vz*dt,-8.5,8.5);
   p.climbing=false;
   const ladder=LADDERS.find(l=>Math.abs(p.x-l.x)<.72&&Math.abs(p.z-l.z)<1.8);
-  const climbUp=ladder&&p.y<ladder.top-.02&&(iz<-.1);
-  const climbDown=ladder&&p.y>0.02&&iz>.1;
+  const climbUp=ladder&&p.knocked<=0&&p.stun<=0&&p.y<ladder.top-.02&&(iz<-.1);
+  const climbDown=ladder&&p.knocked<=0&&p.stun<=0&&p.y>0.02&&iz>.1;
   if(climbUp||climbDown){p.climbing=true;p.x+=(ladder.x-p.x)*Math.min(1,18*dt);p.z+=(ladder.z-p.z)*Math.min(1,12*dt);p.y=clamp(p.y+(climbUp?3.8:-3.8)*dt,0,ladder.top);p.vx=0;p.vz=0;p.vy=0;p.grounded=p.y<=.001||p.y>=ladder.top-.001;p.support=p.y>=ladder.top-.001?'ladder-top':'ladder';if(p.y>=ladder.top-.001){p.y=ladder.top;p.support='ladder-top';}return;}
   p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.grounded=false;p.support=null;
   if(p.vy<=0){
@@ -111,12 +236,31 @@ export function step(w,input={},dt=STEP){
   w.tick++;if(!w.training)w.time=Math.max(0,w.time-dt);
   updateCrates(w,dt);
   for(const p of w.fighters){
+    p.respawnProtection=Math.max(0,(p.respawnProtection||0)-dt);
+    if(p.respawnTimer>0){
+      p.attackBoost=1;p.attackBoostTime=0;p.poisonTick=0;
+      if(p.respawnTimer<=dt)p.respawnProtection=1.5;
+    }
+    p.throwTime=Math.max(0,(p.throwTime||0)-dt);p.thrownTime=Math.max(0,(p.thrownTime||0)-dt);p.recoveryTime=Math.max(0,(p.recoveryTime||0)-dt);
+    if(p.knocked<=0||p.hp<=0||p.poisonTime>0||p.virusTime>0||p.slowTime>0)p.recoveryBuffer=0;
+    if(p.hp<=0||p.respawnTimer>0||p.knocked>0||p.grabbedBy!==null)cancelSkill(w,p);
+    if(p.hp<=0||p.respawnTimer>0){cancelRecovery(p);dropHeld(w,p);if(p.grabbedBy!==null){const holder=w.fighters.find(q=>q.id===p.grabbedBy);if(holder)releaseGrab(w,holder,p,false,true);}}
     if(p.respawnTimer>0){p.respawnTimer=Math.max(0,p.respawnTimer-dt);if(p.respawnTimer===0){p.hp=100;p.x=p.spawnX;p.y=0;p.z=p.spawnZ;p.vx=0;p.vy=0;p.vz=0;p.grounded=true;p.support='ground';p.invuln=1.5;p.hurtTime=0;p.burnTime=0;p.virusTime=0;p.poisonTime=0;p.slowTime=0;p.knocked=0;p.grabbed=0;p.grabbedBy=null;p.grabbedTarget=null;p.grabHoldTime=0;p.grabEscape=0;p.comboQueued=false;p.comboWindow=0;p.carrying=null;p.weapon=null;p.stun=0;p.attackTime=0;p.skillTime=0;p.jumpBuffer=0;p.blocking=false;p.guardPrev=false;p.parryWindow=0;emit(w,'respawn',{id:p.id,x:p.x,y:1,z:p.z});}else continue;}
     p.attackBoostTime=Math.max(0,p.attackBoostTime-dt);if(p.attackBoostTime===0){p.attackBoost=1;p.weapon=null;}
     p.slowTime=Math.max(0,p.slowTime-dt);p.poisonTime=Math.max(0,p.poisonTime-dt);p.virusTime=Math.max(0,p.virusTime-dt);p.burnTime=Math.max(0,p.burnTime-dt);p.hurtTime=Math.max(0,p.hurtTime-dt);p.poisonTick+=dt;
     if(p.poisonTime>0&&p.poisonTick>=1){p.poisonTick=0;p.hp=Math.max(0,p.hp-4);p.hurtTime=.35;p.hurtKind='poison';emit(w,'dot',{id:p.id,x:p.x,y:p.y+1.2,z:p.z,damage:4});}
-    if(p.grabbed>0){const holder=w.fighters.find(f=>f.id===p.grabbedBy);if(!holder||holder.hp<=0){p.grabbed=0;p.grabbedBy=null;continue;}holder.grabHoldTime=Math.max(0,(holder.grabHoldTime||0)-dt);p.grabbed=holder.grabHoldTime;p.x=holder.x+holder.fx*.72;p.z=holder.z+holder.fz*.72;p.y=holder.y+1.05;p.vx=0;p.vy=0;p.vz=0;p.grounded=false;p.blocking=false;p.attackTime=0;p.skillTime=0;if(holder.grabHoldTime<=0)releaseGrab(w,holder,p,holder.grabThrow==='high');continue;}
-    if(p.knocked>0){const was=p.knocked;p.knocked=Math.max(0,p.knocked-dt);p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt);p.blocking=false;if(p.knocked===0&&!p.grounded)p.knocked=.01;else if(was>0&&p.knocked===0){p.invuln=.35;emit(w,'wakeup',{id:p.id,x:p.x,y:p.y+1,z:p.z});}continue;}
+    if(p.grabbed>0){const holder=w.fighters.find(f=>f.id===p.grabbedBy);if(!holder||holder.hp<=0||holder.grabbedTarget!==p.id){p.grabbed=0;p.grabbedBy=null;continue;}holder.grabHoldTime=Math.max(0,(holder.grabHoldTime||0)-dt);p.grabbed=holder.grabHoldTime;p.vx=0;p.vy=0;p.vz=0;p.grounded=false;p.blocking=false;p.attackTime=0;p.skillTime=0;if(holder.grabHoldTime<=0)releaseGrab(w,holder,p,holder.grabThrow==='high');continue;}
+    if(p.knocked>0){const wasAirborne=!p.grounded;p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt);p.blocking=false;
+      if(wasAirborne&&p.grounded&&p.recoveryBuffer>0&&p.hp>0){
+        const direction=p.recoveryDirection;p.knocked=0;p.stun=0;p.hurtTime=0;p.thrownTime=0;p.recoveryBuffer=0;
+        p.recoveryTime=.22;p.stun=.22;p.dodgeTime=.22;p.dodgeCD=Math.max(p.dodgeCD,.7);p.invuln=Math.max(p.invuln,.25);
+        p.fx=direction.x;p.fz=direction.z;p.vx=direction.x*8;p.vz=direction.z*8;p.jumpBuffer=0;
+        emit(w,'recovery',{id:p.id,x:p.x,y:p.y+.12,z:p.z});continue;
+      }
+      p.recoveryBuffer=Math.max(0,(p.recoveryBuffer||0)-dt);
+      if(p.wallImpact){emit(w,'wallBounce',{...p.wallImpact,id:p.id});w.hitStop=Math.max(w.hitStop,.045);p.wallImpact=null;}
+      if(Math.hypot(p.vx,p.vz)>4)for(const c of w.crates)if(c.hp>0&&!c.falling&&c.heldBy===null&&distance(p,c)<1&&Math.abs(p.y-c.y)<1.2){breakCrate(w,c,1);emit(w,'bodyCrash',{id:p.id,x:c.x,y:c.y+.6,z:c.z});}
+      p.knocked=Math.max(0,p.knocked-dt);if(p.knocked===0&&!p.grounded)p.knocked=.01;else if(p.knocked===0){p.invuln=.35;emit(w,'wakeup',{id:p.id,x:p.x,y:p.y+1,z:p.z});}continue;}
     const controls=p.id===0?input:(w.online?w.remoteInput:ai(w,p,w.fighters[0]));
     stepFighter(p,controls,dt);
     p.landTime=Math.max(0,(p.landTime||0)-dt);
@@ -126,7 +270,7 @@ export function step(w,input={},dt=STEP){
       if(!p.hitDone&&p.attackTime<active){
         p.hitDone=true;
         if(p.attackType==='grab'){
-          for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);if(d<1.85&&(dot>-.25||d<.8)){const before=q.hp;hit(w,p,q,12*p.attackBoost,8,{grab:true});if(q.hp<before||q.blocking){q.blocking=false;q.knocked=Math.max(q.knocked,.92);q.stun=.55;}}
+          for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);if(d<1.85&&(dot>-.25||d<.8))hit(w,p,q,12*p.attackBoost,8,{grab:true});
           }
         }else for(const q of w.fighters){const d=distance(p,q);const vertical=['slam','air','upper'].includes(p.attackType)?2.4:1.5;if(q===p||Math.abs(p.y-q.y)>vertical)continue;
           const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);
@@ -138,6 +282,16 @@ export function step(w,input={},dt=STEP){
     }
     if(p.attackTime<=0&&p.comboQueued){const buffered=p.comboInput||{};p.comboQueued=false;p.attackCD=0;const moving=Math.hypot(buffered.x||0,buffered.z||0)>.5;beginAttack(w,p,p.grounded&&moving?(p.id===0?'dash':'shieldBash'):'light');}
   }
+  // Resolve after both fighters moved, so either player can dodge/jump during the warning.
+  for(const p of w.fighters)if(p.pendingSkill){
+    if(p.hp<=0||p.stun>0||p.grabbedBy!==null)cancelSkill(w,p);
+    else{p.skillWindup=Math.max(0,p.skillWindup-dt);if(p.skillWindup<=1e-8)releaseSkill(w,p);}
+  }
+  // Attach after both players moved: red and blue holders get identical positioning.
+  for(const p of w.fighters)if(p.grabbedBy!==null){const holder=w.fighters.find(q=>q.id===p.grabbedBy);if(holder&&holder.grabbedTarget===p.id){
+    const lift=clamp((2.2-holder.grabHoldTime)/.25,0,1),smooth=lift*lift*(3-2*lift);
+    p.x=holder.x+holder.fx*.72;p.z=holder.z+holder.fz*.72;p.y=holder.y+.15+1.05*smooth;p.fx=holder.fx;p.fz=holder.fz;
+  }}
   const [a,b]=w.fighters,d=distance(a,b),inGrab=a.grabbedTarget===b.id||b.grabbedTarget===a.id;
   if(!inGrab&&d<.85&&Math.abs(a.y-b.y)<1.6){const nx=d>.001?(b.x-a.x)/d:1,nz=d>.001?(b.z-a.z)/d:0,push=(.85-d)/2;a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;}
   for(let i=w.bombs.length-1;i>=0;i--){
@@ -159,8 +313,35 @@ export function step(w,input={},dt=STEP){
   if(!w.training&&w.tick>=w.nextCannonTick){const target=w.fighters[Math.floor(Math.random()*w.fighters.length)],side=Math.random()<.5?-1:1;w.cannonballs.push({id:w.nextCannon++,owner:-1,x:side*15,y:1.2,z:target.z,vx:-side*11,vy:1.8,vz:(target.z-target.z)*0,life:3});w.nextCannonTick=w.tick+840;emit(w,'cannon',{x:side*14,y:1.2,z:target.z,side});}
   for(let i=w.cannonballs.length-1;i>=0;i--){const c=w.cannonballs[i];c.life-=dt;c.vy-=5*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;const target=w.fighters.find(p=>distance(p,c)<.75&&Math.abs(p.y+1-c.y)<1.2);if(target){hit(w,c,target,14,9,{kind:'cannon'});emit(w,'explosion',{x:c.x,y:c.y,z:c.z,kind:'cannon'});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17||c.y<0){w.cannonballs.splice(i,1);}}
   if(!w.training&&w.tick>=w.nextWaveTick&&!w.wavePending&&w.waveTime<=0){w.waveWarning=2;w.wavePending=true;w.waveDir=Math.random()<.5?-1:1;w.nextWaveTick=w.tick+3600;emit(w,'waveWarning',{dir:w.waveDir});}if(w.waveWarning>0){w.waveWarning=Math.max(0,w.waveWarning-dt);if(w.waveWarning===0&&w.wavePending){w.wavePending=false;w.waveTime=2.2;emit(w,'waveStart',{dir:w.waveDir});for(const p of w.fighters)if(p.y<.5)hit(w,{owner:-1,x:p.x-w.waveDir,z:p.z,fx:w.waveDir,fz:0},p,7,6,{kind:'wave'});}}if(w.waveTime>0){w.waveTime=Math.max(0,w.waveTime-dt);for(const p of w.fighters)if(p.y<.7){p.vx+=w.waveDir*11*dt;p.x=clamp(p.x,-14.5,14.5);}}
-  for(let i=w.clouds.length-1;i>=0;i--){const c=w.clouds[i];c.life-=dt;c.tick-=dt;if(c.tick<=0){c.tick=.7;for(const p of w.fighters)if(distance(p,c)<c.radius&&Math.abs(p.y+1-c.y)<2.8){if(p.blocking){emit(w,'guard',{x:p.x,y:p.y+1.3,z:p.z,id:p.id});continue;}if(c.kind==='slow'){p.slowTime=4;emit(w,'slow',{id:p.id,x:p.x,y:p.y+1,z:p.z});continue;}const damage=c.kind==='virus'?4:2;p.hp=Math.max(0,p.hp-damage);p.hurtTime=.35;p.hurtKind=c.kind;p.invuln=.18;emit(w,'dot',{id:p.id,x:p.x,y:p.y+1.2,z:p.z,damage});if(c.kind==='virus'){p.virusTime=2.6;p.slowTime=2;emit(w,'slow',{id:p.id,x:p.x,y:p.y+1,z:p.z});}else{p.poisonTime=3;p.poisonTick=0;emit(w,'poison',{id:p.id,x:p.x,y:p.y+1,z:p.z});}}}if(c.life<=0)w.clouds.splice(i,1);}
-  for(let i=w.pickups.length-1;i>=0;i--){const h=w.pickups[i];h.life-=dt;const p=w.fighters.find(p=>p.y<1.2&&distance(p,h)<1.8&&(!p.item||h.type==='meat'||h.type==='beer'));if(p){if(h.type==='meat'){p.hp=Math.min(100,p.hp+20);emit(w,'heal',{id:p.id,x:p.x,y:1,z:p.z});}else if(h.type==='beer'){p.attackBoost=1.55;p.attackBoostTime=8;emit(w,'power',{id:p.id,item:h.type,x:p.x,y:p.y+1,z:p.z});}else{p.item=h.type;emit(w,'pickup',{id:p.id,item:h.type,x:p.x,y:p.y+1,z:p.z});}}if(p||h.life<=0)w.pickups.splice(i,1);}
+  for(let i=w.clouds.length-1;i>=0;i--){
+    const c=w.clouds[i];c.life-=dt;c.tick-=dt;
+    if(c.life<=0){w.clouds.splice(i,1);continue;}
+    if(c.tick>0)continue;c.tick=.7;
+    for(const p of w.fighters){
+      if(p.hp<=0||p.respawnTimer>0||p.respawnProtection>0||distance(p,c)>=c.radius||Math.abs(p.y+1-c.y)>=2.8)continue;
+      if(p.blocking){emit(w,'guard',{x:p.x,y:p.y+1.3,z:p.z,id:p.id});continue;}
+      if(c.kind==='slow'){p.slowTime=4;emit(w,'slow',{id:p.id,x:p.x,y:p.y+1,z:p.z});continue;}
+      const damage=c.kind==='virus'?4:2;p.hp=Math.max(0,p.hp-damage);p.hurtTime=.35;p.hurtKind=c.kind;p.invuln=.18;
+      emit(w,'dot',{id:p.id,x:p.x,y:p.y+1.2,z:p.z,damage});
+      if(c.kind==='virus'){p.virusTime=2.6;p.slowTime=2;emit(w,'slow',{id:p.id,x:p.x,y:p.y+1,z:p.z});}
+      else{p.poisonTime=3;p.poisonTick=0;emit(w,'poison',{id:p.id,x:p.x,y:p.y+1,z:p.z});}
+    }
+  }
+  for(let i=w.pickups.length-1;i>=0;i--){
+    const h=w.pickups[i];h.life-=dt;
+    if(h.life<=0){w.pickups.splice(i,1);continue;}
+    // Resolve after damage: food must not resurrect a defeated fighter or steal a stock.
+    // Nearest eligible player wins; exact distance ties use stable player ID.
+    const p=w.fighters.filter(p=>p.hp>0&&p.respawnTimer<=0&&p.y<1.2&&distance(p,h)<1.8&&
+      (h.type==='meat'?p.hp<100:h.type==='beer'||!p.item))
+      .sort((a,b)=>distance(a,h)-distance(b,h)||a.id-b.id)[0];
+    if(!p)continue;
+    if(h.type==='meat'){p.hp=Math.min(100,p.hp+20);emit(w,'heal',{id:p.id,x:p.x,y:p.y+1,z:p.z});}
+    else if(h.type==='beer'){p.attackBoost=1.55;p.attackBoostTime=8;emit(w,'power',{id:p.id,item:h.type,x:p.x,y:p.y+1,z:p.z});}
+    else{p.item=h.type;emit(w,'pickup',{id:p.id,item:h.type,x:p.x,y:p.y+1,z:p.z});}
+    w.pickups.splice(i,1);
+  }
+  for(const p of w.fighters)if(p.hp<=0)cancelRecovery(p);
   if(w.stock)for(const p of w.fighters)if(p.hp<=0&&p.respawnTimer<=0&&p.lives>1){p.lives--;p.respawnTimer=.9;p.item=null;p.weapon=null;p.blocking=false;p.knocked=0;p.attackTime=0;p.skillTime=0;emit(w,'lifeLost',{id:p.id,lives:p.lives,x:p.x,y:p.y+1,z:p.z});}
   const defeated=w.fighters.some(p=>p.hp<=0&&p.respawnTimer<=0&&(!w.stock||p.lives<=1));
   if(defeated||w.time<=0){w.ended=true;w.winner=a.lives===b.lives?(a.hp===b.hp?null:a.hp>b.hp?0:1):a.lives>b.lives?0:1;emit(w,'end',{winner:w.winner});}

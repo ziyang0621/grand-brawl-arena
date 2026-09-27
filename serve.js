@@ -3,6 +3,8 @@ import {readFile} from 'node:fs/promises';
 const files=new Map([
   ['/','index.html'],['/index.html','index.html'],['/three-preview.html','three-preview.html'],
   ['/arena.js','arena.js'],['/arena-core.js','arena-core.js'],['/arena.css','arena.css'],
+  ['/arena-session.js','arena-session.js'],
+  ['/arena-clouds.js','arena-clouds.js'],
   ['/vendor/three.module.js','vendor/three.module.js'],['/vendor/three.core.js','vendor/three.core.js'],
   ['/vendor/THREE-LICENSE.txt','vendor/THREE-LICENSE.txt'],
 ]);
