@@ -283,7 +283,7 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 
 ## 最近一次提交和 GitHub 状态
 
-推送后请在此记录本次提交哈希和 GitHub 分支状态。接手时仍以 `git status`、`git log` 和远程分支实际状态为准，不要单独依赖本文件推断。
+最新已推送：`4dd6c2d feat: improve 3d brawler combat and presentation`，已更新 `origin/main`。接手时仍以 `git status`、`git log` 和远程分支实际状态为准，不要单独依赖本文件推断。
 
 不要执行 `git reset --hard` 或覆盖用户现有修改。先查看：
 
