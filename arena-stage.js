@@ -17,6 +17,44 @@ function skyDome(t){
     fragmentShader:'uniform vec3 top;uniform vec3 bottom;varying float h;void main(){float k=smoothstep(-.05,.55,h);gl_FragColor=vec4(mix(bottom,top,k),1.);}'});
   const s=new THREE.Mesh(g,m);s.renderOrder=-10;return s;
 }
+// Stylised sea: stepped colour bands with white contour lines that drift, and foam pulses lapping at the arena edge.
+function toonWater(g,anim,{deep,shallow,foam,fog,speed=1,lines=.85,edge=true,ripple=false}){
+  const uniforms={time:{value:0},deep:{value:new THREE.Color(deep)},shallow:{value:new THREE.Color(shallow)},foam:{value:new THREE.Color(foam)},fogColor:{value:new THREE.Color(fog)},lines:{value:lines},edge:{value:edge?1:0},ripple:{value:ripple?1:0},speed:{value:speed}};
+  const m=new THREE.ShaderMaterial({uniforms,fog:false,
+    vertexShader:'varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}',
+    fragmentShader:`uniform float time;uniform vec3 deep;uniform vec3 shallow;uniform vec3 foam;uniform vec3 fogColor;uniform float lines;uniform float edge;uniform float ripple;uniform float speed;varying vec3 vW;
+      float wave(vec2 p){return sin(p.x)+sin(p.y*1.3+p.x*.5)+sin((p.x+p.y)*.7);}
+      void main(){
+        float t=time*speed;vec2 p=vW.xz*(ripple>.5?vec2(.09,.32):vec2(.15));
+        float a=wave(p+vec2(t*.35,t*.2))*.5+wave(p*1.7-vec2(t*.25,-t*.3))*.35;
+        float v=a*1.4+2.0;float band=floor(v)/3.0;
+        vec3 col=mix(deep,shallow,clamp(band*.8+.2,0.,1.));
+        float fr=fract(v);float line=smoothstep(.0,.035,fr)*(1.-smoothstep(.035,.075,fr));
+        col=mix(col,foam,line*lines*.55);
+        if(edge>.5){vec2 q=abs(vW.xz)-vec2(15.2,9.2);float d=length(max(q,0.))+min(max(q.x,q.y),0.);
+          float ring=smoothstep(.0,.25,d)*(1.-smoothstep(.7,1.5,d));float pulse=.5+.5*sin(d*4.-time*2.2);
+          col=mix(col,foam,ring*(.45+.4*pulse));float band2=smoothstep(2.4,2.6,d)*(1.-smoothstep(2.6,2.9,d))*(.5+.5*sin(time*1.4-d));col=mix(col,foam,band2*.6);}
+        float dist=length(vW.xz-cameraPosition.xz);col=mix(col,fogColor,smoothstep(60.,170.,dist));
+        gl_FragColor=vec4(col,1.);}`});
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(240,240),m);sea.rotation.x=-Math.PI/2;sea.position.y=-1.45;sea.receiveShadow=false;sea.userData.noInk=true;g.add(sea);
+  anim.push(time=>{uniforms.time.value=time;});
+  return sea;
+}
+// Soft sun glow in the sky plus a few slow-breathing light shafts angled across the arena.
+function sunGlow(g,anim,{color='#fff2c0',pos=[-46,44,-90],shafts=.10}={}){
+  const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');
+  const grad=x.createRadialGradient(128,128,4,128,128,128);grad.addColorStop(0,'#ffffff');grad.addColorStop(.18,color);grad.addColorStop(.5,color+'55');grad.addColorStop(1,color+'00');x.fillStyle=grad;x.fillRect(0,0,256,256);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  const sun=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,fog:false,blending:THREE.AdditiveBlending}));sun.position.set(...pos);sun.scale.set(70,70,1);sun.renderOrder=-9;g.add(sun);
+  const shaftMats=[];
+  for(let i=0;i<4;i++){
+    const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,fog:false,uniforms:{op:{value:shafts},col:{value:new THREE.Color(color)}},
+      vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+      fragmentShader:'uniform float op;uniform vec3 col;varying vec2 vUv;void main(){float across=1.-abs(vUv.x-.5)*2.;float along=smoothstep(0.,.25,vUv.y)*(1.-smoothstep(.55,1.,vUv.y));gl_FragColor=vec4(col,pow(across,1.6)*along*op);}'});
+    const shaft=new THREE.Mesh(new THREE.PlaneGeometry(3.4+i*.9,46),mat);shaft.position.set(-16+i*9,14,-9-i*2);shaft.rotation.set(0,0,.5+i*.05);shaft.renderOrder=-5;g.add(shaft);shaftMats.push(mat);
+  }
+  anim.push(time=>shaftMats.forEach((m,i)=>{m.uniforms.op.value=shafts*(.65+.35*Math.sin(time*.5+i*1.7));}));
+}
 function puffCloud(parent,x,y,z,scale){const g=new THREE.Group();g.position.set(x,y,z);g.scale.setScalar(scale);parent.add(g);for(const [px,py,r] of [[0,0,1.6],[1.5,-.2,1.2],[-1.5,-.3,1.1],[.6,.8,1.1],[-.7,.6,1]])sphere(r,'#ffffff',g,px,py,0,12).castShadow=false;return g;}
 function palm(parent,x,z,h=5){const trunk=cylinder(.19,.33,h,'#8c6a48',parent,x,h/2-.4,z,8);trunk.rotation.z=-.1;for(let i=0;i<7;i++){const leaf=sphere(1,'#3f9a55',parent,x-.25,h-.5,z,10);leaf.scale.set(.42,.12,2.4);leaf.rotation.y=i*Math.PI*2/7;leaf.rotation.z=.2;}}
 function pine(parent,x,z,s=1){cylinder(.16*s,.22*s,1.2*s,'#5a3a26',parent,x,.5*s,z,8);for(let i=0;i<3;i++){cone((1.3-i*.32)*s,1.5*s,'#2f6b4f',parent,x,(1.4+i*.85)*s,z,8);cone((1.3-i*.32)*s*.92,.5*s,'#f6fbff',parent,x,(1.95+i*.85)*s,z,8);}}
@@ -211,9 +249,7 @@ function terrain(g,layout,anim){
 
 const DRESSING={
   port(g,t,anim){
-    const sea=box(220,.3,220,t.water,g,0,-1.5,0);sea.receiveShadow=false;sea.userData.noInk=true;
-    const foam=[];for(let i=0;i<70;i++){const x=Math.sin(i*7.1)*40,z=Math.cos(i*2.3)*34;if(Math.abs(x)<16&&Math.abs(z)<10)continue;const f=box(1+(i%4),.02,.08,t.foam,g,x,-1.3,z);f.castShadow=false;f.userData.noInk=true;foam.push(f);}
-    anim.push(time=>foam.forEach((f,i)=>{f.position.x+=Math.sin(time*.6+i)*.004;f.scale.x=1+Math.sin(time*1.3+i)*.25;}));
+    toonWater(g,anim,{deep:'#2596cc',shallow:'#48c0e8',foam:'#f4fdff',fog:t.fog,speed:.8,lines:.6});sunGlow(g,anim,{color:'#fff0b8',shafts:.11});
     for(const [x,w,h,c] of [[-9,4.8,3.9,'#f4e3b0'],[-3.2,4.4,5.2,'#e8866a'],[3.2,5,3.5,'#f6d08a'],[9,3.6,4.6,'#9fd0b8']]){
       box(w,h,2.6,c,g,x,h/2,-11);const roof=cone(w*.78,1.8,'#d24c3c',g,x,h+.7,-11,4);roof.rotation.y=Math.PI/4;roof.scale.z=.8;
       for(const off of [-.9,.9]){box(.7,1,.08,'#2f5a7a',g,x+off,h*.58,-9.66);box(.9,.1,.12,'#fff3d0',g,x+off,h*.58-.55,-9.62);}
@@ -229,7 +265,7 @@ const DRESSING={
     const sign=label('WINDMILL PORT','#fff2b8',46);sign.position.set(0,4.2,-9.4);sign.scale.set(5.2,1.3,1);sign.material.depthTest=true;sign.renderOrder=0;g.add(sign);
   },
   desert(g,t,anim){
-    const sand=box(220,.3,220,t.water,g,0,-1.5,0);sand.receiveShadow=false;sand.userData.noInk=true;
+    toonWater(g,anim,{deep:'#e6bb76',shallow:'#f0cc8c',foam:'#f8e6bc',fog:t.fog,speed:.25,lines:.3,edge:false,ripple:true});sunGlow(g,anim,{color:'#ffe6a0',shafts:.13});
     for(let i=0;i<14;i++){const a=i/14*Math.PI*2,r=34+(i%3)*8,dune=sphere(6+(i%4)*2,i%2?'#e9c07c':'#dcae68',g,Math.cos(a)*r,-2.5,Math.sin(a)*r-6,12);dune.scale.y=.35;dune.userData.noInk=true;}
     const palace=new THREE.Group();palace.position.set(0,0,-13);g.add(palace);
     box(16,5,3,'#f1d49a',palace,0,2.5,0);for(const x of [-6,-2,2,6])box(1.2,1.6,.1,'#7a4a2c',palace,x,1.6,1.55);
@@ -242,7 +278,7 @@ const DRESSING={
     const sign=label('SAND KINGDOM','#fff2b8',46);sign.position.set(0,6.4,-11.3);sign.scale.set(5.2,1.3,1);sign.material.depthTest=true;sign.renderOrder=0;g.add(sign);
   },
   snow(g,t,anim){
-    const sea=box(220,.3,220,t.water,g,0,-1.5,0);sea.receiveShadow=false;sea.userData.noInk=true;
+    toonWater(g,anim,{deep:'#3a72b4',shallow:'#5f9bd8',foam:'#eaf5ff',fog:t.fog,speed:.5,lines:.55});sunGlow(g,anim,{color:'#e8f2ff',shafts:.07});
     for(let i=0;i<10;i++){const a=i/10*Math.PI*2,berg=cone(3+(i%3),5+(i%4)*2,'#eef6ff',g,Math.cos(a)*40,-1,Math.sin(a)*34-4,6);berg.rotation.y=i;}
     for(let i=0;i<3;i++){const R=10+i*3,H=18+i*4,h=6+i,x=-24+i*24,z=-38-i*3;cone(R,H,'#9fb3cf',g,x,-1,z,8).userData.noInk=true;cone(R*h/H*1.06,h,'#ffffff',g,x,-1+H/2-h/2+.05,z,8).userData.noInk=true;}
     for(const [x,w,h,c] of [[-8,4.4,3.4,'#b85c4c'],[-2.5,4.6,4.2,'#5c7fb0'],[4,4.8,3.2,'#c99a5a'],[9.5,3.6,3.8,'#7aa07a']]){
