@@ -2,42 +2,79 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Grand Brawl · 港湾乱斗</title><link rel="icon" href="data:,"><link rel="stylesheet" href="arena.css?v=6">
+<title>Grand Brawl · 海贼大乱斗</title><link rel="icon" href="data:,"><link rel="stylesheet" href="arena.css?v=9">
 </head>
 <body>
-<main id="arena" aria-label="港湾乱斗 3D 竞技场"></main>
+<main id="arena" aria-label="海贼大乱斗 3D 竞技场"></main>
+<div id="flash" aria-hidden="true"></div>
 <header>
-<a class="brand" href="index.html">GRAND BRAWL <small>港湾乱斗 / 3D 联机测试 · v17</small></a>
-<div class="actions"><button id="training">对手：战斗 AI</button><button id="livesMode">三命模式：关</button><button id="platformPractice">跳台练习</button><button id="restart">重新开局</button><a href="index.html">联机大厅 ↗</a></div>
+<a class="brand" href="index.html">GRAND BRAWL <small>海贼大乱斗 · v20</small></a>
+<div class="actions"><button id="menuButton">角色选择</button><button id="restart">重新开局</button></div>
 </header>
-<section class="network" aria-label="3D 联机房间">
-<strong id="netStatus">单人练习</strong><button id="host3d">创建 3D 房间</button><input id="room3d" maxlength="4" placeholder="房间码" aria-label="四位 3D 房间码"><button id="join3d">加入 3D 房间</button><button id="leave3d" class="hide">退出房间</button><span id="room3dLabel"></span>
+<section class="hud" aria-label="对战状态">
+<div class="side p1">
+  <div class="portrait-frame"><img id="p1Portrait" alt=""></div>
+  <div class="bar-block">
+    <div class="plate"><b id="p1Name">红帆</b><span id="p1Tag">1P</span></div>
+    <div class="hp" role="meter" aria-label="1P 体力" id="playerHP"><i class="lag" id="p1Lag"></i><i class="fill" id="p1Fill"></i></div>
+    <div class="under"><span class="wins" id="p1Wins"></span><p id="playerInfo">100</p></div>
+    <small class="status-badge" id="playerStatus" hidden></small>
+  </div>
+</div>
+<div class="clock"><strong id="time">99</strong><span id="roundLabel">ROUND 1</span></div>
+<div class="side p2">
+  <div class="portrait-frame"><img id="p2Portrait" alt=""></div>
+  <div class="bar-block">
+    <div class="plate"><b id="p2Name">蓝潮</b><span id="p2Tag">CPU</span></div>
+    <div class="hp" role="meter" aria-label="2P 体力" id="rivalHP"><i class="lag" id="p2Lag"></i><i class="fill" id="p2Fill"></i></div>
+    <div class="under"><span class="wins" id="p2Wins"></span><p id="rivalInfo">100</p></div>
+    <small class="status-badge" id="rivalStatus" hidden></small>
+  </div>
+</div>
 </section>
-<section class="scoreboard" aria-label="对战状态">
-<div class="fighter-card red"><div><b>红帆 · 海盗剑士</b><span>YOU</span></div><meter id="playerHP" min="0" max="100" value="100">100</meter><p id="playerInfo">100 / 100</p><small class="status-badge" id="playerStatus" hidden></small></div>
-<div class="versus"><strong id="time">120</strong><span>港口争夺战</span><meter id="energy" min="0" max="3" value="1" step="0.1"></meter><small id="energyLabel">能量 1.0 / 3</small></div>
-<div class="fighter-card blue"><div><b>蓝潮 · 港口守卫</b><span>CPU</span></div><meter id="rivalHP" min="0" max="100" value="100">100</meter><p id="rivalInfo">100 / 100</p><small class="status-badge" id="rivalStatus" hidden></small></div>
+<section class="gauges" aria-label="必杀槽">
+<div class="gauge p1"><b id="p1Lv">1</b><div class="cells" id="p1Gauge"><i></i><i></i><i></i></div><span>SPECIAL</span></div>
+<div class="gauge p2"><span>SPECIAL</span><div class="cells" id="p2Gauge"><i></i><i></i><i></i></div><b id="p2Lv">1</b></div>
 </section>
-<div id="callout" role="status">准备开打！</div><div id="loading" role="status">正在装载港湾…</div>
+<div id="callout" role="status"></div><div id="banner" aria-live="polite"></div>
+<div class="combo p1" id="combo0" aria-hidden="true"><b>0</b><span>HITS!</span></div><div class="combo p2" id="combo1" aria-hidden="true"><b>0</b><span>HITS!</span></div>
+<section id="vs" aria-hidden="true"><div class="vs-side p1"><img id="vsP1" alt=""><b id="vsName1"></b><small id="vsTitle1"></small></div><strong>VS</strong><div class="vs-side p2"><img id="vsP2" alt=""><b id="vsName2"></b><small id="vsTitle2"></small></div><p id="vsStage"></p></section>
+<div id="cutin" aria-hidden="true"><div class="band"><img id="cutinPortrait" alt=""><div><small id="cutinLevel">LV 1</small><b id="cutinName"></b></div></div></div>
+<div id="loading" role="status">正在装载港湾…</div>
+<section id="select" aria-label="角色与场地选择">
+  <div class="select-inner">
+    <h1 class="logo">GRAND BRAWL<small>海贼大乱斗 · GRAND BATTLE</small></h1>
+    <div class="pick-row"><h2><span class="chip p1">1P</span>选择角色</h2><div class="roster" id="p1Roster"></div></div>
+    <div class="pick-row"><h2><span class="chip p2">2P</span>对手角色 <button id="randomRival" class="link">随机</button></h2><div class="roster" id="p2Roster"></div></div>
+    <div class="pick-row"><h2>选择场地</h2><div class="stages" id="stageList"></div></div>
+    <div class="modes"><button id="training">对手：战斗 AI</button><button id="livesMode">三命模式：关</button><button id="platformPractice">跳台练习</button><span class="rule" id="ruleLabel">三局两胜 · 每局 99 秒</span></div>
+    <section class="network" aria-label="3D 联机房间">
+      <strong id="netStatus">单人练习</strong><button id="host3d">创建房间</button><input id="room3d" maxlength="4" placeholder="房间码" aria-label="四位房间码"><button id="join3d">加入房间</button><button id="leave3d" class="hide">退出房间</button><span id="room3dLabel"></span>
+    </section>
+    <button id="startMatch" class="start">开始对战 ▶</button>
+    <p class="select-hint">← → 切换 1P 角色 · ↑ ↓ 切换场地 · Enter 开始</p>
+  </div>
+</section>
 <footer>
-<div class="skills"><button id="jumpButton"><b>SPACE</b><span>二段跳</span></button><button id="attackButton"><b>J</b><span>三段连斩 / 角色冲招</span></button><button id="heavyButton"><b>U</b><span>重击 / W+U 上挑</span></button><button id="grabButton"><b>I</b><span>抓人 / 举箱</span></button><button id="bombButton"><b>K</b><span id="bombLabel">先打碎箱子</span></button><button id="skillButton"><b>L</b><span id="skillLabel">一级必杀</span></button></div>
-<p class="quick-controls">WASD 移动 · R 防御 · Shift 闪避</p>
-<output id="movement">地面</output>
+<div class="skills"><button id="jumpButton"><b>SPACE</b><span>二段跳</span></button><button id="attackButton"><b>J</b><span id="attackLabel">三段连击 / 移动技</span></button><button id="heavyButton"><b>U</b><span>重击 / W+U 上挑</span></button><button id="grabButton"><b>I</b><span>抓人 / 举箱</span></button><button id="bombButton"><b>K</b><span id="bombLabel">先打碎箱子</span></button><button id="skillButton"><b>L</b><span id="skillLabel">一级必杀</span></button></div>
+<p class="quick-controls">WASD 移动 · 双击方向奔跑 · R 防御 · Shift 闪避 · <output id="movement">地面</output></p>
 <div class="utility-controls"><button id="aimButton">Q · 朝向辅助：开</button><details id="controlHelp"><summary>操作与道具说明</summary><div class="help-content">
 <h2>战斗手册</h2><p>查看说明不会暂停联机对战。</p>
+<h3>角色</h3>
+<p><b>红帆</b>：移动＋J 冲刺斩，旋风斩可打空中。<b>蓝潮</b>：移动＋J/U 盾冲破防，震盾范围大但可跳过。<b>铁拳</b>：移动＋J 突进拳，近身连打与抓投伤害更高。<b>火哨</b>：移动＋J 远程射击，必杀弹幕锁定对手位置。</p>
 <h3>连招与抓投</h3>
-<p>连按 <b>J</b> 接三段连击；移动＋J：红方冲刺斩／蓝方盾冲。<b>U</b> 重击，<b>W＋U</b> 上挑。<b>I</b> 抓人或举箱；抓住后 <b>J</b> 前投、<b>U</b> 高投；被抓后连按 <b>J/U/I</b> 挣脱。</p>
+<p>连按 <b>J</b> 接三段连击。<b>U</b> 重击，<b>W＋U</b> 上挑把对手打上天：立刻跳起连按 <b>J</b> 空中追击，第三下空中攻击把对手砸地反弹。双击方向键奔跑，奔跑中的移动技突进更远。空中 U 下砸。<b>I</b> 抓人或举箱；抓住后 <b>J</b> 前投、<b>U</b> 高投；被抓后连按 <b>J/U/I</b> 挣脱。</p>
 <h3>场地与道具</h3>
-<p class="hint" id="hint">木桶掉攻击道具，木箱掉食物和啤酒，金色宝箱掉稀有强化；港口会定时炮击，巨浪来临前请跳上绿色甲板。</p>
+<p class="hint" id="hint">木桶掉攻击道具，木箱掉食物和啤酒，金色宝箱掉稀有强化；风车港有弹跳网、炮击和巨浪；沙之王都的流沙会减速、把人往中心拉、跳不高，还有标红圈的落石和连空中都吹得动的沙暴；冬樱雪岛的冰面更快但会打滑，还有滚地雪球（冻伤减速）和雪崩。</p>
 <h3>防御与受身</h3>
 <p class="hint">R 防正面近战；侧后方会正常受伤。松开 R 转身再挡，U 重击可正面破防。</p>
 <p class="hint">落地受身：被击飞下降时，落地前按方向＋空格，翻滚脱身。中毒、感染、冻伤时不可用。</p>
 <h3>必杀与朝向</h3>
-<p><b>L</b> 一级必杀 · <b>Shift＋L</b> 二级 · <b>R＋L</b> 三级奥义。</p>
-<p class="hint">Q 切换朝向辅助。必杀先蓄力，地面圈标示范围：离开范围、闪避或攻击打断；蓝潮震盾还可跳跃避开。三级必杀破防，蓄力被打断仍消耗能量。</p>
+<p>必杀槽满一格可用：<b>L</b> 一级 · <b>Shift＋L</b> 二级 · <b>R＋L</b> 三级奥义。</p>
+<p class="hint">Q 切换朝向辅助。必杀先蓄力，地面圈标示范围：离开范围、闪避或攻击打断。三级必杀破防，蓄力被打断仍消耗能量。</p>
 </div></details></div>
 </footer>
-<dialog id="result"><small>港湾争夺战</small><h1 id="resultTitle"></h1><p>挥刀、炸弹和旋风斩都能造成伤害。</p><button id="playAgain">再战一回合</button><a href="index.html">返回联机大厅</a></dialog>
-<script type="module" src="arena.js?v=35"></script>
+<dialog id="result"><small id="resultSub">港湾争夺战</small><img id="resultPortrait" alt=""><h1 id="resultTitle"></h1><blockquote id="resultQuote"></blockquote><p id="resultScore"></p><button id="playAgain">再战一回合</button><button id="resultMenu" class="ghost">角色选择</button></dialog>
+<script type="module" src="arena.js?v=38"></script>
 </body>
 </html>

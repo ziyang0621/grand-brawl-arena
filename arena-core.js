@@ -1,19 +1,16 @@
 // Deterministic gameplay shared by the browser and headless regression tests.
+import {CHARACTERS,DEFAULT_CHARS,characterOf,STAGES,stageOf,laddersOf,zoneAt} from './arena-roster.js';
 export const STEP = 1 / 120;
 export const GRAVITY = 22;
 export const JUMP_SPEED = 12.5;
-export const PLATFORMS = [
-  {id:'deck-left',x:-6,z:0,w:4,d:3,top:1.6},
-  {id:'deck-center',x:0,z:-2.2,w:4,d:3,top:2.2},
-  {id:'deck-right',x:6,z:0,w:4,d:3,top:1.6},
-];
+// Port decks stay the default layout; other stages bring their own (see arena-roster.js).
+export const PLATFORMS=STAGES.port.platforms;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const CRATE_SPAWNS=[[-11,-6],[-7,-4],[-2,3],[4,-4],[8,4],[11,-6],[0,5],[-4,-6]];
-const LADDERS=[{x:-6,z:1.62,top:1.6},{x:0,z:-.58,top:2.2},{x:6,z:1.62,top:1.6}];
 export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z-p.z)<=p.d/2+r;}
-export function createFighter(id,x,z){return {id,x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:id===0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
-export function createWorld(){return {time:120,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,remoteInput:{x:0,z:0,guard:false},fighters:[createFighter(0,-3.4,2),createFighter(1,3.4,2)],bombs:[],clouds:[],props:[],cannonballs:[],events:[],pickups:[],crates:[{id:0,kind:'barrel',x:-6,z:3,y:0,hp:1,falling:false,heldBy:null,respawnTick:0},{id:1,kind:'crate',x:6,z:3,y:0,hp:1,falling:false,heldBy:null,respawnTick:0},{id:2,kind:'chest',x:0,z:-5,y:0,hp:1,falling:false,heldBy:null,respawnTick:0}],nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:id===0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'port',bestOf,roundNo:1,wins:[0,0],intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:[createFighter(0,-3.4,2,chars[0]),createFighter(1,3.4,2,chars[1])],bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],crates:stageOf(options.stage).crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 export function jump(p,input={}){
   if(p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0)return;
@@ -40,11 +37,11 @@ function gainEnergy(w,p,amount){if(!p||!Number.isFinite(p.energy)||!Number.isFin
 function cancelRecovery(p){p.recoveryBuffer=0;p.recoveryDirection=null;p.recoveryTime=0;p.dodgeTime=0;}
 function hit(w,p,q,damage,force,options={}){
   if(q.hp<=0||q.invuln>0||q.respawnProtection>0)return false;
-  const melee=['light','dash','air','heavy','upper','slam','shieldBash'].includes(options.kind);
+  const melee=['light','dash','air','heavy','upper','slam','shieldBash','rush'].includes(options.kind);
   const separation=distance(p,q),front=separation<.3||((p.x-q.x)*q.fx+(p.z-q.z)*q.fz)/separation>=.25;
   const guarded=q.blocking&&(!melee||front);
   if(guarded&&q.parryWindow>0&&!options.grab&&!options.guardBreak){w.hitStop=Math.max(w.hitStop,.035);p.stun=.48;p.vx*=-.35;p.vz*=-.35;q.invuln=.18;emit(w,'parry',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});return true;}
-  if(guarded&&!options.guardBreak&&!options.grab){const reducedDamage=Math.max(1,Math.round(damage*.25));q.hp=Math.max(0,q.hp-reducedDamage);q.hurtTime=.16;q.hurtKind='guard';w.hitStop=Math.max(w.hitStop,.025);q.vx*=.2;q.vz*=.2;q.stun=.04;q.invuln=.08;emit(w,'guard',{x:q.x,y:q.y+1.4,z:q.z,id:q.id,damage:reducedDamage});emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force:1,kind:'guard'});emit(w,'hit',{x:q.x,y:q.y+1.2,z:q.z,damage:reducedDamage,id:q.id});return true;}
+  if(guarded&&!options.guardBreak&&!options.grab){const reducedDamage=Math.max(1,Math.round(damage*.25));q.hp=Math.max(0,q.hp-reducedDamage);q.hurtTime=.16;q.hurtKind='guard';w.hitStop=Math.max(w.hitStop,.025);q.vx*=.2;q.vz*=.2;q.stun=.04;q.invuln=.08;emit(w,'guard',{x:q.x,y:q.y+1.4,z:q.z,id:q.id,damage:reducedDamage});emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force:1,kind:'guard'});emit(w,'hit',{x:q.x,y:q.y+1.2,z:q.z,damage:reducedDamage,id:q.id,guarded:true});return true;}
   const d=Math.max(.01,distance(p,q));const fx=d>.02?(q.x-p.x)/d:p.fx||1,fz=d>.02?(q.z-p.z)/d:p.fz||0;
   const brokeGuard=Boolean(guarded&&options.guardBreak);if(brokeGuard)emit(w,'guardBreak',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});
   if(q.blocking&&melee&&!front)emit(w,'flank',{x:q.x,y:q.y+1.4,z:q.z,id:q.id});
@@ -53,20 +50,36 @@ function hit(w,p,q,damage,force,options={}){
   cancelRecovery(q);
   cancelSkill(w,q);
   if(q.grabbedBy!==null){const holder=w.fighters.find(f=>f.id===q.grabbedBy);if(holder)releaseGrab(w,holder,q,false,true);}
-  q.attackTime=0;q.skillTime=0;q.hitDone=true;q.jumpBuffer=0;q.comboQueued=false;
+  q.attackTime=0;q.skillTime=0;q.hitDone=true;q.jumpBuffer=0;q.comboQueued=false;q.running=false;
+  const wasAirborne=!q.grounded&&q.y>.3;
+  // Juggle damage scaling keeps a full launcher combo around a third of the bar.
+  if(wasAirborne&&(q.juggle||0)>0&&!options.grab)damage*=Math.max(.45,1-.17*q.juggle);
   q.hp=Math.max(0,q.hp-damage);q.hurtTime=.45;q.hurtKind=options.kind||'melee';if(options.kind==='bomb')q.burnTime=1.25;q.vx=fx*force;q.vz=fz*force;q.vy=force*.45;q.grounded=false;q.support=null;q.stun=brokeGuard?.52:.28;q.invuln=.25;
   w.hitStop=Math.max(w.hitStop,options.grab?.08:force>=8?.075:.055);emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force,kind:options.kind||'melee'});
   if(options.grab){q.grabbed=2.2;q.grabbedBy=p.id;q.grabEscape=0;q.knocked=0;q.stun=0;q.vx=0;q.vz=0;q.vy=0;p.grabbedTarget=q.id;p.grabHoldTime=2.2;p.grabThrow='forward';}
   else if(force>=8||damage>=18){q.knocked=.82;emit(w,'knockdown',{x:q.x,y:q.y+1.1,z:q.z,id:q.id});}
+  // Launcher and air juggle: an upper pops the target straight up, air/light hits keep it
+  // floating near the attacker, and the third air hit spikes it into a ground bounce.
+  if(!options.grab&&options.kind==='upper'){q.vy=11;q.vx=fx*.7;q.vz=fz*.7;q.knocked=Math.max(q.knocked,.9);q.juggle=1;emit(w,'launch',{id:q.id,x:q.x,y:q.y+1,z:q.z});}
+  else if(!options.grab&&wasAirborne&&(q.juggle||0)>0&&q.juggle<5&&['air','light'].includes(options.kind)){
+    q.juggle++;const finisher=options.kind==='air'&&p.airCombo>=2;q.knocked=Math.max(q.knocked,.7);q.invuln=.12;
+    if(finisher){q.vy=-14;q.vx=fx*3;q.vz=fz*3;q.spiked=true;emit(w,'spike',{id:q.id,x:q.x,y:q.y+1,z:q.z});}
+    else{q.vy=5.2;q.vx=fx*.35;q.vz=fz*.35;}
+    if(p.owner===undefined&&!p.grounded)p.vy=Math.max(p.vy,finisher?2:4.6);
+  }
   const attacker=p.owner===undefined?p:w.fighters.find(f=>f.id===p.owner);if(attacker!==q){gainEnergy(w,attacker,.22);gainEnergy(w,q,.08);}
   if(p.attackType&&['light','dash','air'].includes(p.attackType))p.attackConnected=true;
   emit(w,'hit',{x:q.x,y:q.y+1.2,z:q.z,damage,id:q.id});return true;
 }
 function beginAttack(w,p,type){
-  if(w.ended||p.hp<=0||p.knocked>0||p.stun>0||p.blocking||p.attackCD>0||p.skillTime>0)return;
-  assistAim(w,p);
-  const actual=!p.grounded&&type==='heavy'?'slam':!p.grounded&&type==='light'?'air':type;p.attackType=actual;p.combo=actual==='light'?(p.comboWindow>0?(p.combo+1)%3:0):0;p.comboWindow=actual==='light'?.9:0;p.attackTime=actual==='slam'||actual==='heavy'||actual==='upper'||actual==='shieldBash'?.5:actual==='grab'?.42:actual==='dash'?.38:.34;p.attackCD=actual==='slam'?.55:actual==='grab'?.65:actual==='upper'||actual==='shieldBash'?.5:p.id===0?.24:.3;p.hitDone=false;p.attackConnected=false;if(actual==='slam')p.vy=-14;if(actual==='upper')p.vy=5.5;if(actual==='dash'){p.vx=p.fx*(p.id===0?12:9);p.vz=p.fz*(p.id===0?12:9);}if(actual==='shieldBash'){p.vx=p.fx*7;p.vz=p.fz*7;}
-  emit(w,['light','air','slam','dash','upper'].includes(actual)?'slash':actual,{id:p.id,x:p.x,y:p.y+1.1,z:p.z,fx:p.fx,fz:p.fz,combo:p.combo,attackType:actual,weapon:p.weapon});
+  if(w.ended||w.intro>0||w.roundOver>0||p.hp<=0||p.knocked>0||p.stun>0||p.blocking||p.attackCD>0||p.skillTime>0)return;
+  assistAim(w,p,type==='shot'?9:4.2);
+  const actual=!p.grounded&&type==='heavy'?'slam':!p.grounded&&['light','rush','shot'].includes(type)?'air':type;const chained=p.comboWindow>0&&p.attackType==='air';p.attackType=actual;p.combo=actual==='light'?(p.comboWindow>0?(p.combo+1)%3:0):0;p.airCombo=actual==='air'?(chained?Math.min(2,(p.airCombo||0)+1):0):0;p.comboWindow=actual==='light'?.9:actual==='air'?.55:0;
+  p.attackTime=['slam','heavy','upper','shieldBash'].includes(actual)?.5:actual==='grab'?.42:actual==='rush'?.4:actual==='dash'?.38:actual==='shot'?.32:.34;
+  p.attackCD=actual==='slam'?.55:actual==='grab'?.65:['upper','shieldBash'].includes(actual)?.5:actual==='shot'?.45:actual==='rush'?.42:p.char==='swordsman'?.24:p.char==='brawler'?.22:.3;
+  p.hitDone=false;p.attackConnected=false;if(actual==='slam')p.vy=-14;if(actual==='upper')p.vy=5.5;
+  const lunge=(actual==='dash'?12:actual==='rush'?9.5:actual==='shieldBash'?7:0)*(p.running?1.25:1);if(lunge){p.vx=p.fx*lunge;p.vz=p.fz*lunge;}p.running=false;
+  emit(w,['light','air','slam','dash','upper','rush'].includes(actual)?'slash':actual,{id:p.id,char:p.char,x:p.x,y:p.y+1.1,z:p.z,fx:p.fx,fz:p.fz,combo:p.combo,airCombo:p.airCombo,attackType:actual,weapon:p.weapon});
 }
 function carriedObject(w,p){if(!p.carrying)return null;return p.carrying.kind==='crate'?w.crates.find(c=>c.id===p.carrying.id):w.props.find(c=>c.id===p.carrying.id);}
 function throwCarried(w,p,high=false){const held=carriedObject(w,p);if(!held){p.carrying=null;return false;}let prop=held;if(p.carrying.kind==='crate'){held.hp=0;held.heldBy=null;held.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);prop={id:w.nextProp++,kind:held.kind,owner:p.id,x:p.x+p.fx*.8,y:p.y+2,z:p.z+p.fz*.8,vx:0,vy:0,vz:0,life:3,heldBy:null};w.props.push(prop);}else prop.heldBy=null;prop.owner=p.id;prop.life=3;prop.x=p.x+p.fx*.8;prop.y=p.y+2;prop.z=p.z+p.fz*.8;prop.hitIds=[];prop.vx=p.fx*(high?4.5:10);prop.vz=p.fz*(high?4.5:10);prop.vy=high?12:5;p.carrying=null;emit(w,'propThrow',{id:p.id,kind:prop.kind,x:prop.x,y:prop.y,z:prop.z,high});return true;}
@@ -91,11 +104,11 @@ function dropHeld(w,p){
     emit(w,'dropHeld',{id:p.id,x:held.x,y:held.y,z:held.z});}
   p.carrying=null;
 }
-function unableToAct(w,p){return w.ended||p.hp<=0||p.respawnTimer>0||p.knocked>0||p.stun>0||p.skillTime>0;}
+function unableToAct(w,p){return w.ended||w.intro>0||w.roundOver>0||p.hp<=0||p.respawnTimer>0||p.knocked>0||p.stun>0||p.skillTime>0;}
 function throwGrabbed(w,p,high=false){const target=w.fighters.find(q=>q.id===p.grabbedTarget);if(!target)return false;releaseGrab(w,p,target,high);return true;}
 function struggle(w,p){if(p.grabbedBy===null)return false;p.grabEscape=(p.grabEscape||0)+1;if(p.grabEscape>=3){const holder=w.fighters.find(f=>f.id===p.grabbedBy);releaseGrab(w,holder,p,false,true);}return true;}
-export function attack(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,false);return;}if(p.carrying){throwCarried(w,p,false);return;}if(p.comboWindow>0&&['light','dash','air'].includes(p.attackType)){p.comboQueued=true;p.comboInput={...input};return;}const moving=Math.hypot(input.x||0,input.z||0)>.5;beginAttack(w,p,p.grounded&&moving?(p.id===0?'dash':'shieldBash'):'light');}
-export function heavy(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,true);return;}if(p.carrying){throwCarried(w,p,true);return;}beginAttack(w,p,p.grounded&&(input.z||0)<-.5?'upper':p.id===1&&Math.hypot(input.x||0,input.z||0)>.5?'shieldBash':'heavy');}
+export function attack(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,false);return;}if(p.carrying){throwCarried(w,p,false);return;}if(p.comboWindow>0&&['light','dash','air'].includes(p.attackType)){p.comboQueued=true;p.comboInput={...input};return;}const moving=Math.hypot(input.x||0,input.z||0)>.5;beginAttack(w,p,p.grounded&&moving?characterOf(p).moveAttack:'light');}
+export function heavy(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,true);return;}if(p.carrying){throwCarried(w,p,true);return;}beginAttack(w,p,p.grounded&&(input.z||0)<-.5?'upper':p.char==='guardian'&&Math.hypot(input.x||0,input.z||0)>.5?'shieldBash':'heavy');}
 export function grab(w,p,input={}){
   if(w.ended||p.hp<=0||p.respawnTimer>0)return;
   if(p.grabbedBy!==null){struggle(w,p);return;}
@@ -116,15 +129,29 @@ export function bomb(w,p){
   if(p.item==='sword'){p.attackBoost=1.35;p.attackBoostTime=10;p.weapon='sword';emit(w,'ready',{id:p.id,item:p.item});p.item=null;return;}
   const kind=p.item;p.item=null;const bottle=kind==='poison'||kind==='virus'||kind==='slow',speed=kind==='slow'?6.2:5.8,arc=kind==='slow'?5.2:4.6;w.bombs.push({id:w.nextBomb++,owner:p.id,kind,x:p.x+p.fx*.8,y:p.y+1.3,z:p.z+p.fz*.8,vx:p.fx*(bottle?speed:7.5),vy:bottle?arc:6.5,vz:p.fz*(bottle?speed:7.5),life:bottle?1.05:1.2});emit(w,'throw',{id:p.id,kind});
 }
+// Each roster member keeps the shared 3-level gauge but owns a different area shape.
+function skillSpec(w,p,level){
+  const kind=characterOf(p).skill,l=level-1;
+  if(kind==='shieldQuake')return {radius:4.1+l*.8,damage:18+l*10,force:15+l*2,height:1.2};
+  if(kind==='fistStorm')return {radius:2.4+l*.5,damage:24+l*10,force:12+l*2,height:2,ahead:1.6};
+  if(kind==='barrage')return {radius:2+l*.5,damage:15+l*9,force:9+l*2,height:3,targeted:true};
+  return {radius:3.4+l*.8,damage:22+l*10,force:10+l*2,height:2.5};
+}
+function skillCenter(w,p,spec){
+  if(spec.ahead)return {cx:p.x+p.fx*spec.ahead,cz:p.z+p.fz*spec.ahead};
+  if(spec.targeted){const q=w.fighters.find(q=>q.id!==p.id&&q.hp>0&&q.respawnTimer<=0&&distance(p,q)<10);return q?{cx:q.x,cz:q.z}:{cx:clamp(p.x+p.fx*4,-14,14),cz:clamp(p.z+p.fz*4,-8,8)};}
+  return {cx:p.x,cz:p.z};
+}
 export function skill(w,p,requestedLevel=1){
-  const level=clamp(Math.floor(requestedLevel)||1,1,3);if(w.ended||p.hp<=0||p.knocked>0||p.stun>0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillCD>0||p.energy<level)return;
-  const guardian=p.id===1,windup=.25+level*.15;
-  p.pendingSkill={level,radius:(guardian?4.1:3.4)+(level-1)*.8,damage:(guardian?8:12)+level*10,force:(guardian?13:8)+level*2,kind:guardian?'shieldQuake':'whirlwind',windup};
-  p.energy-=level;p.skillLevel=level;p.skillCD=(guardian?1.45:1.1)+level*.25;
+  const level=clamp(Math.floor(requestedLevel)||1,1,3);if(w.ended||w.intro>0||w.roundOver>0||p.hp<=0||p.knocked>0||p.stun>0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillCD>0||p.energy<level)return;
+  assistAim(w,p,6);
+  const kind=characterOf(p).skill,spec=skillSpec(w,p,level),windup=(spec.targeted?.35:.25)+level*.15;
+  p.pendingSkill={level,radius:spec.radius,damage:spec.damage,force:spec.force,height:spec.height,kind,windup,...skillCenter(w,p,spec)};
+  p.energy-=level;p.skillLevel=level;p.skillCD=(kind==='shieldQuake'?1.45:1.1)+level*.25;
   p.skillWindup=windup;p.skillTime=windup+.4;p.invuln=0;p.dodgeTime=0;p.vx=0;p.vz=0;
   p.attackTime=0;p.comboWindow=0;p.comboQueued=false;p.jumpBuffer=0;p.blocking=false;p.parryWindow=0;
   emit(w,'energy',{id:p.id,energy:p.energy,max:p.energyMax});
-  emit(w,'skillCharge',{id:p.id,x:p.x,y:p.y+.1,z:p.z,...p.pendingSkill});
+  emit(w,'skillCharge',{id:p.id,char:p.char,x:p.x,y:p.y+.1,z:p.z,...p.pendingSkill});
 }
 function cancelSkill(w,p){
   if(!p.pendingSkill)return;
@@ -132,25 +159,29 @@ function cancelSkill(w,p){
   emit(w,'skillCancel',{id:p.id,x:p.x,y:p.y+1,z:p.z});
 }
 function releaseSkill(w,p){
-  const {level,radius,damage,force,kind}=p.pendingSkill,guardian=kind==='shieldQuake';
+  const {level,radius,damage,force,kind,height}=p.pendingSkill,self=kind==='whirlwind'||kind==='shieldQuake';
+  const center=self?{x:p.x,z:p.z}:{x:p.pendingSkill.cx,z:p.pendingSkill.cz},from=self?p:{...center,owner:p.id,fx:p.fx,fz:p.fz};
   p.pendingSkill=null;p.skillWindup=0;p.skillTime=.4;p.invuln=.18;
-  emit(w,'skill',{id:p.id,x:p.x,y:p.y+.7,z:p.z,level,radius,kind});
-  for(const q of w.fighters)if(q!==p&&distance(p,q)<radius&&Math.abs(p.y-q.y)<(guardian?1.2:2.5))hit(w,p,q,damage,force,{guardBreak:level===3,kind:guardian?'shieldQuake':'whirlwind'});
-  for(const c of w.crates)if(c.hp>0&&distance(p,c)<radius&&Math.abs(p.y-c.y)<2.5)breakCrate(w,c,2);
+  emit(w,'skill',{id:p.id,char:p.char,x:center.x,y:p.y+.7,z:center.z,casterX:p.x,casterZ:p.z,level,radius,kind});
+  for(const q of w.fighters)if(q!==p&&distance(center,q)<radius&&Math.abs(p.y-q.y)<height)hit(w,from,q,damage,force,{guardBreak:level===3,kind});
+  for(const c of w.crates)if(c.hp>0&&distance(center,c)<radius&&Math.abs(p.y-c.y)<2.5)breakCrate(w,c,2);
 }
-export function dodge(p){if(p.dodgeCD>0||p.knocked>0||p.stun>0||p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0||p.poisonTime>0||p.virusTime>0||p.slowTime>0)return;p.dodgeCD=1.2;p.dodgeTime=.18;p.invuln=.24;p.vx=p.fx*12;p.vz=p.fz*12;}
+export function sprint(p){if(p.hp<=0||!p.grounded||p.knocked>0||p.stun>0||p.blocking||p.carrying||p.grabbedTarget!==null||p.grabbedBy!==null||p.skillTime>0)return;p.running=true;}
+export function dodge(p){if(p.dodgeCD>0||p.knocked>0||p.stun>0||p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0||p.poisonTime>0||p.virusTime>0||p.slowTime>0)return;const burst=p.terrain==='quicksand'?7:12;p.dodgeCD=1.2;p.dodgeTime=.18;p.invuln=.24;p.vx=p.fx*burst;p.vz=p.fz*burst;}
 const LOOT={barrel:['bomb','bomb','poison','virus','slow'],crate:['meat','meat','beer','bomb'],chest:['sword','beer','meat','sword']};
 function dropLoot(w,kind,x,z){const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)];emit(w,'break',{x,y:.7,z,item,kind});w.pickups.push({type:item,x,y:0,z,life:24});return item;}
 function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
-function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const [x,z]=CRATE_SPAWNS[Math.floor(Math.random()*CRATE_SPAWNS.length)];c.x=x;c.z=z;c.y=9;c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=.48){c.y=.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
+function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=open[Math.floor(Math.random()*open.length)]||[0,5];c.x=x;c.z=z;c.y=9;c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=.48){c.y=.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
 function ai(w,p,q){
   if(w.training)return {x:0,z:0};
   const d=distance(p,q);faceTarget(p,q);
   const hazards=[...w.clouds.filter(c=>c.life>0&&Math.abs(p.y+1-c.y)<2.8),
-    ...w.bombs.filter(b=>b.kind==='bomb'&&b.life<.65&&Math.abs(p.y+1-b.y)<2.8).map(b=>({...b,radius:3}))];
+    ...w.bombs.filter(b=>b.kind==='bomb'&&b.life<.65&&Math.abs(p.y+1-b.y)<2.8).map(b=>({...b,radius:3})),
+    ...w.cannonballs.filter(c=>c.kind==='rock').map(c=>({x:c.x,z:c.z,radius:1.8}))];
   const danger=hazards.some(h=>distance(p,h)<h.radius+.6);
   if(!danger)p.aiDangerSince=null;
   else{
+    p.running=false;
     p.aiDangerSince??=w.tick;
     if(w.tick-p.aiDangerSince>=22){
       // Evaluate reachable directions, so an escape near the rail does not push into it.
@@ -164,10 +195,14 @@ function ai(w,p,q){
       return {x:best.x,z:best.z};
     }
   }
+  // Wade out of quicksand unless the opponent is already in reach.
+  const sand=p.terrain==='quicksand'?zoneAt(stageOf(w.stage),p.x,p.z):null;
+  if(sand&&d>2.4){const dx=p.x-sand.x,dz=p.z-sand.z,l=Math.hypot(dx,dz)||1;return {x:dx/l,z:dz/l};}
   // React to the same visible charge state as a human, after a short reaction delay.
-  if(q.pendingSkill&&q.pendingSkill.windup-q.skillWindup>.18&&d<q.pendingSkill.radius+.5){
+  if(q.pendingSkill&&q.pendingSkill.windup-q.skillWindup>.18&&distance(p,{x:q.pendingSkill.cx??q.x,z:q.pendingSkill.cz??q.z})<q.pendingSkill.radius+.5){
     if(q.pendingSkill.kind==='shieldQuake'&&p.grounded)jump(p);
-    return {x:-p.fx,z:-p.fz};
+    const cx=q.pendingSkill.cx??q.x,cz=q.pendingSkill.cz??q.z,away=Math.max(.01,Math.hypot(p.x-cx,p.z-cz));
+    return away>.05?{x:(p.x-cx)/away,z:(p.z-cz)/away}:{x:-p.fx,z:-p.fz};
   }
   // Decisions use visible fighters/items only, and share the player's action rules.
   if(p.grabbedTarget!==null){if(p.grabHoldTime<1.6)attack(w,p);return {x:p.fx*.5,z:p.fz*.5};}
@@ -183,33 +218,47 @@ function ai(w,p,q){
   }
   if(d<3.5&&p.grounded&&w.tick>300&&w.tick%480===0&&p.energy>=1)skill(w,p,Math.min(3,Math.floor(p.energy)));
   if(q.y>p.y+.6&&p.grounded)jump(p);
-  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&w.tick%110===0){
-    if(q.blocking||Math.floor(w.tick/110)%3===0)heavy(w,p);
+  // Grand Battle CPUs press: chain the light string whenever the previous hit landed.
+  if(p.comboWindow>0&&p.attackConnected&&!p.comboQueued&&p.attackType==='light'&&p.combo<2&&d<2.6)attack(w,p);
+  // Chase a launched opponent: jump after it, then keep pressing air attacks.
+  if((q.juggle||0)>0&&!q.grounded&&d<2.6){if(p.grounded&&q.y>1.2&&p.attackTime<=0)jump(p);else if(!p.grounded&&!p.comboQueued&&w.tick%6===0)attack(w,p);}
+  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&w.tick%55===0){
+    if(!q.blocking&&Math.floor(w.tick/55)%7===3&&p.grounded)heavy(w,p,{z:-1});
+    else if(q.blocking||Math.floor(w.tick/110)%3===0)heavy(w,p);
     else if(Math.floor(w.tick/110)%4===0)grab(w,p);
     else attack(w,p);
   }
   if(d>4&&d<8&&w.tick%420===0)bomb(w,p);
+  if(p.char==='gunner'){
+    if(d>3&&d<9&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&w.tick%75===0)attack(w,p,{x:p.fx,z:p.fz});
+    const move=d>6.5?1:d<3.2?-.8:0;return {x:p.fx*move+(move===0?-p.fz*.5:0),z:p.fz*move+(move===0?p.fx*.5:0)};
+  }
+  if(!danger&&d>7&&p.grounded&&!p.running)sprint(p);
   const move=d>1.8?1:d<1.3?-.5:0;return {x:p.fx*move,z:p.fz*move};
 }
-export function stepFighter(p,input,dt){
+export function stepFighter(p,input,dt,stage=STAGES.port){
+  // Terrain only applies on the ground floor: quicksand slows and drags, ice speeds up and slides.
+  const zone=p.y<.05&&p.support==='ground'?zoneAt(stage,p.x,p.z):null,terrain=zone?.kind||null;p.terrain=terrain;
+  p.sink=terrain==='quicksand'?Math.min(1,(p.sink||0)+dt*.8):Math.max(0,(p.sink||0)-dt*3);
   for(const key of ['attackCD','comboWindow','bombCD','skillCD','skillTime','dodgeCD','dodgeTime','stun','invuln','parryWindow'])p[key]=Math.max(0,p[key]-dt);
   p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);p.coyote=p.grounded?.09:Math.max(0,p.coyote-dt);
   const wantsGuard=Boolean(input.guard);if(wantsGuard&&!p.guardPrev&&p.stun<=0&&p.attackTime<=0)p.parryWindow=.16;p.guardPrev=wantsGuard;
   p.blocking=wantsGuard&&p.stun<=0&&p.attackTime<=0&&p.dodgeTime<=0&&p.grabbedTarget===null&&!p.carrying&&p.skillTime<=0;
   let ix=p.skillTime>0?0:input.x||0,iz=p.skillTime>0?0:input.z||0;const len=Math.hypot(ix,iz);if(len>1){ix/=len;iz/=len;}
   if(p.stun<=0&&p.dodgeTime<=0&&p.knocked<=0){
-    const slow=p.slowTime>0?.55:1;const speed=p.blocking?1.2:(p.grabbedTarget!==null?4.8:p.attackTime>0?2:p.carrying?5.4:7.6)*slow,accel=p.blocking?18:14;
+    const slow=p.slowTime>0?.55:1;if(len===0||p.blocking||p.attackTime>0||p.carrying||!p.grounded&&p.vy<-2)p.running=false;
+    const ground=terrain==='quicksand'?.45:terrain==='ice'?1.3:1,speed=p.blocking?1.2:(p.grabbedTarget!==null?4.8:p.attackTime>0?2:p.carrying?5.4:characterOf(p).speed*(p.running?1.6:1))*slow*ground,accel=terrain==='ice'?3:p.blocking?18:14;
     p.vx+=(ix*speed-p.vx)*Math.min(1,accel*dt);p.vz+=(iz*speed-p.vz)*Math.min(1,accel*dt);
-    if(len===0){p.vx*=Math.pow(.001,dt);p.vz*=Math.pow(.001,dt);}
+    if(len===0){const friction=terrain==='ice'?.4:.001;p.vx*=Math.pow(friction,dt);p.vz*=Math.pow(friction,dt);}
     if(len>0&&(p.attackTime<=0||p.grabbedTarget!==null)&&!p.blocking){p.fx=ix/Math.hypot(ix,iz);p.fz=iz/Math.hypot(ix,iz);p.walk+=dt*14;}
     if(!p.blocking&&p.jumpBuffer>0&&(p.grounded||p.coyote>0||p.jumps<2)){
       if(!p.grounded&&p.coyote<=0&&p.jumps===0)p.jumps=1;
-      p.vy=JUMP_SPEED;p.jumps++;p.grounded=false;p.coyote=0;p.jumpBuffer=0;
+      p.vy=JUMP_SPEED*(terrain==='quicksand'&&p.grounded?.62:1);p.jumps++;p.grounded=false;p.coyote=0;p.jumpBuffer=0;
     }
   }
   const oldY=p.y;
   // Airborne knockback must survive until landing, rather than becoming walking friction.
-  if(p.knocked>0){const drag=Math.exp(-(p.grounded?5:1.2)*dt);p.vx*=drag;p.vz*=drag;}
+  if(p.knocked>0){const drag=Math.exp(-(p.grounded?(terrain==='ice'?1.1:5):1.2)*dt);p.vx*=drag;p.vz*=drag;}
   p.wallImpact=null;
   if(p.knocked>0&&Math.hypot(p.vx,p.vz)>4){
     let bounced=false;
@@ -219,20 +268,96 @@ export function stepFighter(p,input,dt){
   }
   p.x=clamp(p.x+p.vx*dt,-14.5,14.5);p.z=clamp(p.z+p.vz*dt,-8.5,8.5);
   p.climbing=false;
-  const ladder=LADDERS.find(l=>Math.abs(p.x-l.x)<.72&&Math.abs(p.z-l.z)<1.8);
+  if(terrain==='quicksand'&&p.dodgeTime<=0){const dx=zone.x-p.x,dz=zone.z-p.z,d=Math.hypot(dx,dz);if(d>.05){const pull=Math.min(d,1.3*dt);p.x+=dx/d*pull;p.z+=dz/d*pull;}}
+  stage._ladders??=laddersOf(stage);
+  const ladder=stage._ladders.find(l=>Math.abs(p.x-l.x)<.72&&Math.abs(p.z-l.z)<1.8);
   const climbUp=ladder&&p.knocked<=0&&p.stun<=0&&p.y<ladder.top-.02&&(iz<-.1);
   const climbDown=ladder&&p.knocked<=0&&p.stun<=0&&p.y>0.02&&iz>.1;
   if(climbUp||climbDown){p.climbing=true;p.x+=(ladder.x-p.x)*Math.min(1,18*dt);p.z+=(ladder.z-p.z)*Math.min(1,12*dt);p.y=clamp(p.y+(climbUp?3.8:-3.8)*dt,0,ladder.top);p.vx=0;p.vz=0;p.vy=0;p.grounded=p.y<=.001||p.y>=ladder.top-.001;p.support=p.y>=ladder.top-.001?'ladder-top':'ladder';if(p.y>=ladder.top-.001){p.y=ladder.top;p.support='ladder-top';}return;}
   p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.grounded=false;p.support=null;
   if(p.vy<=0){
     let top=0,id='ground';
-    for(const deck of PLATFORMS)if(supported(p.x,p.z,deck,.28)&&oldY>=deck.top-.45&&p.y<=deck.top&&deck.top>top){top=deck.top;id=deck.id;}
-    if(p.y<=top){p.y=top;p.vy=0;p.grounded=true;p.jumps=0;p.support=id;if(oldY>top+.12)p.landTime=.2;}
+    for(const deck of stage.platforms)if(supported(p.x,p.z,deck,.28)&&oldY>=deck.top-.45&&p.y<=deck.top&&deck.top>top){top=deck.top;id=deck.id;}
+    if(p.y<=top){p.y=top;p.landVy=p.vy;p.vy=0;p.grounded=true;p.jumps=0;p.airCombo=0;p.support=id;if(oldY>top+.12)p.landTime=.2;
+      // Springboard nets throw anyone who touches them back into the air.
+      if(id==='ground'&&p.grabbedBy===null&&zoneAt(stage,p.x,p.z)?.kind==='spring'){p.vy=17;p.grounded=false;p.support=null;p.jumps=1;p.sprung=true;}}
+  }
+}
+// Grand Battle style match flow: READY/FIGHT intro, K.O. freeze, then the next round.
+function settle(w,dt){
+  for(const p of w.fighters){
+    for(const key of ['hurtTime','attackTime','skillTime','throwTime','thrownTime','recoveryTime'])p[key]=Math.max(0,(p[key]||0)-dt);
+    p.blocking=false;p.knocked=p.hp<=0?Math.max(p.knocked,.5):Math.max(0,p.knocked-dt);
+    stepFighter(p,{x:0,z:0},dt,stageOf(w.stage));
+  }
+}
+function nextRound(w){
+  w.roundNo++;w.time=w.roundTime;w.roundWinner=null;w.hitStop=0;
+  w.fighters=w.fighters.map(p=>{const n=createFighter(p.id,p.id===0?-3.4:3.4,2,p.char);n.energy=Math.max(1,p.energy);n.aimAssist=p.aimAssist;return n;});
+  w.bombs=[];w.shots=[];w.clouds=[];w.props=[];w.cannonballs=[];w.pickups=[];
+  for(const c of w.crates)if(c.heldBy!==null){c.heldBy=null;c.falling=true;c.dropSpeed=0;}
+  Object.assign(w,{nextCannonTick:w.tick+900,nextWaveTick:w.tick+2400,waveWarning:0,waveTime:0,wavePending:false,intro:1.8});
+  emit(w,'roundStart',{roundNo:w.roundNo});
+}
+function finishRound(w,defeated){
+  const [a,b]=w.fighters,winner=a.lives===b.lives?(a.hp===b.hp?null:a.hp>b.hp?0:1):a.lives>b.lives?0:1;
+  if(w.bestOf<=1||w.stock||w.training){w.ended=true;w.winner=winner;emit(w,'end',{winner});return;}
+  for(const p of w.fighters){cancelSkill(w,p);dropHeld(w,p);if(p.grabbedBy!==null){const holder=w.fighters.find(q=>q.id===p.grabbedBy);if(holder)releaseGrab(w,holder,p,false,true);}}
+  if(winner!==null)w.wins[winner]++;
+  const loser=winner===null?null:w.fighters[1-winner],need=Math.ceil(w.bestOf/2);
+  w.roundWinner=winner;w.matchOver=w.wins.some(n=>n>=need)||w.roundNo>=w.bestOf+2;w.roundOver=w.matchOver?2.4:2.8;
+  emit(w,'ko',{winner,roundNo:w.roundNo,timeUp:!defeated,matchOver:w.matchOver,wins:[...w.wins],x:loser?loser.x:0,y:loser?loser.y+1:1,z:loser?loser.z:0});
+}
+// Stage hazards: each map pairs a projectile hazard with a sweeping hazard.
+//  port: side cannon + tide wave (damages low fighters) | desert: marked rockfall + sandstorm
+//  (pushes everyone, even airborne, no damage) | snow: rolling snowball (chills) + avalanche.
+function updateStageHazards(w,dt){
+  const stage=stageOf(w.stage),kind=stage.cannonKind;
+  if(!w.training&&w.tick>=w.nextCannonTick){
+    const target=w.fighters[Math.floor(Math.random()*w.fighters.length)],side=Math.random()<.5?-1:1;
+    if(kind==='rockfall'){const x=clamp(target.x+(Math.random()-.5)*1.5,-14,14),z=clamp(target.z+(Math.random()-.5)*1.5,-8,8);w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'rock',x,y:12,z,vx:0,vy:0,vz:0,life:4,delay:1.1});w.nextCannonTick=w.tick+620;emit(w,'rockWarn',{x,y:.14,z,delay:1.1});}
+    else if(kind==='snowball'){w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'snowball',x:side*15,y:.75,z:target.z,vx:-side*9,vy:0,vz:0,life:3.6});w.nextCannonTick=w.tick+760;emit(w,'cannon',{x:side*14,y:.75,z:target.z,side,kind:'snowball'});}
+    else{w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'cannon',x:side*15,y:1.2,z:target.z,vx:-side*11,vy:1.8,vz:0,life:3});w.nextCannonTick=w.tick+840;emit(w,'cannon',{x:side*14,y:1.2,z:target.z,side,kind:'cannon'});}
+  }
+  for(let i=w.cannonballs.length-1;i>=0;i--){
+    const c=w.cannonballs[i];
+    if(c.delay>0){c.delay=Math.max(0,c.delay-dt);continue;}
+    c.life-=dt;
+    if(c.kind==='rock'){
+      c.vy-=40*dt;c.y+=c.vy*dt;
+      const target=w.fighters.find(p=>distance(p,c)<.9&&c.y-p.y<2.4&&c.y-p.y>-.2);
+      if(target||c.y<=.4){
+        if(target)hit(w,c,target,18,9,{kind:'rock'});
+        for(const p of w.fighters)if(p!==target&&p.y<.6&&distance(p,c)<1.7)hit(w,c,p,9,7,{kind:'rock'});
+        for(const cr of w.crates)if(cr.hp>0&&distance(cr,c)<1.7)breakCrate(w,cr,2);
+        emit(w,'rockImpact',{x:c.x,y:.3,z:c.z});w.cannonballs.splice(i,1);
+      }
+      continue;
+    }
+    if(c.kind==='snowball'){c.x+=c.vx*dt;const target=w.fighters.find(p=>distance(p,c)<.95&&p.y<1.2);if(target){const blocked=target.blocking;if(hit(w,c,target,12,8,{kind:'snowball'})&&!blocked){target.slowTime=2.5;emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'snowBurst',{x:c.x,y:c.y,z:c.z});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17)w.cannonballs.splice(i,1);continue;}
+    c.vy-=5*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;const target=w.fighters.find(p=>distance(p,c)<.75&&Math.abs(p.y+1-c.y)<1.2);if(target){hit(w,c,target,14,9,{kind:'cannon'});emit(w,'explosion',{x:c.x,y:c.y,z:c.z,kind:'cannon'});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17||c.y<0){w.cannonballs.splice(i,1);}
+  }
+  const wave=stage.waveKind;
+  if(!w.training&&w.tick>=w.nextWaveTick&&!w.wavePending&&w.waveTime<=0){w.waveWarning=2;w.wavePending=true;w.waveDir=Math.random()<.5?-1:1;w.nextWaveTick=w.tick+(wave==='sandstorm'?3000:3600);emit(w,'waveWarning',{dir:w.waveDir,kind:wave});}
+  if(w.waveWarning>0){w.waveWarning=Math.max(0,w.waveWarning-dt);if(w.waveWarning===0&&w.wavePending){
+    w.wavePending=false;w.waveTime=wave==='sandstorm'?3.5:2.2;emit(w,'waveStart',{dir:w.waveDir,kind:wave});
+    if(wave!=='sandstorm')for(const p of w.fighters)if(p.y<.5)hit(w,{owner:-1,x:p.x-w.waveDir,z:p.z,fx:w.waveDir,fz:0},p,wave==='avalanche'?10:7,wave==='avalanche'?7:6,{kind:'wave'});
+  }}
+  if(w.waveTime>0){
+    w.waveTime=Math.max(0,w.waveTime-dt);
+    const push=wave==='sandstorm'?8:wave==='avalanche'?13:11;
+    for(const p of w.fighters)if(p.hp>0&&p.grabbedBy===null&&(wave==='sandstorm'||p.y<.7)){p.vx+=w.waveDir*push*dt;p.x=clamp(p.x+(wave==='sandstorm'?w.waveDir*1.2*dt:0),-14.5,14.5);}
   }
 }
 export function step(w,input={},dt=STEP){
   if(w.ended)return;
   if(w.hitStop>0){w.hitStop=Math.max(0,w.hitStop-dt);return;}
+  if(w.intro>0){w.intro=Math.max(0,w.intro-dt);if(w.intro===0)emit(w,'fight',{roundNo:w.roundNo});return;}
+  if(w.roundOver>0){
+    w.tick++;settle(w,dt);w.roundOver=Math.max(0,w.roundOver-dt);
+    if(w.roundOver===0){if(w.matchOver){w.ended=true;w.winner=w.wins[0]===w.wins[1]?null:w.wins[0]>w.wins[1]?0:1;emit(w,'end',{winner:w.winner});}else nextRound(w);}
+    return;
+  }
   w.tick++;if(!w.training)w.time=Math.max(0,w.time-dt);
   updateCrates(w,dt);
   for(const p of w.fighters){
@@ -250,7 +375,9 @@ export function step(w,input={},dt=STEP){
     p.slowTime=Math.max(0,p.slowTime-dt);p.poisonTime=Math.max(0,p.poisonTime-dt);p.virusTime=Math.max(0,p.virusTime-dt);p.burnTime=Math.max(0,p.burnTime-dt);p.hurtTime=Math.max(0,p.hurtTime-dt);p.poisonTick+=dt;
     if(p.poisonTime>0&&p.poisonTick>=1){p.poisonTick=0;p.hp=Math.max(0,p.hp-4);p.hurtTime=.35;p.hurtKind='poison';emit(w,'dot',{id:p.id,x:p.x,y:p.y+1.2,z:p.z,damage:4});}
     if(p.grabbed>0){const holder=w.fighters.find(f=>f.id===p.grabbedBy);if(!holder||holder.hp<=0||holder.grabbedTarget!==p.id){p.grabbed=0;p.grabbedBy=null;continue;}holder.grabHoldTime=Math.max(0,(holder.grabHoldTime||0)-dt);p.grabbed=holder.grabHoldTime;p.vx=0;p.vy=0;p.vz=0;p.grounded=false;p.blocking=false;p.attackTime=0;p.skillTime=0;if(holder.grabHoldTime<=0)releaseGrab(w,holder,p,holder.grabThrow==='high');continue;}
-    if(p.knocked>0){const wasAirborne=!p.grounded;p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt);p.blocking=false;
+    if(p.knocked>0){const wasAirborne=!p.grounded;p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt,stageOf(w.stage));p.blocking=false;
+      if(wasAirborne&&p.grounded&&p.spiked){p.spiked=false;p.juggle=0;p.vy=6.5;p.grounded=false;p.recoveryBuffer=0;p.invuln=Math.max(p.invuln,.45);p.knocked=Math.max(p.knocked,.6);w.hitStop=Math.max(w.hitStop,.05);emit(w,'groundBounce',{id:p.id,x:p.x,y:p.y+.2,z:p.z});continue;}
+      if(p.grounded)p.juggle=0;
       if(wasAirborne&&p.grounded&&p.recoveryBuffer>0&&p.hp>0){
         const direction=p.recoveryDirection;p.knocked=0;p.stun=0;p.hurtTime=0;p.thrownTime=0;p.recoveryBuffer=0;
         p.recoveryTime=.22;p.stun=.22;p.dodgeTime=.22;p.dodgeCD=Math.max(p.dodgeCD,.7);p.invuln=Math.max(p.invuln,.25);
@@ -262,25 +389,28 @@ export function step(w,input={},dt=STEP){
       if(Math.hypot(p.vx,p.vz)>4)for(const c of w.crates)if(c.hp>0&&!c.falling&&c.heldBy===null&&distance(p,c)<1&&Math.abs(p.y-c.y)<1.2){breakCrate(w,c,1);emit(w,'bodyCrash',{id:p.id,x:c.x,y:c.y+.6,z:c.z});}
       p.knocked=Math.max(0,p.knocked-dt);if(p.knocked===0&&!p.grounded)p.knocked=.01;else if(p.knocked===0){p.invuln=.35;emit(w,'wakeup',{id:p.id,x:p.x,y:p.y+1,z:p.z});}continue;}
     const controls=p.id===0?input:(w.online?w.remoteInput:ai(w,p,w.fighters[0]));
-    stepFighter(p,controls,dt);
+    stepFighter(p,controls,dt,stageOf(w.stage));
     p.landTime=Math.max(0,(p.landTime||0)-dt);
     if(p.attackTime>0){
       p.attackTime=Math.max(0,p.attackTime-dt);
-      const active=['heavy','upper','shieldBash'].includes(p.attackType)?.29:p.attackType==='slam'?.27:p.attackType==='grab'?.25:p.attackType==='air'||p.attackType==='dash'?.24:.22;
+      const active=['heavy','upper','shieldBash'].includes(p.attackType)?.29:p.attackType==='slam'?.27:p.attackType==='grab'?.25:p.attackType==='rush'?.26:p.attackType==='shot'?.2:p.attackType==='air'||p.attackType==='dash'?.24:.22;
       if(!p.hitDone&&p.attackTime<active){
         p.hitDone=true;
-        if(p.attackType==='grab'){
-          for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);if(d<1.85&&(dot>-.25||d<.8))hit(w,p,q,12*p.attackBoost,8,{grab:true});
+        if(p.attackType==='shot'){
+          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,vx:p.fx*17,vz:p.fz*17,fx:p.fx,fz:p.fz,life:.62,boost:p.attackBoost});
+          emit(w,'shotFire',{id:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,fx:p.fx,fz:p.fz});
+        }else if(p.attackType==='grab'){
+          for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);if(d<1.85&&(dot>-.25||d<.8))hit(w,p,q,12*(characterOf(p).boost.grab||1)*p.attackBoost,8,{grab:true});
           }
         }else for(const q of w.fighters){const d=distance(p,q);const vertical=['slam','air','upper'].includes(p.attackType)?2.4:1.5;if(q===p||Math.abs(p.y-q.y)>vertical)continue;
           const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);
-          const reach=p.weapon==='sword'?3.25:p.attackType==='shieldBash'?2.8:p.attackType==='slam'?2.9:p.attackType==='heavy'?2.85:p.attackType==='upper'?2.55:p.attackType==='dash'?3:p.attackType==='air'?2.7:2.6;
-          if(d<reach&&(dot>-.15||d<.8)){const baseDamage=p.attackType==='slam'?21:p.attackType==='heavy'?18:p.attackType==='upper'?16:p.attackType==='shieldBash'?15:p.attackType==='dash'?12:p.attackType==='air'?11:(p.combo===2?15:p.combo===1?12:9),baseForce=p.attackType==='slam'?12:p.attackType==='heavy'?10:p.attackType==='upper'?9:p.attackType==='shieldBash'?11:p.attackType==='dash'?7:p.attackType==='air'?5.5:(p.combo===2?9:p.combo===1?6:4),styleBoost=p.id===0&&['dash','air'].includes(p.attackType)?1.1:p.id===1&&['heavy','upper','slam','shieldBash'].includes(p.attackType)?1.2:1;hit(w,p,q,baseDamage*styleBoost*p.attackBoost,baseForce*(p.id===1&&styleBoost>1?1.12:1),{guardBreak:p.attackType==='heavy'||p.attackType==='slam'||p.attackType==='shieldBash',kind:p.attackType});}
+          const reach=p.weapon==='sword'?3.25:p.attackType==='shieldBash'?2.8:p.attackType==='slam'?2.9:p.attackType==='heavy'?2.85:p.attackType==='upper'?2.55:p.attackType==='dash'?3:p.attackType==='rush'?2.7:p.attackType==='air'?2.7:2.6;
+          if(d<reach&&(dot>-.15||d<.8)){const baseDamage=p.attackType==='slam'?21:p.attackType==='heavy'?18:p.attackType==='upper'?16:p.attackType==='shieldBash'?15:p.attackType==='rush'?13:p.attackType==='dash'?12:p.attackType==='air'?(p.airCombo===2?14:9):(p.combo===2?15:p.combo===1?12:9),baseForce=p.attackType==='slam'?12:p.attackType==='heavy'?10:p.attackType==='upper'?9:p.attackType==='shieldBash'?11:p.attackType==='rush'?6.5:p.attackType==='dash'?7:p.attackType==='air'?5.5:(p.combo===2?9:p.combo===1?6:4),styleBoost=characterOf(p).boost[p.attackType]||1;hit(w,p,q,baseDamage*styleBoost*p.attackBoost,baseForce*(p.char==='guardian'&&styleBoost>1?1.12:1),{guardBreak:p.attackType==='heavy'||p.attackType==='slam'||p.attackType==='shieldBash',kind:p.attackType});}
         }
-        if(p.attackType!=='grab')for(const c of w.crates)if(c.hp>0&&distance(p,c)<2.5&&p.y<1.7)breakCrate(w,c,1);
+        if(p.attackType!=='grab'&&p.attackType!=='shot')for(const c of w.crates)if(c.hp>0&&distance(p,c)<2.5&&p.y<1.7)breakCrate(w,c,1);
       }
     }
-    if(p.attackTime<=0&&p.comboQueued){const buffered=p.comboInput||{};p.comboQueued=false;p.attackCD=0;const moving=Math.hypot(buffered.x||0,buffered.z||0)>.5;beginAttack(w,p,p.grounded&&moving?(p.id===0?'dash':'shieldBash'):'light');}
+    if(p.attackTime<=0&&p.comboQueued){const buffered=p.comboInput||{};p.comboQueued=false;p.attackCD=0;const moving=Math.hypot(buffered.x||0,buffered.z||0)>.5;beginAttack(w,p,p.grounded&&moving?characterOf(p).moveAttack:'light');}
   }
   // Resolve after both fighters moved, so either player can dodge/jump during the warning.
   for(const p of w.fighters)if(p.pendingSkill){
@@ -296,7 +426,7 @@ export function step(w,input={},dt=STEP){
   if(!inGrab&&d<.85&&Math.abs(a.y-b.y)<1.6){const nx=d>.001?(b.x-a.x)/d:1,nz=d>.001?(b.z-a.z)/d:0,push=(.85-d)/2;a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;}
   for(let i=w.bombs.length-1;i>=0;i--){
     const s=w.bombs[i],oldY=s.y;s.life-=dt;s.vy-=16*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;
-    const ground=s.y<.22||PLATFORMS.some(p=>supported(s.x,s.z,p)&&s.vy<0&&oldY>=p.top+.22&&s.y<=p.top+.22);
+    const ground=s.y<.22||stageOf(w.stage).platforms.some(p=>supported(s.x,s.z,p)&&s.vy<0&&oldY>=p.top+.22&&s.y<=p.top+.22);
     const contact=w.fighters.some(p=>distance(p,s)<.65&&Math.abs(p.y+1-s.y)<1);
     if(ground||contact||s.life<=0){
       if(s.kind==='poison'||s.kind==='virus'||s.kind==='slow'){
@@ -309,10 +439,17 @@ export function step(w,input={},dt=STEP){
       w.bombs.splice(i,1);
     }
   }
-  for(let i=w.props.length-1;i>=0;i--){const o=w.props[i];if(o.heldBy!==null){const p=w.fighters.find(p=>p.id===o.heldBy);if(p){o.x=p.x+p.fx*.3;o.z=p.z+p.fz*.3;o.y=p.y+2.15;}continue;}const oldY=o.y;o.life-=dt;o.age=(o.age||0)+dt;o.vy-=GRAVITY*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.z+=o.vz*dt;const target=w.fighters.find(p=>p.id!==o.owner&&distance(p,o)<.8&&Math.abs(p.y+1-o.y)<1.2);const ground=o.y<.35||PLATFORMS.some(p=>supported(o.x,o.z,p)&&o.vy<0&&oldY>=p.top+.35&&o.y<=p.top+.35);if(target){hit(w,o,target,o.kind==='chest'?20:o.kind==='barrel'?17:14,o.kind==='chest'?11:8,{kind:'prop'});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}else if(ground||o.life<=0){emit(w,'propBreak',{x:o.x,y:Math.max(.3,o.y),z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}}
-  if(!w.training&&w.tick>=w.nextCannonTick){const target=w.fighters[Math.floor(Math.random()*w.fighters.length)],side=Math.random()<.5?-1:1;w.cannonballs.push({id:w.nextCannon++,owner:-1,x:side*15,y:1.2,z:target.z,vx:-side*11,vy:1.8,vz:(target.z-target.z)*0,life:3});w.nextCannonTick=w.tick+840;emit(w,'cannon',{x:side*14,y:1.2,z:target.z,side});}
-  for(let i=w.cannonballs.length-1;i>=0;i--){const c=w.cannonballs[i];c.life-=dt;c.vy-=5*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;const target=w.fighters.find(p=>distance(p,c)<.75&&Math.abs(p.y+1-c.y)<1.2);if(target){hit(w,c,target,14,9,{kind:'cannon'});emit(w,'explosion',{x:c.x,y:c.y,z:c.z,kind:'cannon'});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17||c.y<0){w.cannonballs.splice(i,1);}}
-  if(!w.training&&w.tick>=w.nextWaveTick&&!w.wavePending&&w.waveTime<=0){w.waveWarning=2;w.wavePending=true;w.waveDir=Math.random()<.5?-1:1;w.nextWaveTick=w.tick+3600;emit(w,'waveWarning',{dir:w.waveDir});}if(w.waveWarning>0){w.waveWarning=Math.max(0,w.waveWarning-dt);if(w.waveWarning===0&&w.wavePending){w.wavePending=false;w.waveTime=2.2;emit(w,'waveStart',{dir:w.waveDir});for(const p of w.fighters)if(p.y<.5)hit(w,{owner:-1,x:p.x-w.waveDir,z:p.z,fx:w.waveDir,fz:0},p,7,6,{kind:'wave'});}}if(w.waveTime>0){w.waveTime=Math.max(0,w.waveTime-dt);for(const p of w.fighters)if(p.y<.7){p.vx+=w.waveDir*11*dt;p.x=clamp(p.x,-14.5,14.5);}}
+  for(let i=w.shots.length-1;i>=0;i--){
+    const s=w.shots[i];s.life-=dt;s.x+=s.vx*dt;s.z+=s.vz*dt;
+    const target=w.fighters.find(q=>q.id!==s.owner&&q.hp>0&&q.respawnTimer<=0&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
+    if(target){hit(w,s,target,8*s.boost,5,{kind:'shot'});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
+    const crate=w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&distance(c,s)<.75&&s.y<c.y+1.4);
+    if(crate){breakCrate(w,crate,1);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
+    if(s.life<=0||Math.abs(s.x)>15||Math.abs(s.z)>9)w.shots.splice(i,1);
+  }
+  for(let i=w.props.length-1;i>=0;i--){const o=w.props[i];if(o.heldBy!==null){const p=w.fighters.find(p=>p.id===o.heldBy);if(p){o.x=p.x+p.fx*.3;o.z=p.z+p.fz*.3;o.y=p.y+2.15;}continue;}const oldY=o.y;o.life-=dt;o.age=(o.age||0)+dt;o.vy-=GRAVITY*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.z+=o.vz*dt;const target=w.fighters.find(p=>p.id!==o.owner&&distance(p,o)<.8&&Math.abs(p.y+1-o.y)<1.2);const ground=o.y<.35||stageOf(w.stage).platforms.some(p=>supported(o.x,o.z,p)&&o.vy<0&&oldY>=p.top+.35&&o.y<=p.top+.35);if(target){hit(w,o,target,o.kind==='chest'?20:o.kind==='barrel'?17:14,o.kind==='chest'?11:8,{kind:'prop'});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}else if(ground||o.life<=0){emit(w,'propBreak',{x:o.x,y:Math.max(.3,o.y),z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}}
+  for(const p of w.fighters)if(p.sprung){p.sprung=false;emit(w,'spring',{id:p.id,x:p.x,y:p.y,z:p.z});}
+  updateStageHazards(w,dt);
   for(let i=w.clouds.length-1;i>=0;i--){
     const c=w.clouds[i];c.life-=dt;c.tick-=dt;
     if(c.life<=0){w.clouds.splice(i,1);continue;}
@@ -344,5 +481,5 @@ export function step(w,input={},dt=STEP){
   for(const p of w.fighters)if(p.hp<=0)cancelRecovery(p);
   if(w.stock)for(const p of w.fighters)if(p.hp<=0&&p.respawnTimer<=0&&p.lives>1){p.lives--;p.respawnTimer=.9;p.item=null;p.weapon=null;p.blocking=false;p.knocked=0;p.attackTime=0;p.skillTime=0;emit(w,'lifeLost',{id:p.id,lives:p.lives,x:p.x,y:p.y+1,z:p.z});}
   const defeated=w.fighters.some(p=>p.hp<=0&&p.respawnTimer<=0&&(!w.stock||p.lives<=1));
-  if(defeated||w.time<=0){w.ended=true;w.winner=a.lives===b.lives?(a.hp===b.hp?null:a.hp>b.hp?0:1):a.lives>b.lives?0:1;emit(w,'end',{winner:w.winner});}
+  if(defeated||w.time<=0)finishRound(w,defeated);
 }
