@@ -20,15 +20,18 @@ export const STAGES={
   port:{name:'风车港',sub:'弹跳网 · 炮击 · 巨浪',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
     platforms:[{id:'deck-left',x:-6,z:0,w:4,d:3,top:1.6},{id:'deck-center',x:0,z:-2.2,w:4,d:3,top:2.2},{id:'deck-right',x:6,z:0,w:4,d:3,top:1.6}],
     zones:[{kind:'spring',x:-11,z:4.5,r:.95},{kind:'spring',x:11,z:4.5,r:.95}],
-    crates:[[-6,3],[6,3],[0,-5]]},
+    crates:[[-6,3],[6,3],[0,-5]],
+    pieces:[{kind:'mast',x:-9.2,z:-5.6,r:.6,h:7,hp:70,fall:'topple',length:6.5},{kind:'mast',x:9.2,z:-5.6,r:.6,h:7,hp:70,fall:'topple',length:6.5}]},
   desert:{name:'沙之王都',sub:'流沙坑 · 落石 · 沙暴',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
     platforms:[{id:'ruin-left',x:-9.5,z:-3,w:4,d:3,top:1.8},{id:'altar',x:0,z:-5.2,w:5,d:2.4,top:2.6},{id:'ruin-right',x:9.5,z:-3,w:4,d:3,top:1.8}],
     zones:[{kind:'quicksand',x:-7,z:4,r:2.3},{kind:'quicksand',x:7,z:4,r:2.3},{kind:'quicksand',x:0,z:-.8,r:1.7}],
-    crates:[[-3.5,5],[3.5,5],[-12,4]]},
+    crates:[[-3.5,5],[3.5,5],[-12,4]],
+    pieces:[{kind:'pillar',x:-3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5},{kind:'pillar',x:3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5}]},
   snow:{name:'冬樱雪岛',sub:'冰面打滑 · 雪球 · 雪崩',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
     platforms:[{id:'lodge-left',x:-10,z:-4.2,w:3.6,d:3,top:1.4},{id:'ice-rock',x:0,z:-3.4,w:6,d:3,top:2},{id:'lodge-right',x:10,z:-4.2,w:3.6,d:3,top:1.4}],
     zones:[{kind:'ice',x:-6,z:4.2,w:6,d:4},{kind:'ice',x:6,z:4.2,w:6,d:4},{kind:'ice',x:0,z:.6,w:5,d:2.6}],
-    crates:[[-11,2],[11,2],[0,6]]},
+    crates:[[-11,2],[11,2],[0,6]],
+    pieces:[{kind:'ice',x:-3.8,z:-.6,r:.8,h:4,hp:60,fall:'burst',length:3.3},{kind:'ice',x:3.8,z:-.6,r:.8,h:4,hp:60,fall:'burst',length:3.3}]},
 };
 export function stageOf(id){return STAGES[id]||STAGES.port;}
 export function laddersOf(stage){return stage.platforms.map(p=>({x:p.x,z:p.z+p.d/2+.12,top:p.top}));}

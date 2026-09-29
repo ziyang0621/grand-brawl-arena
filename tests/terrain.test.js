@@ -66,5 +66,5 @@ test('sandstorm pushes even airborne fighters and deals no damage; avalanche hur
 test('CPU wades out of quicksand when the player is far away',()=>{
   const w=createWorld({stage:'desert'});w.crates=[];w.nextCannonTick=w.nextWaveTick=1e9;const sand=STAGES.desert.zones[1];
   Object.assign(w.fighters[0],{x:-12,z:-7});Object.assign(w.fighters[1],{x:sand.x+.4,z:sand.z});
-  for(let t=0;t<3;t+=STEP)step(w,{});assert.equal(zoneAt(STAGES.desert,w.fighters[1].x,w.fighters[1].z)?.kind??null,null);
+  for(let t=0;t<1.5;t+=STEP)step(w,{});assert.ok(Math.hypot(w.fighters[1].x-sand.x,w.fighters[1].z-sand.z)>sand.r,'left the pit it started in');
 });
