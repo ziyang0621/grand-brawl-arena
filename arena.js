@@ -2,6 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import {createCloudVisual,updateCloudVisual} from './arena-clouds.js';
 import {STEP,createWorld,step,jump,attack,heavy,grab,bomb,skill,dodge,sprint,toggleAim} from './arena-core.js';
 import {CHARACTERS,CHARACTER_IDS,STAGES,STAGE_IDS,characterOf} from './arena-roster.js';
+import {createTouchControls,isTouchDevice} from './arena-touch.js';
 import {ConnectionAttempt,InputLease,cleanInput,neutralInput,sameRound,voteRematch} from './arena-session.js';
 import {mesh,box,sphere,cylinder,fxMesh,label,ink,starSprite,isSharedMaterial} from './arena-gfx.js';
 import {buildFighter,disposeFighter,renderPortraits} from './arena-models.js';
@@ -289,7 +290,8 @@ addEventListener('keydown',e=>{
   if(!e.repeat&&moveCodes.includes(e.code)){const dir=DIRECTION[e.code],now=performance.now();if(lastTap.dir===dir&&now-lastTap.time<260){action('Sprint');lastTap.time=0;}else{lastTap.dir=dir;lastTap.time=now;}}
 });
 addEventListener('keyup',e=>keys.delete(e.code));
-function release(){keys.clear();world.fighters[localPlayerId].jumpBuffer=0;if(netRole==='guest')sendNet({t:'input',round:world.round||0,input:neutralInput()});else if(netRole==='host')sendSnapshot();}
+let touchControls=null;if(isTouchDevice())touchControls=createTouchControls({keys,action,unlock:unlockAudio});
+function release(){touchControls?.release();keys.clear();world.fighters[localPlayerId].jumpBuffer=0;if(netRole==='guest')sendNet({t:'input',round:world.round||0,input:neutralInput()});else if(netRole==='host')sendSnapshot();}
 addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{release();last=performance.now();acc=0;});
 for(const [id,code] of [['jumpButton','Space'],['attackButton','KeyJ'],['heavyButton','KeyU'],['grabButton','KeyI'],['bombButton','KeyK'],['skillButton','KeyL']])$(id).onclick=()=>{unlockAudio();action(code);$(id).blur();};
 renderer.domElement.addEventListener('pointerdown',()=>{unlockAudio();document.activeElement?.blur();});
