@@ -12,10 +12,16 @@ const DUEL_SPAWNS=[[-3.4,2],[3.4,2]],BRAWL_SPAWNS=[[-4.5,2.5],[4.5,2.5],[-4.5,-3
 const CRATE_SPAWNS=[[-11,-6],[-7,-4],[-2,3],[4,-4],[8,4],[11,-6],[0,5],[-4,-6]];
 export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z-p.z)<=p.d/2+r;}
 export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:x<=0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
-export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:stageOf(options.stage||'classic').crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
 const PIECE_FALL=.7,PIECE_DAMAGE={light:6,dash:9,air:7,heavy:14,slam:16,upper:10,rush:10,shieldBash:12};
+// Ground containers plus the chests sitting on top of decks (the reward for climbing).
+export function makeCrates(stage){
+  const ground=stage.crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0}));
+  const high=(stage.topLoot||[]).map((t,i)=>{const d=stage.platforms.find(p=>p.id===t.deck);return {id:ground.length+i,kind:t.kind||'chest',x:d.x+(t.dx||0),z:d.z+(t.dz||0),y:d.top+.48,floor:d.top+.48,home:{x:d.x+(t.dx||0),z:d.z+(t.dz||0)},deck:d.id,hp:1,falling:false,heldBy:null,respawnTick:0};});
+  return [...ground,...high];
+}
 export function makePieces(stage){return (stage.pieces||[]).map((d,id)=>({id,...d,maxHp:d.hp,state:'standing',hurt:0,dir:{x:1,z:0},fallT:0,owner:-1}));}
 const ownerOf=src=>src?(src.owner!==undefined?src.owner:src.id):-1;
 function hurtPiece(w,pc,damage,src){
@@ -241,9 +247,11 @@ function releaseSkill(w,p){
 export function sprint(p){if(p.hp<=0||!p.grounded||p.knocked>0||p.stun>0||p.blocking||p.carrying||p.grabbedTarget!==null||p.grabbedBy!==null||p.skillTime>0)return;p.running=true;}
 export function dodge(p){if(p.dodgeCD>0||p.knocked>0||p.stun>0||p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0||p.poisonTime>0||p.virusTime>0||p.slowTime>0)return;const burst=p.terrain==='quicksand'?7:12;p.dodgeCD=1.2;p.dodgeTime=.18;p.invuln=.24;p.vx=p.fx*burst;p.vz=p.fz*burst;}
 const LOOT={barrel:['bomb','bomb','poison','virus','slow'],crate:['meat','meat','beer','bomb'],chest:['sword','beer','meat','sword']};
-function dropLoot(w,kind,x,z){const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)];emit(w,'break',{x,y:.7,z,item,kind});w.pickups.push({type:item,x,y:0,z,life:24});return item;}
-function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
-function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=open[Math.floor(Math.random()*open.length)]||[0,5];c.x=x;c.z=z;c.y=9;c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=.48){c.y=.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
+// Loot lands on whatever floor is under the break: a deck top if the container was up there.
+function floorAt(stage,x,z,y){let top=0;for(const d of stage.platforms)if(supported(x,z,d,-.1)&&d.top<=y+.5&&d.top>top)top=d.top;return top;}
+function dropLoot(w,kind,x,z,fromY=0){const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)],y=floorAt(stageOf(w.stage),x,z,fromY);emit(w,'break',{x,y:y+.7,z,item,kind});w.pickups.push({type:item,x,y,z,life:24});return item;}
+function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z,c.y);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
+function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=c.home?[c.home.x,c.home.z]:(open[Math.floor(Math.random()*open.length)]||[0,5]);c.x=x;c.z=z;c.y=(c.floor??.48)+8.5;if(!c.home)c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=(c.floor??.48)){c.y=c.floor??.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
 // CPU decisions fire on their own jittered timers (from a seeded stream) rather than a shared global beat,
 // so no seat gets to act first in every exchange.
 function rnd(w){w.rngState=(Math.imul(w.rngState||12345,1664525)+1013904223)>>>0;return w.rngState/4294967296;}
@@ -253,11 +261,58 @@ function due(w,p,period){
   if(w.tick<p.aiClock[k])return false;
   p.aiClock[k]=w.tick+Math.round(period*(.6+rnd(w)*.8));return true;
 }
+// ---- CPU vertical navigation: reach a deck by ladder or by (double) jumping at its edge ----
+function deckUnder(stage,x,z,y){let best=null;for(const d of stage.platforms)if(supported(x,z,d,-.1)&&d.top<=y+.5&&(!best||d.top>best.top))best=d;return best;}
+function edgeOf(d,x,z){return {x:clamp(x,d.x-d.w/2,d.x+d.w/2),z:clamp(z,d.z-d.d/2,d.z+d.d/2)};}
+const onLadder=p=>p.climbing||String(p.support).startsWith('ladder');
+// A deck too tall to jump onto directly is reached through a lower stepping deck (ground -> ziggurat tier -> top tier).
+const STEP_UP=2.9;
+function routeDeck(stage,p,D){
+  if(D.top-p.y<=STEP_UP)return D;
+  let best=D,bs=Infinity;
+  for(const E of stage.platforms){
+    if(E===D||E.top<=p.y+.4||E.top-p.y>STEP_UP||D.top-E.top>STEP_UP)continue;
+    const e=edgeOf(E,p.x,p.z),sc=Math.hypot(e.x-p.x,e.z-p.z)+Math.hypot(E.x-D.x,E.z-D.z)*.5;
+    if(sc<bs){bs=sc;best=E;}
+  }
+  return best;
+}
+// Returns a movement input toward deck D (and presses jump when a jump is the way up), or null when already there.
+function climbTo(w,p,goal){
+  const stage=stageOf(w.stage);stage._ladders??=laddersOf(stage);
+  const D=routeDeck(stage,p,goal);
+  if(p.y>=goal.top-.25&&supported(p.x,p.z,goal,.1))return null;
+  const ladders=stage._ladders.filter(l=>l.deck===D.id);
+  // Already on a ladder: finish a climb that began at its foot when it leads toward the goal; a CPU that stepped onto it from the deck rides it back down.
+  if(!onLadder(p))p.aiLadderFrom=undefined;
+  else{
+    p.aiLadderFrom??=p.y;
+    const l=stage._ladders.filter(l=>Math.hypot(l.x-p.x,l.z-p.z)<2).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0];
+    if(l){const fromFoot=p.aiLadderFrom<l.top*.5,up=l.deck===D.id||l.deck===goal.id||(fromFoot&&D.top>l.top-.3);return up?{x:l.dx,z:l.dz}:{x:-l.dx,z:-l.dz};}
+  }
+  // Ladders for high decks (half the CPUs' choice, so they do not all take the same route); otherwise jump at the nearest edge.
+  if(ladders.length&&D.top-p.y>2.4&&p.grounded&&p.id%2===0){
+    const l=ladders.sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0],dx=l.x-p.x,dz=l.z-p.z,d=Math.hypot(dx,dz);
+    if(d>.5)return {x:dx/d,z:dz/d};return {x:l.dx,z:l.dz};
+  }
+  const e=edgeOf(D,p.x,p.z),dx=e.x-p.x,dz=e.z-p.z,d=Math.hypot(dx,dz),rise=D.top-p.y;
+  if(rise>.3){
+    if(p.grounded&&d<1.5)jump(p);
+    else if(!p.grounded&&p.vy<3&&p.jumps<2&&p.y<D.top-.2&&d<2.2)jump(p);
+  }
+  // Over the edge, aim at the deck's middle so the landing is on it.
+  const cx=D.x-p.x,cz=D.z-p.z,cd=Math.hypot(cx,cz)||1;
+  if(d<1.8)return {x:cx/cd,z:cz/cd};
+  return {x:dx/(d||1),z:dz/(d||1)};
+}
+// The deck a CPU should run to when a wave is coming: the nearest one it can get onto.
+function refuge(w,p){const stage=stageOf(w.stage);let best=null,bd=Infinity;for(const d of stage.platforms){if(d.top<1||d.top>4)continue;const e=edgeOf(d,p.x,p.z),dd=Math.hypot(e.x-p.x,e.z-p.z);if(dd<bd){bd=dd;best=d;}}return bd<11?best:null;}
 function ai(w,p,q){
   if(w.training)return {x:0,z:0};
   // Each CPU keeps its own rhythm; identical timers would let the first fighter in the update order always win the trade.
   const beat=w.tick+p.id*41;
   const d=distance(p,q);faceTarget(p,q);
+  const isRanged=characterOf(p).moveAttack==='shot';
   const hazards=[...w.clouds.filter(c=>c.life>0&&Math.abs(p.y+1-c.y)<2.8),
     ...w.bombs.filter(b=>b.kind==='bomb'&&b.life<.65&&Math.abs(p.y+1-b.y)<2.8).map(b=>({...b,radius:3})),
     ...w.cannonballs.filter(c=>c.kind==='rock').map(c=>({x:c.x,z:c.z,radius:1.8})),
@@ -282,6 +337,15 @@ function ai(w,p,q){
   // Wade out of quicksand unless the opponent is already in reach.
   const sand=p.terrain==='quicksand'?zoneAt(stageOf(w.stage),p.x,p.z):null;
   if(sand&&d>2.4){const dx=p.x-sand.x,dz=p.z-sand.z,l=Math.hypot(dx,dz)||1;return {x:dx/l,z:dz/l};}
+  const stageDef=stageOf(w.stage);
+  // Roll or leap over a ground-level snowball heading our way.
+  const ball=w.cannonballs.find(c=>c.kind==='snowball'&&Math.abs(c.z-p.z)<1.1&&Math.abs(c.x-p.x)<3.2&&(p.x-c.x)*c.vx>0);
+  if(ball&&p.grounded&&p.y<.3)jump(p);
+  // Tides and avalanches only reach the floor: climb to the nearest deck and wait there.
+  if(stageDef.waveKind!=='sandstorm'&&(w.wavePending||w.waveTime>0)){
+    if(p.y<.7){const D=refuge(w,p);if(D){const mv=climbTo(w,p,D);if(mv)return mv;}}
+    else if(d>2.6)return {x:0,z:0};
+  }
   // React to the same visible charge state as a human, after a short reaction delay.
   if(q.pendingSkill&&q.pendingSkill.windup-q.skillWindup>.18&&distance(p,{x:q.pendingSkill.cx??q.x,z:q.pendingSkill.cz??q.z})<q.pendingSkill.radius+.5){
     if(q.pendingSkill.kind==='shieldQuake'&&p.grounded)jump(p);
@@ -298,13 +362,17 @@ function ai(w,p,q){
     const loot=w.pickups.filter(h=>h.life>0&&distance(p,h)<7&&
       (h.type==='meat'?p.hp<80:h.type==='beer'||!p.item))
       .sort((a,b)=>(distance(p,a)-(a.type==='meat'&&p.hp<45?3:0))-(distance(p,b)-(b.type==='meat'&&p.hp<45?3:0)))[0];
-    if(loot&&p.y<1.2){faceTarget(p,loot);return {x:p.fx,z:p.fz};}
+    if(loot&&Math.abs(p.y-(loot.y||0))<1.2){faceTarget(p,loot);return {x:p.fx,z:p.fz};}
+    // Loot or a chest sitting on a deck: climb for it when nobody is on top of us.
+    const highLoot=!isRanged&&!p.item&&d>6&&(loot&&(loot.y||0)>1?loot:w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&c.floor&&c.y>p.y+1&&distance(p,c)<9));
+    if(highLoot){const D=deckUnder(stageDef,highLoot.x,highLoot.z,(highLoot.y||0)+.6);if(D){const mv=climbTo(w,p,D);if(mv)return mv;}}
     const crate=!p.item&&d>4&&w.crates.filter(c=>c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(p.y-c.y)<1.4&&distance(p,c)<5)
       .sort((a,b)=>distance(p,a)-distance(p,b))[0];
     if(crate){faceTarget(p,crate);if(distance(p,crate)<2&&due(w,p,36))attack(w,p);return distance(p,crate)>1.2?{x:p.fx,z:p.fz}:{x:0,z:0};}
   }
   if(d<3.5&&p.grounded&&w.tick>300&&due(w,p,480)&&p.energy>=1)skill(w,p,Math.min(3,Math.floor(p.energy)));
-  // Hop up only to reach a rival standing on a deck; two CPUs otherwise mirror each other's jumps forever.
+  // Follow a rival who is standing on a deck: ladder or jump at its edge. (Jumping only for a grounded target keeps two CPUs from mirroring each other's hops.)
+  if(!isRanged&&q.y>p.y+.6&&q.grounded&&d>1.4){const D=deckUnder(stageDef,q.x,q.z,q.y);if(D){const mv=climbTo(w,p,D);if(mv)return mv;}}
   if(q.y>p.y+.6&&q.grounded&&p.grounded)jump(p);
   // Grand Battle CPUs press: chain the light string whenever the previous hit landed.
   if(p.comboWindow>0&&p.attackConnected&&!p.comboQueued&&p.attackType==='light'&&p.combo<2&&d<2.6)attack(w,p);
@@ -529,7 +597,7 @@ export function step(w,input={},dt=STEP){
           const reach=p.weapon==='sword'?3.25:p.attackType==='shieldBash'?2.8:p.attackType==='slam'?2.9:p.attackType==='heavy'?2.85:p.attackType==='upper'?2.55:p.attackType==='dash'?3:p.attackType==='rush'?2.7:p.attackType==='air'?2.7:2.6;
           if(d<reach&&(dot>-.15||d<.8)){const baseDamage=p.attackType==='slam'?21:p.attackType==='heavy'?18:p.attackType==='upper'?16:p.attackType==='shieldBash'?15:p.attackType==='rush'?13:p.attackType==='dash'?12:p.attackType==='air'?(p.airCombo===2?14:9):(p.combo===2?15:p.combo===1?12:9),baseForce=p.attackType==='slam'?12:p.attackType==='heavy'?10:p.attackType==='upper'?9:p.attackType==='shieldBash'?11:p.attackType==='rush'?6.5:p.attackType==='dash'?7:p.attackType==='air'?5.5:(p.combo===2?9:p.combo===1?6:4),styleBoost=characterOf(p).boost[p.attackType]||1;hit(w,p,q,baseDamage*styleBoost*p.attackBoost,baseForce*(p.char==='guardian'&&styleBoost>1?1.12:1),{guardBreak:p.attackType==='heavy'||p.attackType==='slam'||p.attackType==='shieldBash',kind:p.attackType});}
         }
-        if(p.attackType!=='grab'&&p.attackType!=='shot')for(const c of w.crates)if(c.hp>0&&distance(p,c)<2.5&&p.y<1.7)breakCrate(w,c,1);
+        if(p.attackType!=='grab'&&p.attackType!=='shot')for(const c of w.crates)if(c.hp>0&&distance(p,c)<2.5&&Math.abs(p.y+.48-c.y)<1.7)breakCrate(w,c,1);
         if(p.attackType!=='grab'&&p.attackType!=='shot')for(const pc of w.pieces){
           const d=distance(p,pc);if(pc.state!=='standing'||d>2.6+pc.r||p.y>=pc.h)continue;
           if(((pc.x-p.x)*p.fx+(pc.z-p.z)*p.fz)/Math.max(.01,d)>-.1)hurtPiece(w,pc,(PIECE_DAMAGE[p.attackType]||6)*p.attackBoost,p);
@@ -580,7 +648,7 @@ export function step(w,input={},dt=STEP){
     if(crate){breakCrate(w,crate,1);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     if(s.life<=0||Math.abs(s.x)>15||Math.abs(s.z)>9)w.shots.splice(i,1);
   }
-  for(let i=w.props.length-1;i>=0;i--){const o=w.props[i];if(o.heldBy!==null){const p=w.fighters.find(p=>p.id===o.heldBy);if(p){o.x=p.x+p.fx*.3;o.z=p.z+p.fz*.3;o.y=p.y+2.15;}continue;}const oldY=o.y;o.life-=dt;o.age=(o.age||0)+dt;o.vy-=GRAVITY*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.z+=o.vz*dt;const target=w.fighters.find(p=>p.hp>0&&p.id!==o.owner&&distance(p,o)<.8&&Math.abs(p.y+1-o.y)<1.2);const ground=o.y<.35||stageOf(w.stage).platforms.some(p=>supported(o.x,o.z,p)&&o.vy<0&&oldY>=p.top+.35&&o.y<=p.top+.35);const hitPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,o)<pc.r+.45&&o.y<pc.h+.5&&o.vx*o.vx+o.vz*o.vz>4);if(target){hit(w,o,target,o.kind==='chest'?20:o.kind==='barrel'?17:14,o.kind==='chest'?11:8,{kind:'prop'});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}else if(hitPiece){hurtPiece(w,hitPiece,18,{owner:o.owner,x:o.x-o.vx*.05,z:o.z-o.vz*.05});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}else if(ground||o.life<=0){emit(w,'propBreak',{x:o.x,y:Math.max(.3,o.y),z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}}
+  for(let i=w.props.length-1;i>=0;i--){const o=w.props[i];if(o.heldBy!==null){const p=w.fighters.find(p=>p.id===o.heldBy);if(p){o.x=p.x+p.fx*.3;o.z=p.z+p.fz*.3;o.y=p.y+2.15;}continue;}const oldY=o.y;o.life-=dt;o.age=(o.age||0)+dt;o.vy-=GRAVITY*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.z+=o.vz*dt;const target=w.fighters.find(p=>p.hp>0&&p.id!==o.owner&&distance(p,o)<.8&&Math.abs(p.y+1-o.y)<1.2);const ground=o.y<.35||stageOf(w.stage).platforms.some(p=>supported(o.x,o.z,p)&&o.vy<0&&oldY>=p.top+.35&&o.y<=p.top+.35);const hitPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,o)<pc.r+.45&&o.y<pc.h+.5&&o.vx*o.vx+o.vz*o.vz>4);if(target){hit(w,o,target,o.kind==='chest'?20:o.kind==='barrel'?17:14,o.kind==='chest'?11:8,{kind:'prop'});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z,o.y);w.props.splice(i,1);}else if(hitPiece){hurtPiece(w,hitPiece,18,{owner:o.owner,x:o.x-o.vx*.05,z:o.z-o.vz*.05});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z,o.y);w.props.splice(i,1);}else if(ground||o.life<=0){emit(w,'propBreak',{x:o.x,y:Math.max(.3,o.y),z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z,o.y);w.props.splice(i,1);}}
   for(const p of w.fighters)if(p.sprung){p.sprung=false;emit(w,'spring',{id:p.id,x:p.x,y:p.y,z:p.z});}
   updateStageHazards(w,dt);
   updatePieces(w,dt);
@@ -604,7 +672,7 @@ export function step(w,input={},dt=STEP){
     if(h.life<=0){w.pickups.splice(i,1);continue;}
     // Resolve after damage: food must not resurrect a defeated fighter or steal a stock.
     // Nearest eligible player wins; exact distance ties use stable player ID.
-    const p=w.fighters.filter(p=>p.hp>0&&p.respawnTimer<=0&&p.y<1.2&&distance(p,h)<1.8&&
+    const p=w.fighters.filter(p=>p.hp>0&&p.respawnTimer<=0&&Math.abs(p.y-(h.y||0))<1.2&&distance(p,h)<1.8&&
       (h.type==='meat'?p.hp<100:h.type==='beer'||!p.item))
       .sort((a,b)=>distance(a,h)-distance(b,h)||a.id-b.id)[0];
     if(!p)continue;

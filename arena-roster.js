@@ -31,6 +31,7 @@ export const STAGES={
       {id:'cargo-right',x:11.5,z:1.6,w:2.8,d:2.6,top:1.2,style:'crates',ladder:'left'}],
     zones:[{kind:'spring',x:-7.5,z:5.6,r:.95},{kind:'spring',x:7.5,z:5.6,r:.95}],
     crates:[[-6,3],[6,3],[0,-2.4]],
+    topLoot:[{deck:'crows-nest',kind:'chest'},{deck:'cargo-left',kind:'barrel'}],
     pieces:[{kind:'mast',x:-10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5},{kind:'mast',x:10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5}]},
   desert:{look:'stone',name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
     platforms:[
@@ -41,15 +42,17 @@ export const STAGES={
       {id:'ruin-low',x:10.2,z:-.5,w:3.4,d:2,top:1.3,style:'ruin',ladder:'left'}],
     zones:[{kind:'quicksand',x:-8.5,z:4,r:2.2},{kind:'quicksand',x:8,z:4.6,r:2},{kind:'quicksand',x:0,z:2.4,r:1.4}],
     crates:[[-3.5,5.5],[3.5,5.5],[-12,-.5]],
+    topLoot:[{deck:'tier-3',kind:'chest'},{deck:'ruin-low',kind:'barrel'}],
     pieces:[{kind:'pillar',x:-3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5},{kind:'pillar',x:3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5}]},
   snow:{look:'snow',name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
     platforms:[
-      {id:'snow-hill',x:-9.5,z:-3.6,w:7,d:5,top:2.8,style:'hill',ladder:'right'},
+      {id:'snow-hill',x:-9.5,z:-3.6,w:7,d:5,top:2.8,style:'hill',ladder:'front',ladderAt:-1.5},
       {id:'igloo',x:8.2,z:-4.8,w:4,d:3,top:1.4,style:'igloo',ladder:'front'},
       {id:'ice-ledge',x:11.8,z:1.2,w:2.6,d:4,top:2.1,style:'ice',ladder:'left'},
       {id:'ice-step',x:2.4,z:-6.6,w:3,d:2,top:.9,style:'ice',ladder:false}],
     zones:[{kind:'ice',x:0,z:4.6,w:10,d:4},{kind:'ice',x:-8.5,z:5,w:4,d:3.4}],
     crates:[[-3,-.5],[3,-.5],[0,6.8]],
+    topLoot:[{deck:'snow-hill',kind:'chest',dx:-1.5},{deck:'ice-ledge',kind:'barrel'}],
     pieces:[{kind:'ice',x:-3.8,z:-.6,r:.8,h:4,hp:60,fall:'burst',length:3.3},{kind:'ice',x:3.8,z:-.6,r:.8,h:4,hp:60,fall:'burst',length:3.3}]},
   classic:{hidden:true,look:'classic',name:'风车港',sub:'弹跳网 · 炮击 · 巨浪',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
     platforms:[{id:'deck-left',x:-6,z:0,w:4,d:3,top:1.6},{id:'deck-center',x:0,z:-2.2,w:4,d:3,top:2.2},{id:'deck-right',x:6,z:0,w:4,d:3,top:1.6}],
@@ -61,7 +64,7 @@ export function stageOf(id){return STAGES[id]||STAGES.port;}
 // Each deck gets a ladder on its front by default; `ladder` picks another side or none, `ladders` lists several.
 // dx/dz point from the ladder into the deck, so pushing that way climbs.
 const LADDER_SIDES={front:{dx:0,dz:-1},back:{dx:0,dz:1},left:{dx:1,dz:0},right:{dx:-1,dz:0}};
-export function ladderSpecs(d){return d.ladders||(d.ladder===false?[]:[{side:d.ladder||'front',at:0}]);}
+export function ladderSpecs(d){return d.ladders||(d.ladder===false?[]:[{side:d.ladder||'front',at:d.ladderAt||0}]);}
 export function laddersOf(stage){
   const out=[];
   for(const d of stage.platforms)for(const {side,at=0} of ladderSpecs(d)){
