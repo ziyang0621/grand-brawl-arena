@@ -219,3 +219,31 @@ body.touch .gauges{bottom:auto;top:84px}
   body.touch .combo{top:110px}
 }
 @media(orientation:portrait){body.touch .combo{top:124px}body.touch header{bottom:auto;top:148px}}
+
+/* ---- Four-fighter brawl HUD ---- */
+#brawlHud{position:fixed;z-index:3;top:30px;left:10px;right:10px;display:grid;grid-template-columns:1fr 1fr 96px 1fr 1fr;gap:8px;pointer-events:none;max-width:1100px;margin:0 auto}
+.bcard{display:flex;align-items:flex-start;gap:6px;min-width:0}
+.bcard img{flex:none;width:48px;height:48px;object-fit:cover;border:3px solid var(--ink);background:linear-gradient(160deg,#fff,var(--c));transform:skewX(-8deg);box-shadow:2px 2px 0 var(--ink)}
+.bbody{flex:1;min-width:0}
+.bplate{display:flex;align-items:baseline;gap:5px;font-weight:1000;font-style:italic}
+.bplate span{font-size:10px;padding:0 5px;border:2px solid var(--ink);background:var(--c);color:var(--ink);transform:skewX(-10deg)}
+.bplate b{font-size:15px;color:#fff;-webkit-text-stroke:1px var(--ink);text-shadow:2px 2px 0 var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bhp{position:relative;height:14px;margin-top:2px;border:3px solid var(--ink);background:#3b1a1a;transform:skewX(-20deg);overflow:hidden;box-shadow:2px 2px 0 #0008}
+.bhp i{position:absolute;top:0;bottom:0;left:0;width:100%}
+.bhp .blag{background:#ff2d2d;transition:width .45s .35s linear}
+.bhp .bfill{background:linear-gradient(180deg,#fff7b0 0 20%,var(--hp-hi) 22% 60%,#e8b21a 62%);border-right:2px solid var(--ink)}
+.bcard.low .bfill{background:linear-gradient(180deg,#ffc4a0 0 20%,var(--hp-lo) 22% 60%,#c7361b 62%)}
+.bfoot{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:3px}
+.bpips{display:flex;gap:2px;transform:skewX(-20deg)}
+.bpips i{width:14px;height:6px;border:1px solid var(--ink);background:#3a3f4c}
+.bpips i.on{background:linear-gradient(90deg,#ff9d1c,#ffe14a)}
+.bfoot small{font-size:10px;font-weight:900;color:#fff;text-shadow:1px 1px 0 var(--ink),-1px -1px 0 var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bcard.out{filter:grayscale(1) brightness(.75);opacity:.85}
+body.brawl .hud .side,body.brawl .gauges,body.brawl .combo{display:none}
+body.brawl .hud{width:96px}
+body.brawl #callout{top:112px}
+@media(max-width:760px){
+  #brawlHud{grid-template-columns:1fr 1fr 60px 1fr 1fr;gap:4px;left:6px;right:6px}
+  .bcard img{display:none}.bplate b{font-size:11px}.bplate span{font-size:9px;padding:0 3px}.bhp{height:11px}.bpips i{width:9px}
+  body.brawl .hud{width:60px}body.brawl .clock{width:60px}body.brawl .clock strong{font-size:30px}
+}

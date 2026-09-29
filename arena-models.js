@@ -1,7 +1,7 @@
 // Character rigs: every roster member shares the same joints (body, arms, legs, weapon)
 // so animation code stays generic while silhouettes and colors stay distinct.
 import * as THREE from './vendor/three.module.js';
-import {CHARACTERS} from './arena-roster.js';
+import {CHARACTERS,SLOT_COLORS,SLOT_LABELS} from './arena-roster.js';
 import {box,sphere,cylinder,cone,mesh,fxMesh,label,ink} from './arena-gfx.js';
 
 function animeFace(body,c,eyeColor='#1c2230'){
@@ -110,10 +110,10 @@ export function buildFighter(charId,slot,parent){
   const weaponGlow=fxMesh(new THREE.BoxGeometry(gw,gh,.16),'#ffd84e',sword,0,rig.glowY,.01,0);
   const swordTrail=fxMesh(new THREE.PlaneGeometry(gw*2.2,gh*1.2),'#ffbf28',sword,-.1,rig.glowY,-.08,0);
   const swordSparks=[];for(let i=0;i<5;i++){const spark=fxMesh(new THREE.SphereGeometry(.055+(i%2)*.025,8,6),i%2?'#fff3a0':'#ffbe2e',sword,0,.25+i*.25,.12,0);spark.userData={phase:i*.23};swordSparks.push(spark);}
-  const ringColor=slot===0?'#ffd24a':'#5fd8ff';
+  const ringColor=SLOT_COLORS[slot]||SLOT_COLORS[0];
   const ring=mesh(new THREE.RingGeometry(.58,.7,40),ringColor,root,0,.035,0);ring.rotation.x=-Math.PI/2;ring.material=new THREE.MeshBasicMaterial({color:ringColor,side:THREE.DoubleSide,transparent:true,opacity:.9});ring.castShadow=false;
   const shield=new THREE.Mesh(new THREE.CircleGeometry(.9,32),new THREE.MeshBasicMaterial({color:'#87dfff',transparent:true,opacity:.42,side:THREE.DoubleSide,depthWrite:false}));shield.position.set(0,1.35,.74);shield.visible=false;body.add(shield);
-  const tag=label(slot===0?'1P':'2P',slot===0?'#ffd24a':'#5fd8ff',60);tag.scale.set(1.5,.38,1);tag.position.y=3.4;root.add(tag);
+  const tag=label(SLOT_LABELS[slot]||'1P',ringColor,60);tag.scale.set(1.5,.38,1);tag.position.y=3.4;root.add(tag);
   return {char:charId,root,body,...rig,sword,weaponGlow,swordTrail,swordSparks,ring,shield,tag,...statusFx(root,body)};
 }
 export function disposeFighter(m){

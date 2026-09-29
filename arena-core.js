@@ -7,10 +7,12 @@ export const JUMP_SPEED = 12.5;
 export const PLATFORMS=STAGES.port.platforms;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+// Four-fighter free-for-all starts from the corners of the open floor, clear of decks and terrain zones.
+const DUEL_SPAWNS=[[-3.4,2],[3.4,2]],BRAWL_SPAWNS=[[-4.5,2.5],[4.5,2.5],[-4.5,-3],[4.5,-3]];
 const CRATE_SPAWNS=[[-11,-6],[-7,-4],[-2,3],[4,-4],[8,4],[11,-6],[0,5],[-4,-6]];
 export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z-p.z)<=p.d/2+r;}
-export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:id===0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
-export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'port',bestOf,roundNo:1,wins:[0,0],intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:[createFighter(0,-3.4,2,chars[0]),createFighter(1,3.4,2,chars[1])],bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],crates:stageOf(options.stage).crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:x<=0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {brawl,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'port',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c)),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],crates:stageOf(options.stage).crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 export function jump(p,input={}){
   if(p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0)return;
@@ -23,11 +25,13 @@ export function jump(p,input={}){
   }
   if(p.stun>0)return;p.jumpBuffer=.14;
 }
+// Nearest fighter still in the match; a duel always resolves to the other player.
+function nearestFoe(w,p,maxY=Infinity){let best=null,bd=Infinity;for(const q of w.fighters){if(q===p||q.hp<=0||q.respawnTimer>0||Math.abs(p.y-q.y)>=maxY)continue;const d=distance(p,q);if(d<bd){bd=d;best=q;}}return best;}
 function faceTarget(p,q){const d=distance(p,q);if(d>0.001){p.fx=(q.x-p.x)/d;p.fz=(q.z-p.z)/d;}}
 // Aim only at a nearby, reachable rival; a closer container remains a valid target.
 function assistAim(w,p,range=4.2){
   if(p.aimAssist===false)return;
-  const q=w.fighters.find(q=>q.id!==p.id&&q.hp>0&&q.respawnTimer<=0&&Math.abs(p.y-q.y)<2.5);
+  const q=nearestFoe(w,p,2.5);
   if(!q||distance(p,q)>range)return;
   const nearerCrate=w.crates.some(c=>c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(c.y-p.y)<1.4&&distance(p,c)<Math.min(2.5,distance(p,q)));
   if(!nearerCrate)faceTarget(p,q);
@@ -139,7 +143,7 @@ function skillSpec(w,p,level){
 }
 function skillCenter(w,p,spec){
   if(spec.ahead)return {cx:p.x+p.fx*spec.ahead,cz:p.z+p.fz*spec.ahead};
-  if(spec.targeted){const q=w.fighters.find(q=>q.id!==p.id&&q.hp>0&&q.respawnTimer<=0&&distance(p,q)<10);return q?{cx:q.x,cz:q.z}:{cx:clamp(p.x+p.fx*4,-14,14),cz:clamp(p.z+p.fz*4,-8,8)};}
+  if(spec.targeted){const q=nearestFoe(w,p);return q&&distance(p,q)<10?{cx:q.x,cz:q.z}:{cx:clamp(p.x+p.fx*4,-14,14),cz:clamp(p.z+p.fz*4,-8,8)};}
   return {cx:p.x,cz:p.z};
 }
 export function skill(w,p,requestedLevel=1){
@@ -299,8 +303,11 @@ function nextRound(w){
   Object.assign(w,{nextCannonTick:w.tick+900,nextWaveTick:w.tick+2400,waveWarning:0,waveTime:0,wavePending:false,intro:1.8});
   emit(w,'roundStart',{roundNo:w.roundNo});
 }
+function duelWinner(w){const [a,b]=w.fighters;return a.lives===b.lives?(a.hp===b.hp?null:a.hp>b.hp?0:1):a.lives>b.lives?0:1;}
+// Last fighter standing wins; on time-up the healthiest survivor does, and a tie is a draw.
+function brawlWinner(w){const alive=w.fighters.filter(p=>p.hp>0);if(!alive.length)return null;const top=Math.max(...alive.map(p=>p.hp)),best=alive.filter(p=>p.hp===top);return best.length===1?best[0].id:null;}
 function finishRound(w,defeated){
-  const [a,b]=w.fighters,winner=a.lives===b.lives?(a.hp===b.hp?null:a.hp>b.hp?0:1):a.lives>b.lives?0:1;
+  const winner=w.brawl?brawlWinner(w):duelWinner(w);
   if(w.bestOf<=1||w.stock||w.training){w.ended=true;w.winner=winner;emit(w,'end',{winner});return;}
   for(const p of w.fighters){cancelSkill(w,p);dropHeld(w,p);if(p.grabbedBy!==null){const holder=w.fighters.find(q=>q.id===p.grabbedBy);if(holder)releaseGrab(w,holder,p,false,true);}}
   if(winner!==null)w.wins[winner]++;
@@ -314,7 +321,7 @@ function finishRound(w,defeated){
 function updateStageHazards(w,dt){
   const stage=stageOf(w.stage),kind=stage.cannonKind;
   if(!w.training&&w.tick>=w.nextCannonTick){
-    const target=w.fighters[Math.floor(Math.random()*w.fighters.length)],side=Math.random()<.5?-1:1;
+    const pool=w.fighters.filter(p=>p.hp>0),target=(pool.length?pool:w.fighters)[Math.floor(Math.random()*(pool.length||w.fighters.length))],side=Math.random()<.5?-1:1;
     if(kind==='rockfall'){const x=clamp(target.x+(Math.random()-.5)*1.5,-14,14),z=clamp(target.z+(Math.random()-.5)*1.5,-8,8);w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'rock',x,y:12,z,vx:0,vy:0,vz:0,life:4,delay:1.1});w.nextCannonTick=w.tick+620;emit(w,'rockWarn',{x,y:.14,z,delay:1.1});}
     else if(kind==='snowball'){w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'snowball',x:side*15,y:.75,z:target.z,vx:-side*9,vy:0,vz:0,life:3.6});w.nextCannonTick=w.tick+760;emit(w,'cannon',{x:side*14,y:.75,z:target.z,side,kind:'snowball'});}
     else{w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'cannon',x:side*15,y:1.2,z:target.z,vx:-side*11,vy:1.8,vz:0,life:3});w.nextCannonTick=w.tick+840;emit(w,'cannon',{x:side*14,y:1.2,z:target.z,side,kind:'cannon'});}
@@ -325,7 +332,7 @@ function updateStageHazards(w,dt){
     c.life-=dt;
     if(c.kind==='rock'){
       c.vy-=40*dt;c.y+=c.vy*dt;
-      const target=w.fighters.find(p=>distance(p,c)<.9&&c.y-p.y<2.4&&c.y-p.y>-.2);
+      const target=w.fighters.find(p=>p.hp>0&&distance(p,c)<.9&&c.y-p.y<2.4&&c.y-p.y>-.2);
       if(target||c.y<=.4){
         if(target)hit(w,c,target,18,9,{kind:'rock'});
         for(const p of w.fighters)if(p!==target&&p.y<.6&&distance(p,c)<1.7)hit(w,c,p,9,7,{kind:'rock'});
@@ -334,8 +341,8 @@ function updateStageHazards(w,dt){
       }
       continue;
     }
-    if(c.kind==='snowball'){c.x+=c.vx*dt;const target=w.fighters.find(p=>distance(p,c)<.95&&p.y<1.2);if(target){const blocked=target.blocking;if(hit(w,c,target,12,8,{kind:'snowball'})&&!blocked){target.slowTime=2.5;emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'snowBurst',{x:c.x,y:c.y,z:c.z});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17)w.cannonballs.splice(i,1);continue;}
-    c.vy-=5*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;const target=w.fighters.find(p=>distance(p,c)<.75&&Math.abs(p.y+1-c.y)<1.2);if(target){hit(w,c,target,14,9,{kind:'cannon'});emit(w,'explosion',{x:c.x,y:c.y,z:c.z,kind:'cannon'});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17||c.y<0){w.cannonballs.splice(i,1);}
+    if(c.kind==='snowball'){c.x+=c.vx*dt;const target=w.fighters.find(p=>p.hp>0&&distance(p,c)<.95&&p.y<1.2);if(target){const blocked=target.blocking;if(hit(w,c,target,12,8,{kind:'snowball'})&&!blocked){target.slowTime=2.5;emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'snowBurst',{x:c.x,y:c.y,z:c.z});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17)w.cannonballs.splice(i,1);continue;}
+    c.vy-=5*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;const target=w.fighters.find(p=>p.hp>0&&distance(p,c)<.75&&Math.abs(p.y+1-c.y)<1.2);if(target){hit(w,c,target,14,9,{kind:'cannon'});emit(w,'explosion',{x:c.x,y:c.y,z:c.z,kind:'cannon'});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17||c.y<0){w.cannonballs.splice(i,1);}
   }
   const wave=stage.waveKind;
   if(!w.training&&w.tick>=w.nextWaveTick&&!w.wavePending&&w.waveTime<=0){w.waveWarning=2;w.wavePending=true;w.waveDir=Math.random()<.5?-1:1;w.nextWaveTick=w.tick+(wave==='sandstorm'?3000:3600);emit(w,'waveWarning',{dir:w.waveDir,kind:wave});}
@@ -375,6 +382,11 @@ export function step(w,input={},dt=STEP){
     p.slowTime=Math.max(0,p.slowTime-dt);p.poisonTime=Math.max(0,p.poisonTime-dt);p.virusTime=Math.max(0,p.virusTime-dt);p.burnTime=Math.max(0,p.burnTime-dt);p.hurtTime=Math.max(0,p.hurtTime-dt);p.poisonTick+=dt;
     if(p.poisonTime>0&&p.poisonTick>=1){p.poisonTick=0;p.hp=Math.max(0,p.hp-4);p.hurtTime=.35;p.hurtKind='poison';emit(w,'dot',{id:p.id,x:p.x,y:p.y+1.2,z:p.z,damage:4});}
     if(p.grabbed>0){const holder=w.fighters.find(f=>f.id===p.grabbedBy);if(!holder||holder.hp<=0||holder.grabbedTarget!==p.id){p.grabbed=0;p.grabbedBy=null;continue;}holder.grabHoldTime=Math.max(0,(holder.grabHoldTime||0)-dt);p.grabbed=holder.grabHoldTime;p.vx=0;p.vy=0;p.vz=0;p.grounded=false;p.blocking=false;p.attackTime=0;p.skillTime=0;if(holder.grabHoldTime<=0)releaseGrab(w,holder,p,holder.grabThrow==='high');continue;}
+    if(w.brawl&&p.hp<=0){
+      // Eliminated fighters stay down for the rest of the round; the survivors keep fighting.
+      if(!p.eliminated){p.eliminated=true;p.poisonTime=p.virusTime=p.slowTime=p.burnTime=0;emit(w,'eliminated',{id:p.id,x:p.x,y:p.y+1,z:p.z,left:w.fighters.filter(q=>q.hp>0).length});}
+      p.attackTime=0;p.skillTime=0;p.knocked=1;stepFighter(p,{x:0,z:0,guard:false},dt,stageOf(w.stage));p.blocking=false;continue;
+    }
     if(p.knocked>0){const wasAirborne=!p.grounded;p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt,stageOf(w.stage));p.blocking=false;
       if(wasAirborne&&p.grounded&&p.spiked){p.spiked=false;p.juggle=0;p.vy=6.5;p.grounded=false;p.recoveryBuffer=0;p.invuln=Math.max(p.invuln,.45);p.knocked=Math.max(p.knocked,.6);w.hitStop=Math.max(w.hitStop,.05);emit(w,'groundBounce',{id:p.id,x:p.x,y:p.y+.2,z:p.z});continue;}
       if(p.grounded)p.juggle=0;
@@ -388,7 +400,7 @@ export function step(w,input={},dt=STEP){
       if(p.wallImpact){emit(w,'wallBounce',{...p.wallImpact,id:p.id});w.hitStop=Math.max(w.hitStop,.045);p.wallImpact=null;}
       if(Math.hypot(p.vx,p.vz)>4)for(const c of w.crates)if(c.hp>0&&!c.falling&&c.heldBy===null&&distance(p,c)<1&&Math.abs(p.y-c.y)<1.2){breakCrate(w,c,1);emit(w,'bodyCrash',{id:p.id,x:c.x,y:c.y+.6,z:c.z});}
       p.knocked=Math.max(0,p.knocked-dt);if(p.knocked===0&&!p.grounded)p.knocked=.01;else if(p.knocked===0){p.invuln=.35;emit(w,'wakeup',{id:p.id,x:p.x,y:p.y+1,z:p.z});}continue;}
-    const controls=p.id===0?input:(w.online?w.remoteInput:ai(w,p,w.fighters[0]));
+    const foe=w.online||p.id===0?null:nearestFoe(w,p),controls=p.id===0?input:(w.online?w.remoteInput:foe?ai(w,p,foe):{x:0,z:0});
     stepFighter(p,controls,dt,stageOf(w.stage));
     p.landTime=Math.max(0,(p.landTime||0)-dt);
     if(p.attackTime>0){
@@ -422,12 +434,15 @@ export function step(w,input={},dt=STEP){
     const lift=clamp((2.2-holder.grabHoldTime)/.25,0,1),smooth=lift*lift*(3-2*lift);
     p.x=holder.x+holder.fx*.72;p.z=holder.z+holder.fz*.72;p.y=holder.y+.15+1.05*smooth;p.fx=holder.fx;p.fz=holder.fz;
   }}
-  const [a,b]=w.fighters,d=distance(a,b),inGrab=a.grabbedTarget===b.id||b.grabbedTarget===a.id;
-  if(!inGrab&&d<.85&&Math.abs(a.y-b.y)<1.6){const nx=d>.001?(b.x-a.x)/d:1,nz=d>.001?(b.z-a.z)/d:0,push=(.85-d)/2;a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;}
+  for(let i=0;i<w.fighters.length;i++)for(let j=i+1;j<w.fighters.length;j++){
+    const a=w.fighters[i],b=w.fighters[j],d=distance(a,b),inGrab=a.grabbedTarget===b.id||b.grabbedTarget===a.id;
+    if(w.brawl&&(a.hp<=0||b.hp<=0))continue;
+    if(!inGrab&&d<.85&&Math.abs(a.y-b.y)<1.6){const nx=d>.001?(b.x-a.x)/d:1,nz=d>.001?(b.z-a.z)/d:0,push=(.85-d)/2;a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;}
+  }
   for(let i=w.bombs.length-1;i>=0;i--){
     const s=w.bombs[i],oldY=s.y;s.life-=dt;s.vy-=16*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;
     const ground=s.y<.22||stageOf(w.stage).platforms.some(p=>supported(s.x,s.z,p)&&s.vy<0&&oldY>=p.top+.22&&s.y<=p.top+.22);
-    const contact=w.fighters.some(p=>distance(p,s)<.65&&Math.abs(p.y+1-s.y)<1);
+    const contact=w.fighters.some(p=>p.hp>0&&distance(p,s)<.65&&Math.abs(p.y+1-s.y)<1);
     if(ground||contact||s.life<=0){
       if(s.kind==='poison'||s.kind==='virus'||s.kind==='slow'){
         const radius=s.kind==='virus'?2.8:s.kind==='slow'?2.4:2.2;const life=s.kind==='virus'?7:s.kind==='slow'?4:5;w.clouds.push({id:w.nextCloud++,owner:s.owner,kind:s.kind,x:s.x,y:Math.max(.2,s.y),z:s.z,life,radius,tick:0});emit(w,'cloud',{x:s.x,y:Math.max(.2,s.y),z:s.z,kind:s.kind});
@@ -447,7 +462,7 @@ export function step(w,input={},dt=STEP){
     if(crate){breakCrate(w,crate,1);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     if(s.life<=0||Math.abs(s.x)>15||Math.abs(s.z)>9)w.shots.splice(i,1);
   }
-  for(let i=w.props.length-1;i>=0;i--){const o=w.props[i];if(o.heldBy!==null){const p=w.fighters.find(p=>p.id===o.heldBy);if(p){o.x=p.x+p.fx*.3;o.z=p.z+p.fz*.3;o.y=p.y+2.15;}continue;}const oldY=o.y;o.life-=dt;o.age=(o.age||0)+dt;o.vy-=GRAVITY*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.z+=o.vz*dt;const target=w.fighters.find(p=>p.id!==o.owner&&distance(p,o)<.8&&Math.abs(p.y+1-o.y)<1.2);const ground=o.y<.35||stageOf(w.stage).platforms.some(p=>supported(o.x,o.z,p)&&o.vy<0&&oldY>=p.top+.35&&o.y<=p.top+.35);if(target){hit(w,o,target,o.kind==='chest'?20:o.kind==='barrel'?17:14,o.kind==='chest'?11:8,{kind:'prop'});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}else if(ground||o.life<=0){emit(w,'propBreak',{x:o.x,y:Math.max(.3,o.y),z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}}
+  for(let i=w.props.length-1;i>=0;i--){const o=w.props[i];if(o.heldBy!==null){const p=w.fighters.find(p=>p.id===o.heldBy);if(p){o.x=p.x+p.fx*.3;o.z=p.z+p.fz*.3;o.y=p.y+2.15;}continue;}const oldY=o.y;o.life-=dt;o.age=(o.age||0)+dt;o.vy-=GRAVITY*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.z+=o.vz*dt;const target=w.fighters.find(p=>p.hp>0&&p.id!==o.owner&&distance(p,o)<.8&&Math.abs(p.y+1-o.y)<1.2);const ground=o.y<.35||stageOf(w.stage).platforms.some(p=>supported(o.x,o.z,p)&&o.vy<0&&oldY>=p.top+.35&&o.y<=p.top+.35);if(target){hit(w,o,target,o.kind==='chest'?20:o.kind==='barrel'?17:14,o.kind==='chest'?11:8,{kind:'prop'});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}else if(ground||o.life<=0){emit(w,'propBreak',{x:o.x,y:Math.max(.3,o.y),z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z);w.props.splice(i,1);}}
   for(const p of w.fighters)if(p.sprung){p.sprung=false;emit(w,'spring',{id:p.id,x:p.x,y:p.y,z:p.z});}
   updateStageHazards(w,dt);
   for(let i=w.clouds.length-1;i>=0;i--){
@@ -480,6 +495,6 @@ export function step(w,input={},dt=STEP){
   }
   for(const p of w.fighters)if(p.hp<=0)cancelRecovery(p);
   if(w.stock)for(const p of w.fighters)if(p.hp<=0&&p.respawnTimer<=0&&p.lives>1){p.lives--;p.respawnTimer=.9;p.item=null;p.weapon=null;p.blocking=false;p.knocked=0;p.attackTime=0;p.skillTime=0;emit(w,'lifeLost',{id:p.id,lives:p.lives,x:p.x,y:p.y+1,z:p.z});}
-  const defeated=w.fighters.some(p=>p.hp<=0&&p.respawnTimer<=0&&(!w.stock||p.lives<=1));
+  const defeated=w.brawl?w.fighters.filter(p=>p.hp>0).length<=1:w.fighters.some(p=>p.hp<=0&&p.respawnTimer<=0&&(!w.stock||p.lives<=1));
   if(defeated||w.time<=0)finishRound(w,defeated);
 }

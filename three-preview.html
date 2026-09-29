@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Grand Brawl · 海贼大乱斗</title><link rel="icon" href="data:,"><link rel="stylesheet" href="arena.css?v=10">
+<title>Grand Brawl · 海贼大乱斗</title><link rel="icon" href="data:,"><link rel="stylesheet" href="arena.css?v=11">
 </head>
 <body>
 <main id="arena" aria-label="海贼大乱斗 3D 竞技场"></main>
@@ -38,6 +38,7 @@
 </section>
 <div id="callout" role="status"></div><div id="banner" aria-live="polite"></div>
 <div class="combo p1" id="combo0" aria-hidden="true"><b>0</b><span>HITS!</span></div><div class="combo p2" id="combo1" aria-hidden="true"><b>0</b><span>HITS!</span></div>
+<section id="brawlHud" aria-label="四人乱斗状态" hidden></section>
 <section id="vs" aria-hidden="true"><div class="vs-side p1"><img id="vsP1" alt=""><b id="vsName1"></b><small id="vsTitle1"></small></div><strong>VS</strong><div class="vs-side p2"><img id="vsP2" alt=""><b id="vsName2"></b><small id="vsTitle2"></small></div><p id="vsStage"></p></section>
 <div id="cutin" aria-hidden="true"><div class="band"><img id="cutinPortrait" alt=""><div><small id="cutinLevel">LV 1</small><b id="cutinName"></b></div></div></div>
 <div id="loading" role="status">正在装载港湾…</div>
@@ -47,7 +48,7 @@
     <div class="pick-row"><h2><span class="chip p1">1P</span>选择角色</h2><div class="roster" id="p1Roster"></div></div>
     <div class="pick-row"><h2><span class="chip p2">2P</span>对手角色 <button id="randomRival" class="link">随机</button></h2><div class="roster" id="p2Roster"></div></div>
     <div class="pick-row"><h2>选择场地</h2><div class="stages" id="stageList"></div></div>
-    <div class="modes"><button id="training">对手：战斗 AI</button><button id="livesMode">三命模式：关</button><button id="platformPractice">跳台练习</button><span class="rule" id="ruleLabel">三局两胜 · 每局 99 秒</span></div>
+    <div class="modes"><button id="training">对手：战斗 AI</button><button id="livesMode">三命模式：关</button><button id="brawlMode">四人乱斗：关</button><button id="platformPractice">跳台练习</button><span class="rule" id="ruleLabel">三局两胜 · 每局 99 秒</span></div>
     <section class="network" aria-label="3D 联机房间">
       <strong id="netStatus">单人练习</strong><button id="host3d">创建房间</button><input id="room3d" maxlength="4" placeholder="房间码" aria-label="四位房间码"><button id="join3d">加入房间</button><button id="leave3d" class="hide">退出房间</button><span id="room3dLabel"></span>
     </section>
@@ -75,6 +76,6 @@
 </div></details></div>
 </footer>
 <dialog id="result"><small id="resultSub">港湾争夺战</small><img id="resultPortrait" alt=""><h1 id="resultTitle"></h1><blockquote id="resultQuote"></blockquote><p id="resultScore"></p><button id="playAgain">再战一回合</button><button id="resultMenu" class="ghost">角色选择</button></dialog>
-<script type="module" src="arena.js?v=39"></script>
+<script type="module" src="arena.js?v=40"></script>
 </body>
 </html>

@@ -12,6 +12,8 @@ export const CHARACTERS={
     blurb:'移动+J 远程射击，弹幕瞄准对手',boost:{}},
 };
 export const CHARACTER_IDS=Object.keys(CHARACTERS);
+// Slot colours for the 1P–4P rings, name tags and brawl HUD cards.
+export const SLOT_COLORS=['#ffd24a','#5fd8ff','#ff7ac8','#8dff7a'],SLOT_LABELS=['1P','2P','3P','4P'];
 // Each stage has its own decks, terrain zones and hazard pair. Ladders sit on the
 // front edge of every deck, so they are derived rather than listed.
 export const STAGES={
