@@ -4,7 +4,7 @@ export const STEP = 1 / 120;
 export const GRAVITY = 22;
 export const JUMP_SPEED = 12.5;
 // Port decks stay the default layout; other stages bring their own (see arena-roster.js).
-export const PLATFORMS=STAGES.port.platforms;
+export const PLATFORMS=STAGES.classic.platforms;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 // Four-fighter free-for-all starts from the corners of the open floor, clear of decks and terrain zones.
@@ -12,7 +12,7 @@ const DUEL_SPAWNS=[[-3.4,2],[3.4,2]],BRAWL_SPAWNS=[[-4.5,2.5],[4.5,2.5],[-4.5,-3
 const CRATE_SPAWNS=[[-11,-6],[-7,-4],[-2,3],[4,-4],[8,4],[11,-6],[0,5],[-4,-6]];
 export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z-p.z)<=p.d/2+r;}
 export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:x<=0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
-export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'port',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage)),crates:stageOf(options.stage).crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:stageOf(options.stage||'classic').crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
 const PIECE_FALL=.7,PIECE_DAMAGE={light:6,dash:9,air:7,heavy:14,slam:16,upper:10,rush:10,shieldBash:12};
@@ -331,7 +331,7 @@ function ai(w,p,q){
   if(!danger&&d>(characterOf(q).moveAttack==='shot'&&!ranged?3.6:7)&&p.grounded&&!p.running)sprint(p);
   const move=d>1.8?1:d<1.3?-.5:0;return {x:p.fx*move,z:p.fz*move};
 }
-export function stepFighter(p,input,dt,stage=STAGES.port){
+export function stepFighter(p,input,dt,stage=STAGES.classic){
   // Terrain only applies on the ground floor: quicksand slows and drags, ice speeds up and slides.
   const zone=p.y<.05&&p.support==='ground'?zoneAt(stage,p.x,p.z):null,terrain=zone?.kind||null;p.terrain=terrain;
   p.sink=terrain==='quicksand'?Math.min(1,(p.sink||0)+dt*.8):Math.max(0,(p.sink||0)-dt*3);
@@ -365,9 +365,10 @@ export function stepFighter(p,input,dt,stage=STAGES.port){
   p.climbing=false;
   if(terrain==='quicksand'&&p.dodgeTime<=0){const dx=zone.x-p.x,dz=zone.z-p.z,d=Math.hypot(dx,dz);if(d>.05){const pull=Math.min(d,1.3*dt);p.x+=dx/d*pull;p.z+=dz/d*pull;}}
   stage._ladders??=laddersOf(stage);
-  const ladder=stage._ladders.find(l=>Math.abs(p.x-l.x)<.72&&Math.abs(p.z-l.z)<1.8);
-  const climbUp=ladder&&p.knocked<=0&&p.stun<=0&&p.y<ladder.top-.02&&(iz<-.1);
-  const climbDown=ladder&&p.knocked<=0&&p.stun<=0&&p.y>0.02&&iz>.1;
+  const ladder=stage._ladders.find(l=>l.dz!==0?Math.abs(p.x-l.x)<.72&&Math.abs(p.z-l.z)<1.8:Math.abs(p.z-l.z)<.72&&Math.abs(p.x-l.x)<1.8);
+  const into=ladder?ix*ladder.dx+iz*ladder.dz:0;
+  const climbUp=ladder&&p.knocked<=0&&p.stun<=0&&p.y<ladder.top-.02&&into>.1;
+  const climbDown=ladder&&p.knocked<=0&&p.stun<=0&&p.y>0.02&&into<-.1;
   if(climbUp||climbDown){p.climbing=true;p.x+=(ladder.x-p.x)*Math.min(1,18*dt);p.z+=(ladder.z-p.z)*Math.min(1,12*dt);p.y=clamp(p.y+(climbUp?3.8:-3.8)*dt,0,ladder.top);p.vx=0;p.vz=0;p.vy=0;p.grounded=p.y<=.001||p.y>=ladder.top-.001;p.support=p.y>=ladder.top-.001?'ladder-top':'ladder';if(p.y>=ladder.top-.001){p.y=ladder.top;p.support='ladder-top';}return;}
   p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.grounded=false;p.support=null;
   if(p.vy<=0){

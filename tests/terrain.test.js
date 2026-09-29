@@ -37,11 +37,11 @@ test('port springboard launches a fighter who walks onto it',()=>{
   let apex=0;for(let t=0;t<1;t+=STEP){step(w,{x:-1});apex=Math.max(apex,p.y);}
   assert.ok(apex>4);assert.ok(w.events.some(e=>e.type==='spring'));
 });
-test('stage decks are solid: a fighter lands on the desert altar',()=>{
-  const altar=STAGES.desert.platforms.find(p=>p.id==='altar'),ladder=laddersOf(STAGES.desert)[1];
-  assert.equal(ladder.top,altar.top);
-  const p=createFighter(0,altar.x,altar.z);p.y=altar.top+1;p.grounded=false;for(let i=0;i<120;i++)stepFighter(p,{},STEP,STAGES.desert);
-  assert.equal(p.y,altar.top);assert.equal(p.support,'altar');
+test('stage decks are solid: a fighter lands on the top tier of the desert ziggurat',()=>{
+  const top=STAGES.desert.platforms.find(p=>p.id==='tier-3'),ladder=laddersOf(STAGES.desert).find(l=>l.deck==='tier-1');
+  assert.equal(ladder.top,STAGES.desert.platforms.find(p=>p.id==='tier-1').top);
+  const p=createFighter(0,top.x,top.z);p.y=top.top+1;p.grounded=false;for(let i=0;i<120;i++)stepFighter(p,{},STEP,STAGES.desert);
+  assert.equal(p.y,top.top);assert.equal(p.support,'tier-3');
 });
 test('desert rockfall is marked first, then hits whoever stays under it',()=>{
   const w=hazards('desert');w.nextCannonTick=1;const q=w.fighters[0];Object.assign(w.fighters[1],{x:12,z:-7});
@@ -67,4 +67,30 @@ test('CPU wades out of quicksand when the player is far away',()=>{
   const w=createWorld({stage:'desert'});w.crates=[];w.nextCannonTick=w.nextWaveTick=1e9;const sand=STAGES.desert.zones[1];
   Object.assign(w.fighters[0],{x:-12,z:-7});Object.assign(w.fighters[1],{x:sand.x+.4,z:sand.z});
   for(let t=0;t<1.5;t+=STEP)step(w,{});assert.ok(Math.hypot(w.fighters[1].x-sand.x,w.fighters[1].z-sand.z)>sand.r,'left the pit it started in');
+});
+
+test('the three stages are built differently, not just re-skinned',()=>{
+  const shapes=STAGE_IDS.map(id=>STAGES[id].platforms.map(d=>d.style).join());
+  assert.equal(new Set(shapes).size,3);
+  assert.equal(new Set(STAGE_IDS.map(id=>STAGES[id].look)).size,3);
+  const counts=STAGE_IDS.map(id=>STAGES[id].platforms.length);
+  assert.ok(new Set(counts).size>=2,'platform counts differ');
+  for(const id of STAGE_IDS)assert.ok(STAGES[id].platforms.some(d=>d.w>=7||d.top>=3),`${id} has a landmark structure`);
+  // Snow is deliberately lopsided: the hill has no mirror on the right.
+  const snow=STAGES.snow.platforms;assert.ok(Math.abs(snow.reduce((a,d)=>a+d.x*d.w*d.d,0))>20);
+  assert.equal(STAGE_IDS.includes('classic'),false);
+});
+test('side ladders climb when pushing into the deck and stack tiers work',()=>{
+  const stage=STAGES.desert,ladder=laddersOf(stage).find(l=>l.side==='right'),deck=stage.platforms.find(d=>d.id===ladder.deck);
+  assert.equal(ladder.dx,-1);
+  const p=createFighter(0,ladder.x,ladder.z);let peak=0;for(let i=0;i<200;i++){stepFighter(p,{x:-1},STEP,stage);peak=Math.max(peak,p.y);}
+  assert.ok(peak>=deck.top-.05,'climbed the ruin from its side');
+  const q=createFighter(1,ladder.x,ladder.z);for(let i=0;i<120;i++)stepFighter(q,{x:1},STEP,stage);assert.ok(q.y<.1,'pushing away does not climb');
+});
+test('every stage ladder sits at the edge of its own deck',()=>{
+  for(const id of STAGE_IDS)for(const l of laddersOf(STAGES[id])){
+    const d=STAGES[id].platforms.find(x=>x.id===l.deck);
+    assert.ok(Math.abs(l.x-d.x)<=d.w/2+.2&&Math.abs(l.z-d.z)<=d.d/2+.2,`${id}/${l.deck}`);
+    assert.equal(l.top,d.top);
+  }
 });

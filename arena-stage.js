@@ -1,7 +1,7 @@
 // Themed arenas. Decks and terrain zones come from STAGES in arena-roster.js, the same
 // data the simulation collides with, so what you see is what you stand on.
 import * as THREE from './vendor/three.module.js';
-import {stageOf} from './arena-roster.js';
+import {stageOf,laddersOf} from './arena-roster.js';
 import {box,sphere,cylinder,cone,mesh,label,ink,isSharedMaterial} from './arena-gfx.js';
 
 export const THEMES={
@@ -21,21 +21,163 @@ function puffCloud(parent,x,y,z,scale){const g=new THREE.Group();g.position.set(
 function palm(parent,x,z,h=5){const trunk=cylinder(.19,.33,h,'#8c6a48',parent,x,h/2-.4,z,8);trunk.rotation.z=-.1;for(let i=0;i<7;i++){const leaf=sphere(1,'#3f9a55',parent,x-.25,h-.5,z,10);leaf.scale.set(.42,.12,2.4);leaf.rotation.y=i*Math.PI*2/7;leaf.rotation.z=.2;}}
 function pine(parent,x,z,s=1){cylinder(.16*s,.22*s,1.2*s,'#5a3a26',parent,x,.5*s,z,8);for(let i=0;i<3;i++){cone((1.3-i*.32)*s,1.5*s,'#2f6b4f',parent,x,(1.4+i*.85)*s,z,8);cone((1.3-i*.32)*s*.92,.5*s,'#f6fbff',parent,x,(1.95+i*.85)*s,z,8);}}
 
-function arenaFloor(g,t,layout){
+// ---- Ladders: rope on the ship, carved footholds on stone, wooden rungs elsewhere ----
+const LADDER_LOOK={ship:{rail:'#d9c08a',rung:'#a8783f'},stone:{rail:'#c9964f',rung:'#e9d6a6'},snow:{rail:'#6c4b3a',rung:'#e6c07e'},classic:{rail:'#e6c07e',rung:'#e6c07e'}};
+function addLadders(g,deck,look){
+  const c=LADDER_LOOK[look]||LADDER_LOOK.classic;
+  for(const l of laddersOf({platforms:[deck]})){
+    const lg=new THREE.Group();lg.position.set(l.x,0,l.z);lg.rotation.y=l.side==='left'||l.side==='right'?Math.PI/2:0;g.add(lg);
+    for(const x of [-.7,.7]){const rail=box(.09,deck.top+.1,.09,c.rail,lg,x,deck.top/2,0);rail.rotation.x=.15;}
+    for(let y=.3;y<deck.top;y+=.35)box(1.5,.08,.09,c.rung,lg,0,y,.04).userData.noInk=true;
+  }
+}
+const trim=(parent,w,d,top,color,over=.14)=>{const m=box(w+over,.16,d+over,color,parent,0,top-.06,0);m.userData.noInk=true;return m;};
+const DECKS={
+  // the original four-legged table deck (kept for the hidden test stage)
+  table(d,t,deck){
+    box(deck.w,.34,deck.d,t.deckSide,d,0,deck.top-.17,0);
+    for(let i=0;i<5;i++)box(deck.w/5-.03,.1,deck.d,t.deckTop,d,-deck.w/2+(i+.5)*deck.w/5,deck.top-.04,0).userData.noInk=true;
+    for(const x of [-deck.w/2+.2,deck.w/2-.2])for(const z of [-deck.d/2+.2,deck.d/2-.2])cylinder(.13,.17,deck.top,t.post,d,x,deck.top/2,z,8);
+  },
+  // raised stern of the ship: solid hull block, gold trim, rail, helm and lanterns
+  ship(d,t,deck){
+    box(deck.w,deck.top,deck.d,'#7a4a2a',d,0,deck.top/2,0);
+    for(let i=0;i<Math.round(deck.w/1.2);i++){const p=box(1.14,.06,deck.d-.1,i%2?'#a8763f':'#9c6c38',d,-deck.w/2+.6+i*1.2,deck.top+.005,0);p.userData.noInk=true;}
+    trim(d,deck.w,deck.d,deck.top+.1,'#f0c040',.1);
+    for(let i=0;i<Math.round(deck.w/2);i++)box(.9,.5,.06,'#5a3622',d,-deck.w/2+1+i*2,deck.top*.6,deck.d/2+.02).userData.noInk=true;
+    for(let x=-deck.w/2+.4;x<=deck.w/2-.3;x+=1.6)cylinder(.07,.07,.9,'#5a3622',d,x,deck.top+.5,-deck.d/2+.15,6);
+    box(deck.w,.1,.1,'#5a3622',d,0,deck.top+.95,-deck.d/2+.15);
+    const helm=new THREE.Group();helm.position.set(-5,deck.top+.95,-.2);d.add(helm);
+    cylinder(.09,.09,.9,'#5a3622',helm,0,-.45,0,6);
+    const wheel=new THREE.Mesh(new THREE.TorusGeometry(.55,.07,6,16),new THREE.MeshToonMaterial({color:'#8a5a32'}));wheel.position.y=.1;helm.add(wheel);
+    for(let i=0;i<4;i++){const sp=box(.07,1.15,.07,'#8a5a32',helm,0,.1,0);sp.rotation.z=i*Math.PI/4;}
+    for(const x of [-deck.w/2+.6,deck.w/2-.6]){cylinder(.05,.05,1.2,'#3a2a20',d,x,deck.top+.6,deck.d/2-.3,6);const lamp=sphere(.2,'#ffd66e',d,x,deck.top+1.3,deck.d/2-.3,10);lamp.userData.noInk=true;}
+  },
+  // crow's nest: a mast stub and a railed barrel platform above the stern
+  nest(d,t,deck){
+    cylinder(.26,.32,deck.top,'#6a4028',d,0,deck.top/2,0,8);
+    box(deck.w,.24,deck.d,'#8a5a32',d,0,deck.top-.12,0);
+    for(let i=0;i<4;i++)box(deck.w/4-.05,.05,deck.d,i%2?'#c89358':'#bd8850',d,-deck.w/2+(i+.5)*deck.w/4,deck.top+.01,0).userData.noInk=true;
+    for(const [x,z] of [[-1,-1],[1,-1],[-1,1],[1,1]])cylinder(.06,.06,.9,'#5a3622',d,x*(deck.w/2-.15),deck.top+.45,z*(deck.d/2-.15),6);
+    box(deck.w-.3,.08,.08,'#5a3622',d,0,deck.top+.85,-deck.d/2+.15);
+    cylinder(.05,.05,1.6,'#5a3622',d,0,deck.top+.8,0,6);box(.9,.5,.05,'#1d1f26',d,.5,deck.top+1.35,0);
+  },
+  // stacked cargo: crates, barrels and rope
+  crates(d,t,deck){
+    box(deck.w,deck.top*.55,deck.d,'#b98a52',d,0,deck.top*.275,0);
+    box(deck.w*.72,deck.top*.5,deck.d*.72,'#c89a5c',d,0,deck.top*.55+deck.top*.25,0);
+    box(deck.w+.06,.14,deck.d+.06,'#5e4636',d,0,deck.top*.55,0).userData.noInk=true;
+    for(const x of [-deck.w/2+.05,deck.w/2-.05])box(.1,deck.top*.55,deck.d+.05,'#6b4a33',d,x,deck.top*.275,0).userData.noInk=true;
+    const slat=box(deck.w*.9,.12,.06,'#ecc080',d,0,deck.top*.3,deck.d/2+.03);slat.rotation.z=.6;
+    const top=box(deck.w*.72+.05,.08,deck.d*.72+.05,'#d9aa6a',d,0,deck.top-.02,0);top.userData.noInk=true;
+    cylinder(deck.w*.16,deck.w*.16,.55,'#a86a3c',d,deck.w*.3,deck.top+.25,deck.d*.15,10);
+  },
+  // sandstone ziggurat tier: banded block, carved lintel, torch bowls on the lowest step
+  stone(d,t,deck){
+    box(deck.w,deck.top,deck.d,'#e4c98f',d,0,deck.top/2,0);
+    for(let y=.4;y<deck.top-.1;y+=.55){const band=box(deck.w+.04,.06,deck.d+.04,'#c9a566',d,0,y,0);band.userData.noInk=true;}
+    trim(d,deck.w,deck.d,deck.top,'#f1dba4',.2);
+    const top=box(deck.w-.1,.06,deck.d-.1,'#dcbd80',d,0,deck.top+.02,0);top.userData.noInk=true;
+    for(let x=-deck.w/2+.7;x<=deck.w/2-.6;x+=1.4){const glyph=box(.3,.5,.05,'#a9793a',d,x,deck.top*.5,deck.d/2+.03);glyph.userData.noInk=true;}
+  },
+  // broken temple block: chipped slab with column stubs
+  ruin(d,t,deck){
+    box(deck.w,deck.top,deck.d,'#d6b57c',d,0,deck.top/2,0);
+    for(let y=.5;y<deck.top-.1;y+=.6)box(deck.w+.05,.07,deck.d+.05,'#b98c4e',d,0,y,0).userData.noInk=true;
+    trim(d,deck.w,deck.d,deck.top,'#ecd29a',.16);
+    for(const [x,h] of [[-.5,1.7],[.6,.9]]){cylinder(.34,.4,h,'#e8cf9c',d,x*deck.w*.35,deck.top+h/2,-deck.d*.18,10);}
+    box(.8,.35,.7,'#c9a566',d,deck.w*.25,deck.top+.18,deck.d*.2).rotation.y=.5;
+  },
+  // snowy mound: rocky base, thick white cap, pines on the shoulder
+  hill(d,t,deck){
+    const base=cylinder(deck.w*.46,deck.w*.62,deck.top,'#8d9fb8',d,0,deck.top/2,0,9);base.scale.z=deck.d/deck.w;
+    const snow=cylinder(deck.w*.5,deck.w*.5,.32,'#ffffff',d,0,deck.top-.12,0,9);snow.scale.z=deck.d/deck.w;
+    const drift=cylinder(deck.w*.56,deck.w*.62,.5,'#eef5ff',d,0,deck.top*.62,0,9);drift.scale.z=deck.d/deck.w;drift.userData.noInk=true;
+    pine(d,-deck.w*.3,deck.d*.32,.7);pine(d,deck.w*.34,-deck.d*.3,.6);
+    for(const [x,z,r] of [[.22,.28,.5],[-.05,.32,.35]])sphere(r,'#f6fbff',d,x*deck.w,deck.top+.05,z*deck.d,8).scale.y=.5;
+  },
+  // igloo: ice-brick drum with a dark doorway
+  igloo(d,t,deck){
+    cylinder(deck.w*.48,deck.w*.52,deck.top,'#f1f7ff',d,0,deck.top/2,0,14);
+    for(let y=.3;y<deck.top;y+=.4)cylinder(deck.w*.5,deck.w*.5,.04,'#b7cde6',d,0,y,0,14).userData.noInk=true;
+    box(1,.9,.3,'#243447',d,0,.45,deck.d/2-.05).userData.noInk=true;
+    cylinder(deck.w*.42,deck.w*.42,.16,'#ffffff',d,0,deck.top+.02,0,14);
+  },
+  // ice block: glassy top with crystals around the rim
+  ice(d,t,deck){
+    box(deck.w,deck.top,deck.d,'#a9def6',d,0,deck.top/2,0);
+    const top=box(deck.w-.1,.1,deck.d-.1,'#d5f2ff',d,0,deck.top+.02,0);top.userData.noInk=true;
+    for(const [x,z,h] of [[-.42,-.4,1.1],[.4,-.42,.7],[.35,.4,.5]])cone(.28,h,'#c3ecff',d,x*deck.w,deck.top+h/2,z*deck.d,5);
+  },
+};
+function buildDecks(g,t,layout){
+  for(const deck of layout.platforms){
+    const d=new THREE.Group();d.position.set(deck.x,0,deck.z);g.add(d);
+    (DECKS[deck.style]||DECKS.table)(d,t,deck);
+    addLadders(g,deck,layout.look);
+  }
+}
+
+// ---- Arena floors: each look has its own ground and boundary ----
+function classicFloor(g,t){
   box(30,1,18,t.post,g,0,-.52,0).userData.noInk=true;
   for(let i=0;i<39;i++){const plank=box(.75,.12,17.8,i%3===0?t.plankAlt:t.plank,g,-14.5+i*.76,.01,0);plank.userData.noInk=true;}
   for(const z of [-8.95,8.95])box(30,.14,.14,t.rail,g,0,.85,z);
   for(const x of [-14.95,14.95])box(.14,.14,18,t.rail,g,x,.85,0);
   for(const x of [-14.95,-10,-5,0,5,10,14.95])for(const z of [-8.95,8.95])box(.18,1,.18,t.post,g,x,.5,z);
   for(const x of [-14.95,14.95])for(const z of [-4.5,0,4.5])box(.18,1,.18,t.post,g,x,.5,z);
-  for(const deck of layout.platforms){
-    const d=new THREE.Group();d.position.set(deck.x,0,deck.z);g.add(d);
-    box(deck.w,.34,deck.d,t.deckSide,d,0,deck.top-.17,0);
-    for(let i=0;i<5;i++)box(deck.w/5-.03,.1,deck.d,t.deckTop,d,-deck.w/2+(i+.5)*deck.w/5,deck.top-.04,0).userData.noInk=true;
-    for(const x of [-deck.w/2+.2,deck.w/2-.2])for(const z of [-deck.d/2+.2,deck.d/2-.2])cylinder(.13,.17,deck.top,t.post,d,x,deck.top/2,z,8);
-    for(const x of [-.7,.7]){const rung=box(.09,deck.top+.1,.09,'#e6c07e',d,x,deck.top/2,deck.d/2+.12);rung.rotation.x=.15;}
-    for(let y=.3;y<deck.top;y+=.35)box(1.5,.08,.09,'#e6c07e',d,0,y,deck.d/2+.16).userData.noInk=true;
+}
+// Ship: dark hull, caulked planks, solid bulwark, a row of cannons on each flank.
+function shipFloor(g,t,anim){
+  box(30,1.4,18,'#4b2f1e',g,0,-.72,0).userData.noInk=true;
+  for(let i=0;i<40;i++){const plank=box(.72,.12,17.8,i%2?'#b57d47':'#a86f3d',g,-14.6+i*.75,.01,0);plank.userData.noInk=true;}
+  for(let i=0;i<40;i+=1){const seam=box(.03,.02,17.8,'#3c2415',g,-14.6+i*.75+.37,.075,0);seam.userData.noInk=true;seam.castShadow=false;}
+  for(let x=-13;x<=13;x+=2.6)box(.05,.02,17.6,'#3c2415',g,x,.08,0).userData.noInk=true;
+  for(const z of [-8.95,8.95]){box(30.2,.9,.32,'#6b4128',g,0,.45,z);box(30.4,.14,.5,'#f0c040',g,0,.95,z).userData.noInk=true;}
+  for(const x of [-14.95,14.95]){box(.32,.9,18,'#6b4128',g,x,.45,0);box(.5,.14,18.2,'#f0c040',g,x,.95,0).userData.noInk=true;}
+  // cannons on both flanks, muzzles facing the deck
+  for(const side of [-1,1])for(const z of [-3.2,1.2,5.4]){
+    const c=new THREE.Group();c.position.set(side*14.2,.6,z);c.rotation.y=side>0?-Math.PI/2:Math.PI/2;g.add(c);
+    const barrel=cylinder(.26,.34,1.5,'#2b2f36',c,0,.1,.3,10);barrel.rotation.x=Math.PI/2;
+    cylinder(.32,.32,.16,'#3a3f48',c,0,.1,1.05,10).rotation.x=Math.PI/2;
+    for(const wx of [-.4,.4]){const wheel=cylinder(.32,.32,.12,'#6b4128',c,wx,-.15,.2,12);wheel.rotation.z=Math.PI/2;}
+    box(.7,.22,1.1,'#5a3622',c,0,-.15,.2);
   }
+  // rope coils and barrels at the rail keep the deck busy without blocking it
+  for(const [x,z] of [[-13.2,-7.9],[13.3,-7.8],[-13.4,7.9],[13.3,8]]){cylinder(.42,.44,.8,'#a86a3c',g,x,.4,z,10);cylinder(.45,.45,.08,'#3d4650',g,x,.62,z,10);}
+}
+// Ziggurat court: checkered sandstone, a raised parapet with fire bowls at the corners.
+function stoneFloor(g,t,anim){
+  box(30,1.2,18,'#b98a4e',g,0,-.62,0).userData.noInk=true;
+  for(let ix=0;ix<15;ix++)for(let iz=0;iz<9;iz++){const tile=box(1.96,.1,1.96,(ix+iz)%2?'#ecd09a':'#e0bf84',g,-14+ix*2+.0,.01,-8+iz*2+.0);tile.userData.noInk=true;tile.castShadow=false;}
+  const mosaic=new THREE.Mesh(new THREE.RingGeometry(2.2,2.5,40),new THREE.MeshBasicMaterial({color:'#a9793a'}));mosaic.rotation.x=-Math.PI/2;mosaic.position.set(0,.09,3.4);g.add(mosaic);
+  const star=new THREE.Mesh(new THREE.RingGeometry(0,1.5,8),new THREE.MeshBasicMaterial({color:'#c9964f'}));star.rotation.x=-Math.PI/2;star.position.set(0,.085,3.4);g.add(star);
+  for(const z of [-8.95,8.95])box(30.2,.7,.5,'#d8b878',g,0,.35,z);
+  for(const x of [-14.95,14.95])box(.5,.7,18,'#d8b878',g,x,.35,0);
+  const flames=[];
+  for(const x of [-14.95,-7.5,0,7.5,14.95])for(const z of [-8.95,8.95]){box(.8,1.2,.8,'#c9a566',g,x,.6,z);}
+  for(const [x,z] of [[-14.6,-8.6],[14.6,-8.6],[-14.6,8.6],[14.6,8.6]]){
+    cylinder(.55,.3,.5,'#6a4a2a',g,x,1.45,z,10);
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(.38,.9,8),new THREE.MeshBasicMaterial({color:'#ff9a2a',transparent:true,opacity:.9}));fl.position.set(x,2.15,z);g.add(fl);
+    const core=new THREE.Mesh(new THREE.ConeGeometry(.2,.6,8),new THREE.MeshBasicMaterial({color:'#ffe27a'}));core.position.set(x,2.05,z);g.add(core);flames.push([fl,core]);
+  }
+  anim.push(time=>flames.forEach(([a,b],i)=>{const k=1+Math.sin(time*9+i*1.7)*.18;a.scale.set(1,k,1);b.scale.set(1,1+Math.sin(time*13+i)*.25,1);}));
+}
+// Snow island: white ground, ice patches under the zones, soft banks and a stake fence at the back.
+function snowFloor(g,t,anim){
+  box(30,1.1,18,'#dfe9f5',g,0,-.57,0).userData.noInk=true;
+  const ground=box(30,.12,18,'#f6fbff',g,0,.0,0);ground.userData.noInk=true;
+  for(let i=0;i<26;i++){const x=Math.sin(i*5.3)*13.5,z=Math.cos(i*3.1)*7.6;const patch=box(1.4+(i%3)*.5,.02,.8+(i%2)*.5,'#e2edf9',g,x,.075,z);patch.rotation.y=i;patch.userData.noInk=true;patch.castShadow=false;}
+  for(let i=0;i<5;i++){const crack=box(2.2,.015,.05,'#a7c3df',g,-9+i*4.4,.08,-1+((i*7)%5)*1.4);crack.rotation.y=.6+i*.5;crack.userData.noInk=true;crack.castShadow=false;}
+  for(let x=-14.5;x<=14.5;x+=1.5){const bank=sphere(.9+((x*7)%3+3)%3*.15,'#ffffff',g,x,.15,9.2,10);bank.scale.set(1.2,.55,.9);bank.castShadow=false;const back=sphere(.9,'#f4f9ff',g,x+.6,.15,-9.2,10);back.scale.set(1.2,.6,.9);}
+  for(const x of [-14.95,14.95])for(let z=-8;z<=8;z+=1.8){const bank=sphere(.85,'#ffffff',g,x,.15,z,10);bank.scale.set(.9,.55,1.2);}
+  for(let x=-13.5;x<=13.5;x+=3){cylinder(.09,.11,1.2,'#6c4b3a',g,x,.7,-8.9,6);cone(.13,.25,'#f6fbff',g,x,1.4,-8.9,6);}
+  box(28,.09,.09,'#6c4b3a',g,0,1.05,-8.9);box(28,.09,.09,'#6c4b3a',g,0,.65,-8.9);
+}
+function arenaFloor(g,t,layout,anim){
+  const look=layout.look;
+  if(look==='ship')shipFloor(g,t,anim);else if(look==='stone')stoneFloor(g,t,anim);else if(look==='snow')snowFloor(g,t,anim);else classicFloor(g,t);
+  buildDecks(g,t,layout);
 }
 
 // Terrain: quicksand swirls, glossy ice sheets and springboard nets.
@@ -124,7 +266,7 @@ export function buildStage(stageId){
   g.add(skyDome(t));
   const clouds=[];for(let i=0;i<9;i++)clouds.push(puffCloud(g,-60+i*15,14+(i%3)*4,-55-(i%2)*10,1.2+(i%3)*.5));
   anim.push((time,dt)=>clouds.forEach((c,i)=>{c.position.x+=dt*(.4+(i%3)*.15);if(c.position.x>70)c.position.x=-70;}));
-  arenaFloor(g,t,layout);
+  arenaFloor(g,t,layout,anim);
   const springs=terrain(g,layout,anim);
   (DRESSING[stageId]||DRESSING.port)(g,t,anim);
   ink(g,.07,'#1a1d24',.25);
