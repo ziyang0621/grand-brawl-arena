@@ -25,7 +25,7 @@ const hemi=new THREE.HemisphereLight('#fff6dc','#5f8aa0',1.5);scene.add(hemi);
 const sun=new THREE.DirectionalLight('#fff3d6',2.1);sun.position.set(-10,22,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-18,right:18,top:14,bottom:-14});sun.shadow.normalBias=.035;scene.add(sun);
 
 const portraits=renderPortraits();
-const selection=(()=>{const fallback={p1:'swordsman',p2:'guardian',stage:'port'};try{const s=JSON.parse(localStorage.getItem('gb-selection')||'{}');return {p1:CHARACTERS[s.p1]?s.p1:fallback.p1,p2:CHARACTERS[s.p2]?s.p2:fallback.p2,stage:STAGES[s.stage]?s.stage:fallback.stage};}catch(_){return fallback;}})();
+const selection=(()=>{const fallback={p1:'swordsman',p2:'guardian',p3:'brawler',p4:'gunner',stage:'port'};try{const s=JSON.parse(localStorage.getItem('gb-selection')||'{}');const pick=k=>CHARACTERS[s[k]]?s[k]:fallback[k];return {p1:pick('p1'),p2:pick('p2'),p3:pick('p3'),p4:pick('p4'),stage:STAGES[s.stage]?s.stage:fallback.stage};}catch(_){return fallback;}})();
 function saveSelection(){try{localStorage.setItem('gb-selection',JSON.stringify(selection));}catch(_){}}
 let guestChar='guardian';
 
@@ -308,6 +308,8 @@ function showResult(winner){
   $('resultPortrait').src=winner===null?'':portraits[world.fighters[winner].char]||'';if(winner===null)$('resultPortrait').removeAttribute('src');
   $('resultQuote').textContent=winner===null?'':`「${CHARACTERS[world.fighters[winner].char].quote}」`;
   $('resultScore').textContent=(winner===null?'平局！':(world.teamMode?world.winnerTeam===world.fighters[localPlayerId].team:winner===localPlayerId)?'你赢了！':'再来挑战！')+(multi?` 回合比分 ${world.wins[0]} - ${world.wins[1]}`:'');
+  const rank=$('resultRank');
+  if(world.brawl&&world.ranking){rank.hidden=false;rank.innerHTML='';world.ranking.forEach((id,i)=>{const f=world.fighters[id],li=document.createElement('li');li.style.setProperty('--c',(teamColorOf(f)||SLOT_COLORS[id]));li.innerHTML=`<b>${i+1}</b><img alt="" src="${portraits[f.char]||''}"><span></span><em></em>`;li.querySelector('span').textContent=CHARACTERS[f.char].name;li.querySelector('em').textContent=id===localPlayerId?'YOU':world.teamMode&&f.team===world.fighters[localPlayerId].team?'ALLY':'CPU';rank.append(li);});}else rank.hidden=true;
   if(!$('result').open)$('result').showModal();
 }
 function fighterStatus(p){const states=[];let kind='';const add=(active,text,tone)=>{if(active){states.push(text);if(!kind)kind=tone;}};add(p.poisonTime>0,`中毒 ${p.poisonTime.toFixed(1)}s`,'poison');add(p.virusTime>0,`病毒感染 ${p.virusTime.toFixed(1)}s`,'virus');add(p.slowTime>0,`冻伤减速 ${p.slowTime.toFixed(1)}s`,'ice');add(p.burnTime>0,`炸伤 ${p.burnTime.toFixed(1)}s`,'burn');add(p.weapon==='sword',`强化刀 ${p.attackBoostTime.toFixed(1)}s`,'sword');add(p.attackBoostTime>0&&p.weapon!=='sword',`啤酒强化 ${p.attackBoostTime.toFixed(1)}s`,'beer');return {text:states.join(' · '),kind};}
@@ -340,7 +342,7 @@ function clearVisualEffects(){
 
 // ---- Match flow and select screen ----
 // Brawl fills the four slots with the two picks plus the roster members not yet chosen.
-function brawlRoster(){const list=[selection.p1,selection.p2];for(const id of CHARACTER_IDS)if(list.length<4&&!list.includes(id))list.push(id);while(list.length<4)list.push(CHARACTER_IDS[list.length%CHARACTER_IDS.length]);return list;}
+function brawlRoster(){return [selection.p1,selection.p2,selection.p3,selection.p4];}
 let brawlMode='';
 function matchOptions(){const {training,stock,online}=world;if(brawlMode&&!training&&!stock&&!online)return {chars:brawlRoster(),teams:brawlMode==='team'?[0,1,0,1]:undefined,stage:selection.stage,bestOf:1,roundTime:120,intro:3.6};return {chars:[selection.p1,world.online?guestChar:selection.p2],stage:selection.stage,bestOf:training||stock?1:3,roundTime:training?120:99,intro:training?0:3.6};}
 function reset(){
@@ -363,11 +365,14 @@ function showSelect(){$('result').close();$('select').hidden=false;if(netRole===
 function startMatch(){if(netRole==='guest')return;saveSelection();hideSelect();reset();}
 function card(kind,id,title,sub,face){const b=document.createElement('button');b.className='card'+(kind==='stage'?' stage-card':'');b.dataset.id=id;b.innerHTML=`<span class="face">${face}</span><b></b><small></small>`;b.querySelector('b').textContent=title;b.querySelector('small').textContent=sub;return b;}
 function buildSelect(){
-  for(const [slot,list] of [['p1',$('p1Roster')],['p2',$('p2Roster')]])for(const id of CHARACTER_IDS){const c=CHARACTERS[id],b=card('char',id,`${c.name}`,`${c.title} · ${c.blurb}`,portraits[id]?`<img alt="" src="${portraits[id]}">`:'');b.style.setProperty('--c',c.color);b.onclick=()=>{selection[slot]=id;saveSelection();previewSelection();};list.appendChild(b);}
+  for(const [slot,list] of [['p1',$('p1Roster')],['p2',$('p2Roster')],['p3',$('p3Roster')],['p4',$('p4Roster')]])for(const id of CHARACTER_IDS){const c=CHARACTERS[id],b=card('char',id,`${c.name}`,`${c.title} · ${c.blurb}`,portraits[id]?`<img alt="" src="${portraits[id]}">`:'');b.style.setProperty('--c',c.color);b.onclick=()=>{selection[slot]=id;saveSelection();previewSelection();};list.appendChild(b);}
   for(const id of STAGE_IDS){const t=THEMES[id],s=STAGES[id],b=card('stage',id,s.name,s.sub,'');b.querySelector('.face').style.setProperty('--bg',`linear-gradient(180deg,${t.skyTop},${t.skyBottom} 55%,${t.floor} 56%,${t.deckTop})`);b.onclick=()=>{selection.stage=id;saveSelection();previewSelection();};$('stageList').appendChild(b);}
 }
 function refreshSelect(){
-  for(const [slot,list] of [['p1',$('p1Roster')],['p2',$('p2Roster')]])for(const b of list.children)b.setAttribute('aria-pressed',String(b.dataset.id===selection[slot]));
+  for(const [slot,list] of [['p1',$('p1Roster')],['p2',$('p2Roster')],['p3',$('p3Roster')],['p4',$('p4Roster')]])for(const b of list.children)b.setAttribute('aria-pressed',String(b.dataset.id===selection[slot]));
+  for(const row of document.querySelectorAll('.pick-row.extra'))row.hidden=!world.brawl;
+  $('p3Hint').textContent=world.teamMode?'（你的队友）':'（对手）';$('p4Hint').textContent=world.teamMode?'（对手）':'';
+  for(const id of ['p3Roster','p4Roster'])for(const b of $(id).children)b.disabled=netRole==='guest'||world.online;
   for(const b of $('stageList').children)b.setAttribute('aria-pressed',String(b.dataset.id===selection.stage));
   const guest=netRole==='guest';
   for(const b of [...$('p2Roster').children,...$('stageList').children,$('randomRival')])b.disabled=guest||world.online;

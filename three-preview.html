@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Grand Brawl · 海贼大乱斗</title><link rel="icon" href="data:,"><link rel="stylesheet" href="arena.css?v=15">
+<title>Grand Brawl · 海贼大乱斗</title><link rel="icon" href="data:,"><link rel="stylesheet" href="arena.css?v=17">
 </head>
 <body>
 <main id="arena" aria-label="海贼大乱斗 3D 竞技场"></main>
@@ -47,6 +47,8 @@
     <h1 class="logo">GRAND BRAWL<small>海贼大乱斗 · GRAND BATTLE</small></h1>
     <div class="pick-row"><h2><span class="chip p1">1P</span>选择角色</h2><div class="roster" id="p1Roster"></div></div>
     <div class="pick-row"><h2><span class="chip p2">2P</span>对手角色 <button id="randomRival" class="link">随机</button></h2><div class="roster" id="p2Roster"></div></div>
+    <div class="pick-row extra" hidden><h2><span class="chip p3">3P</span>队友 / 对手 <small class="rowhint" id="p3Hint"></small></h2><div class="roster" id="p3Roster"></div></div>
+    <div class="pick-row extra" hidden><h2><span class="chip p4">4P</span>对手 <small class="rowhint" id="p4Hint"></small></h2><div class="roster" id="p4Roster"></div></div>
     <div class="pick-row"><h2>选择场地</h2><div class="stages" id="stageList"></div></div>
     <div class="modes"><button id="training">对手：战斗 AI</button><button id="livesMode">三命模式：关</button><button id="brawlMode">四人乱斗：关</button><button id="teamMode">2v2 组队：关</button><button id="platformPractice">跳台练习</button><span class="rule" id="ruleLabel">三局两胜 · 每局 99 秒</span></div>
     <section class="network" aria-label="3D 联机房间">
@@ -75,7 +77,7 @@
 <p class="hint">Q 切换朝向辅助。必杀先蓄力，地面圈标示范围：离开范围、闪避或攻击打断。三级必杀破防，蓄力被打断仍消耗能量。</p>
 </div></details></div>
 </footer>
-<dialog id="result"><small id="resultSub">港湾争夺战</small><img id="resultPortrait" alt=""><h1 id="resultTitle"></h1><blockquote id="resultQuote"></blockquote><p id="resultScore"></p><button id="playAgain">再战一回合</button><button id="resultMenu" class="ghost">角色选择</button></dialog>
-<script type="module" src="arena.js?v=43"></script>
+<dialog id="result"><small id="resultSub">港湾争夺战</small><img id="resultPortrait" alt=""><h1 id="resultTitle"></h1><blockquote id="resultQuote"></blockquote><ol id="resultRank" hidden></ol><p id="resultScore"></p><button id="playAgain">再战一回合</button><button id="resultMenu" class="ghost">角色选择</button></dialog>
+<script type="module" src="arena.js?v=44"></script>
 </body>
 </html>

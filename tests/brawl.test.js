@@ -62,3 +62,18 @@ test('three CPUs and an idle player finish a brawl on every stage without NaN or
     assert.ok(w.winner===null||w.fighters[w.winner].hp>0);
   }
 });
+
+test('a brawl records the final standing: winner first, later eliminations ahead of earlier ones',()=>{
+  const w=four();w.crates=[];w.nextCannonTick=w.nextWaveTick=1e9;
+  w.fighters[3].hp=0;advance(w,.3);w.fighters[0].hp=0;advance(w,.3);w.fighters[1].hp=0;advance(w,.5);
+  assert.equal(w.ended,true);assert.equal(w.winner,2);
+  assert.deepEqual(w.ranking,[2,1,0,3]);
+  assert.deepEqual(w.events.find(e=>e.type==='end').ranking,[2,1,0,3]);
+});
+test('team standings list the winning team first',()=>{
+  const w=createWorld({chars:CHARACTER_IDS.slice(0,4),teams:[0,1,0,1],roundTime:120});w.crates=[];w.nextCannonTick=w.nextWaveTick=1e9;
+  w.fighters[1].hp=0;advance(w,.3);w.fighters[3].hp=0;advance(w,.5);w.fighters[2].hp=50;
+  assert.equal(w.ended,true);assert.equal(w.winnerTeam,0);
+  assert.ok(new Set(w.ranking.slice(0,2)).has(0)&&new Set(w.ranking.slice(0,2)).has(2));
+  assert.deepEqual(w.ranking.slice(2),[3,1]);
+});

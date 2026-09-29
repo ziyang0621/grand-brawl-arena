@@ -405,9 +405,16 @@ function teamWinner(w){
   return w.fighters.filter(p=>p.team===team&&p.hp>0).sort((a,b)=>b.hp-a.hp)[0].id;
 }
 function brawlWinner(w){if(w.teamMode)return teamWinner(w);const alive=w.fighters.filter(p=>p.hp>0);if(!alive.length)return null;const top=Math.max(...alive.map(p=>p.hp)),best=alive.filter(p=>p.hp===top);return best.length===1?best[0].id:null;}
+// Final standing for a brawl: the winner (or winning team) first, then survivors by health, then the knocked-out in reverse order.
+function rankBrawl(w,winner){
+  const out=w.out||[];
+  const score=p=>(w.teamMode&&winner!==null&&p.team===w.fighters[winner].team?1e6:0)+(p.hp>0?1e3+p.hp:Math.max(0,out.indexOf(p.id)));
+  const ids=w.fighters.map(p=>p.id).filter(id=>id!==winner).sort((a,b)=>score(w.fighters[b])-score(w.fighters[a])||a-b);
+  return winner===null?w.fighters.map(p=>p.id).sort((a,b)=>score(w.fighters[b])-score(w.fighters[a])||a-b):[winner,...ids];
+}
 function finishRound(w,defeated){
   const winner=w.brawl?brawlWinner(w):duelWinner(w);
-  if(w.bestOf<=1||w.stock||w.training){w.ended=true;w.winner=winner;emit(w,'end',{winner,team:w.winnerTeam});return;}
+  if(w.bestOf<=1||w.stock||w.training){w.ended=true;w.winner=winner;if(w.brawl)w.ranking=rankBrawl(w,winner);emit(w,'end',{winner,team:w.winnerTeam,ranking:w.ranking});return;}
   for(const p of w.fighters){cancelSkill(w,p);dropHeld(w,p);if(p.grabbedBy!==null){const holder=w.fighters.find(q=>q.id===p.grabbedBy);if(holder)releaseGrab(w,holder,p,false,true);}}
   if(winner!==null)w.wins[winner]++;
   const loser=winner===null?null:w.fighters[1-winner],need=Math.ceil(w.bestOf/2);
@@ -485,7 +492,7 @@ export function step(w,input={},dt=STEP){
     if(p.grabbed>0){const holder=w.fighters.find(f=>f.id===p.grabbedBy);if(!holder||holder.hp<=0||holder.grabbedTarget!==p.id){p.grabbed=0;p.grabbedBy=null;continue;}holder.grabHoldTime=Math.max(0,(holder.grabHoldTime||0)-dt);p.grabbed=holder.grabHoldTime;p.vx=0;p.vy=0;p.vz=0;p.grounded=false;p.blocking=false;p.attackTime=0;p.skillTime=0;if(holder.grabHoldTime<=0)releaseGrab(w,holder,p,holder.grabThrow==='high');continue;}
     if(w.brawl&&p.hp<=0){
       // Eliminated fighters stay down for the rest of the round; the survivors keep fighting.
-      if(!p.eliminated){p.eliminated=true;p.poisonTime=p.virusTime=p.slowTime=p.burnTime=0;emit(w,'eliminated',{id:p.id,x:p.x,y:p.y+1,z:p.z,left:w.fighters.filter(q=>q.hp>0).length});}
+      if(!p.eliminated){p.eliminated=true;(w.out??=[]).push(p.id);p.poisonTime=p.virusTime=p.slowTime=p.burnTime=0;emit(w,'eliminated',{id:p.id,x:p.x,y:p.y+1,z:p.z,left:w.fighters.filter(q=>q.hp>0).length});}
       p.attackTime=0;p.skillTime=0;p.knocked=1;stepFighter(p,{x:0,z:0,guard:false},dt,stageOf(w.stage));p.blocking=false;continue;
     }
     if(p.knocked>0){const wasAirborne=!p.grounded;p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt,stageOf(w.stage));p.blocking=false;
