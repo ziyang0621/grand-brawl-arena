@@ -261,3 +261,11 @@ body.brawl #callout{top:112px}
 #resultRank img{width:30px;height:30px;object-fit:cover;border:2px solid var(--ink)}
 #resultRank em{font-size:10px;font-style:normal;padding:0 5px;border:2px solid var(--ink);background:var(--c)}
 #resultRank img{display:block;margin:0}
+
+/* Manga speed lines that burst from the centre on big hits, launches, specials and K.O. */
+#speedlines{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;mix-blend-mode:screen;
+  background:repeating-conic-gradient(from 3deg at 50% 46%,#fff 0 .9deg,transparent .9deg 3.8deg,#fff 3.8deg 4.4deg,transparent 4.4deg 8.2deg);
+  -webkit-mask:radial-gradient(ellipse at 50% 46%,transparent 30%,#000 78%);mask:radial-gradient(ellipse at 50% 46%,transparent 30%,#000 78%)}
+#speedlines.show{animation:speedBurst var(--dur,.32s) ease-out}
+@keyframes speedBurst{0%{opacity:0;transform:scale(1.25)}18%{opacity:var(--peak,.55)}100%{opacity:0;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){#speedlines.show{animation:none}}
