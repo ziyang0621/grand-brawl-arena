@@ -247,3 +247,4 @@ body.brawl #callout{top:112px}
   .bcard img{display:none}.bplate b{font-size:11px}.bplate span{font-size:9px;padding:0 3px}.bhp{height:11px}.bpips i{width:9px}
   body.brawl .hud{width:60px}body.brawl .clock{width:60px}body.brawl .clock strong{font-size:30px}
 }
+@media(max-width:760px){body.brawl .clock span{display:none}}
