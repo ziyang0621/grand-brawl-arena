@@ -12,7 +12,7 @@ const DUEL_SPAWNS=[[-3.4,2],[3.4,2]],BRAWL_SPAWNS=[[-4.5,2.5],[4.5,2.5],[-4.5,-3
 const CRATE_SPAWNS=[[-11,-6],[-7,-4],[-2,3],[4,-4],[8,4],[11,-6],[0,5],[-4,-6]];
 export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z-p.z)<=p.d/2+r;}
 export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:x<=0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
-export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {brawl,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'port',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c)),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage)),crates:stageOf(options.stage).crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'port',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage)),crates:stageOf(options.stage).crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0})),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
 const PIECE_FALL=.7,PIECE_DAMAGE={light:6,dash:9,air:7,heavy:14,slam:16,upper:10,rush:10,shieldBash:12};
@@ -79,11 +79,11 @@ export function jump(p,input={}){
   if(p.stun>0)return;p.jumpBuffer=.14;
 }
 // Nearest fighter still in the match; a duel always resolves to the other player.
-function nearestFoe(w,p,maxY=Infinity){let best=null,bd=Infinity;for(const q of w.fighters){if(q===p||q.hp<=0||q.respawnTimer>0||Math.abs(p.y-q.y)>=maxY)continue;const d=distance(p,q);if(d<bd){bd=d;best=q;}}return best;}
+function nearestFoe(w,p,maxY=Infinity){let best=null,bd=Infinity;for(const q of w.fighters){if(q===p||q.team===p.team||q.hp<=0||q.respawnTimer>0||Math.abs(p.y-q.y)>=maxY)continue;const d=distance(p,q);if(d<bd){bd=d;best=q;}}return best;}
 // A CPU that was just hurt turns on whoever hit it, so ranged fighters cannot pick off a melee brawl for free.
 // Otherwise it picks the closest foe, leaning toward healthy ones so nobody wins by dodging the crowd, and keeps that pick for a moment.
 function aiTarget(w,p){
-  const ok=f=>f&&f!==p&&f.hp>0&&f.respawnTimer<=0;
+  const ok=f=>f&&f!==p&&f.team!==p.team&&f.hp>0&&f.respawnTimer<=0;
   const a=p.aggro!==undefined&&w.tick-(p.aggroTick||0)<240?w.fighters.find(f=>f.id===p.aggro):null;if(ok(a))return a;
   const kept=p.aiFoe!==undefined&&w.tick<p.aiFoeUntil?w.fighters.find(f=>f.id===p.aiFoe):null;if(ok(kept))return kept;
   let best=null,bs=Infinity;for(const f of w.fighters){if(!ok(f))continue;const sc=distance(p,f)-f.hp*.08;if(sc<bs){bs=sc;best=f;}}
@@ -103,6 +103,9 @@ function gainEnergy(w,p,amount){if(!p||!Number.isFinite(p.energy)||!Number.isFin
 function cancelRecovery(p){p.recoveryBuffer=0;p.recoveryDirection=null;p.recoveryTime=0;p.dodgeTime=0;}
 function hit(w,p,q,damage,force,options={}){
   if(q.hp<=0||q.invuln>0||q.respawnProtection>0)return false;
+  // Teammates are immune to each other's attacks, bombs and specials (but not their own).
+  const striker=p.owner===undefined?p:(p.owner>=0?w.fighters[p.owner]:null);
+  if(striker&&striker!==q&&striker.team!==undefined&&striker.team===q.team)return false;
   const melee=['light','dash','air','heavy','upper','slam','shieldBash','rush'].includes(options.kind);
   const separation=distance(p,q),front=separation<.3||((p.x-q.x)*q.fx+(p.z-q.z)*q.fz)/separation>=.25;
   const guarded=q.blocking&&(!melee||front);
@@ -239,6 +242,15 @@ const LOOT={barrel:['bomb','bomb','poison','virus','slow'],crate:['meat','meat',
 function dropLoot(w,kind,x,z){const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)];emit(w,'break',{x,y:.7,z,item,kind});w.pickups.push({type:item,x,y:0,z,life:24});return item;}
 function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
 function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=open[Math.floor(Math.random()*open.length)]||[0,5];c.x=x;c.z=z;c.y=9;c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=.48){c.y=.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
+// CPU decisions fire on their own jittered timers (from a seeded stream) rather than a shared global beat,
+// so no seat gets to act first in every exchange.
+function rnd(w){w.rngState=(Math.imul(w.rngState||12345,1664525)+1013904223)>>>0;return w.rngState/4294967296;}
+function due(w,p,period){
+  p.aiClock??={};const k=period;
+  if(p.aiClock[k]===undefined)p.aiClock[k]=w.tick+Math.floor(rnd(w)*period);
+  if(w.tick<p.aiClock[k])return false;
+  p.aiClock[k]=w.tick+Math.round(period*(.6+rnd(w)*.8));return true;
+}
 function ai(w,p,q){
   if(w.training)return {x:0,z:0};
   // Each CPU keeps its own rhythm; identical timers would let the first fighter in the update order always win the trade.
@@ -287,28 +299,30 @@ function ai(w,p,q){
     if(loot&&p.y<1.2){faceTarget(p,loot);return {x:p.fx,z:p.fz};}
     const crate=!p.item&&d>4&&w.crates.filter(c=>c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(p.y-c.y)<1.4&&distance(p,c)<5)
       .sort((a,b)=>distance(p,a)-distance(p,b))[0];
-    if(crate){faceTarget(p,crate);if(distance(p,crate)<2&&beat%36===0)attack(w,p);return distance(p,crate)>1.2?{x:p.fx,z:p.fz}:{x:0,z:0};}
+    if(crate){faceTarget(p,crate);if(distance(p,crate)<2&&due(w,p,36))attack(w,p);return distance(p,crate)>1.2?{x:p.fx,z:p.fz}:{x:0,z:0};}
   }
-  if(d<3.5&&p.grounded&&beat>300&&beat%480===0&&p.energy>=1)skill(w,p,Math.min(3,Math.floor(p.energy)));
+  if(d<3.5&&p.grounded&&w.tick>300&&due(w,p,480)&&p.energy>=1)skill(w,p,Math.min(3,Math.floor(p.energy)));
   // Hop up only to reach a rival standing on a deck; two CPUs otherwise mirror each other's jumps forever.
   if(q.y>p.y+.6&&q.grounded&&p.grounded)jump(p);
   // Grand Battle CPUs press: chain the light string whenever the previous hit landed.
   if(p.comboWindow>0&&p.attackConnected&&!p.comboQueued&&p.attackType==='light'&&p.combo<2&&d<2.6)attack(w,p);
   // Chase a launched opponent: jump after it, then keep pressing air attacks.
-  if((q.juggle||0)>0&&!q.grounded&&d<2.6){if(p.grounded&&q.y>1.2&&p.attackTime<=0)jump(p);else if(!p.grounded&&!p.comboQueued&&beat%6===0)attack(w,p);}
-  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&beat>180&&beat%20===0){
-    if(!q.blocking&&Math.floor(beat/55)%7===3&&p.grounded)heavy(w,p,{z:-1});
-    else if(q.blocking||Math.floor(beat/110)%3===0)heavy(w,p);
-    else if(Math.floor(beat/110)%4===0)grab(w,p);
+  if((q.juggle||0)>0&&!q.grounded&&d<2.6){if(p.grounded&&q.y>1.2&&p.attackTime<=0)jump(p);else if(!p.grounded&&!p.comboQueued&&due(w,p,6))attack(w,p);}
+  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&due(w,p,20)){
+    // Attack choice is rolled, not derived from the clock, so every seat mixes its moves the same way.
+    const roll=rnd(w);
+    if(!q.blocking&&roll<.14&&p.grounded)heavy(w,p,{z:-1});
+    else if(q.blocking||roll<.42)heavy(w,p);
+    else if(roll<.56)grab(w,p);
     else attack(w,p);
   }
-  if(d>4&&d<8&&beat%420===0)bomb(w,p);
+  if(d>4&&d<8&&due(w,p,420))bomb(w,p);
   // Melee CPUs close a gap with their movement attack instead of walking into a stream of shots.
-  if(p.char!=='gunner'&&d>3.2&&d<7&&p.grounded&&Math.abs(p.y-q.y)<1.4&&beat>120&&beat%70===0){
+  if(p.char!=='gunner'&&d>3.2&&d<7&&p.grounded&&Math.abs(p.y-q.y)<1.4&&w.tick>120&&due(w,p,70)){
     if(p.char==='guardian')heavy(w,p,{x:p.fx,z:p.fz});else attack(w,p,{x:p.fx,z:p.fz});
   }
   if(p.char==='gunner'){
-    if(d>3&&d<9&&Math.abs(p.y-q.y)<1.4&&beat>180&&beat%100===0)attack(w,p,{x:p.fx,z:p.fz});
+    if(d>3&&d<9&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&due(w,p,100))attack(w,p,{x:p.fx,z:p.fz});
     const move=d>6.5?1:d<2.6?-.6:0;return {x:p.fx*move+(move===0?-p.fz*.5:0),z:p.fz*move+(move===0?p.fx*.5:0)};
   }
   if(!danger&&d>7&&p.grounded&&!p.running)sprint(p);
@@ -379,10 +393,18 @@ function nextRound(w){
 }
 function duelWinner(w){const [a,b]=w.fighters;return a.lives===b.lives?(a.hp===b.hp?null:a.hp>b.hp?0:1):a.lives>b.lives?0:1;}
 // Last fighter standing wins; on time-up the healthiest survivor does, and a tie is a draw.
-function brawlWinner(w){const alive=w.fighters.filter(p=>p.hp>0);if(!alive.length)return null;const top=Math.max(...alive.map(p=>p.hp)),best=alive.filter(p=>p.hp===top);return best.length===1?best[0].id:null;}
+function teamsAlive(w){return new Set(w.fighters.filter(p=>p.hp>0).map(p=>p.team)).size;}
+// Team mode: the last team standing wins; on time-up the team with the most total health left does.
+function teamWinner(w){
+  const totals=new Map();for(const p of w.fighters)if(p.hp>0)totals.set(p.team,(totals.get(p.team)||0)+p.hp);
+  if(!totals.size)return null;const top=Math.max(...totals.values()),best=[...totals].filter(([,v])=>v===top);
+  if(best.length!==1)return null;const team=best[0][0];w.winnerTeam=team;
+  return w.fighters.filter(p=>p.team===team&&p.hp>0).sort((a,b)=>b.hp-a.hp)[0].id;
+}
+function brawlWinner(w){if(w.teamMode)return teamWinner(w);const alive=w.fighters.filter(p=>p.hp>0);if(!alive.length)return null;const top=Math.max(...alive.map(p=>p.hp)),best=alive.filter(p=>p.hp===top);return best.length===1?best[0].id:null;}
 function finishRound(w,defeated){
   const winner=w.brawl?brawlWinner(w):duelWinner(w);
-  if(w.bestOf<=1||w.stock||w.training){w.ended=true;w.winner=winner;emit(w,'end',{winner});return;}
+  if(w.bestOf<=1||w.stock||w.training){w.ended=true;w.winner=winner;emit(w,'end',{winner,team:w.winnerTeam});return;}
   for(const p of w.fighters){cancelSkill(w,p);dropHeld(w,p);if(p.grabbedBy!==null){const holder=w.fighters.find(q=>q.id===p.grabbedBy);if(holder)releaseGrab(w,holder,p,false,true);}}
   if(winner!==null)w.wins[winner]++;
   const loser=winner===null?null:w.fighters[1-winner],need=Math.ceil(w.bestOf/2);
@@ -442,7 +464,8 @@ export function step(w,input={},dt=STEP){
   }
   w.tick++;if(!w.training)w.time=Math.max(0,w.time-dt);
   updateCrates(w,dt);
-  for(const p of w.fighters){
+  // Alternate the update order each tick so neither seat always resolves its attacks first.
+  for(const p of w.tick%2?[...w.fighters].reverse():w.fighters){
     p.respawnProtection=Math.max(0,(p.respawnProtection||0)-dt);
     if(p.respawnTimer>0){
       p.attackBoost=1;p.attackBoostTime=0;p.poisonTick=0;
@@ -537,7 +560,7 @@ export function step(w,input={},dt=STEP){
   }
   for(let i=w.shots.length-1;i>=0;i--){
     const s=w.shots[i];s.life-=dt;s.x+=s.vx*dt;s.z+=s.vz*dt;
-    const target=w.fighters.find(q=>q.id!==s.owner&&q.hp>0&&q.respawnTimer<=0&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
+    const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
     if(target){hit(w,s,target,6*s.boost,3.5,{kind:'shot'});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     const shotPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,s)<pc.r+.35&&s.y<pc.h);
     if(shotPiece){hurtPiece(w,shotPiece,4*s.boost,{owner:s.owner,x:s.x-s.vx*.05,z:s.z-s.vz*.05});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
@@ -555,6 +578,7 @@ export function step(w,input={},dt=STEP){
     if(c.tick>0)continue;c.tick=.7;
     for(const p of w.fighters){
       if(p.hp<=0||p.respawnTimer>0||p.respawnProtection>0||distance(p,c)>=c.radius||Math.abs(p.y+1-c.y)>=2.8)continue;
+      if(p.id!==c.owner&&w.fighters[c.owner]?.team===p.team)continue;
       if(p.blocking){emit(w,'guard',{x:p.x,y:p.y+1.3,z:p.z,id:p.id});continue;}
       if(c.kind==='slow'){p.slowTime=4;emit(w,'slow',{id:p.id,x:p.x,y:p.y+1,z:p.z});continue;}
       const damage=c.kind==='virus'?4:2;p.hp=Math.max(0,p.hp-damage);p.hurtTime=.35;p.hurtKind=c.kind;p.invuln=.18;
@@ -579,6 +603,6 @@ export function step(w,input={},dt=STEP){
   }
   for(const p of w.fighters)if(p.hp<=0)cancelRecovery(p);
   if(w.stock)for(const p of w.fighters)if(p.hp<=0&&p.respawnTimer<=0&&p.lives>1){p.lives--;p.respawnTimer=.9;p.item=null;p.weapon=null;p.blocking=false;p.knocked=0;p.attackTime=0;p.skillTime=0;emit(w,'lifeLost',{id:p.id,lives:p.lives,x:p.x,y:p.y+1,z:p.z});}
-  const defeated=w.brawl?w.fighters.filter(p=>p.hp>0).length<=1:w.fighters.some(p=>p.hp<=0&&p.respawnTimer<=0&&(!w.stock||p.lives<=1));
+  const defeated=w.brawl?teamsAlive(w)<=1:w.fighters.some(p=>p.hp<=0&&p.respawnTimer<=0&&(!w.stock||p.lives<=1));
   if(defeated||w.time<=0)finishRound(w,defeated);
 }

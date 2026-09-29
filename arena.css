@@ -248,3 +248,4 @@ body.brawl #callout{top:112px}
   body.brawl .hud{width:60px}body.brawl .clock{width:60px}body.brawl .clock strong{font-size:30px}
 }
 @media(max-width:760px){body.brawl .clock span{display:none}}
+.bcard{grid-row:1}

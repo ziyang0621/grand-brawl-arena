@@ -50,11 +50,14 @@ function syncPieces(){
   }
   for(const [id,m] of pieceModels)if(!live.has(id)){disposePiece(m,scene);pieceModels.delete(id);}
 }
+const TEAM_COLORS=['#ff6a4a','#4aa8ff'],TEAM_NAMES=['红队','蓝队'];
+const teamColorOf=p=>world.teamMode?TEAM_COLORS[p.team]||null:null;
 const models=[null,null,null,null];
 function ensureModels(){
   world.fighters.forEach((p,i)=>{
-    if(models[i]?.char===p.char)return;
-    if(models[i])disposeFighter(models[i]);models[i]=buildFighter(p.char,i,scene);models[i].body.rotation.order='YXZ';
+    const key=p.char+'|'+(teamColorOf(p)||'');
+    if(models[i]?.key===key)return;
+    if(models[i])disposeFighter(models[i]);models[i]=buildFighter(p.char,i,scene,teamColorOf(p));models[i].key=key;models[i].body.rotation.order='YXZ';
     const c=CHARACTERS[p.char];
     if(i<2){const k=i?'p2':'p1';$(k+'Name').textContent=c.name;$(k+'Portrait').src=portraits[p.char]||'';}
   });
@@ -298,11 +301,11 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
 const ITEM_NAMES={bomb:'炸弹',poison:'毒瓶',virus:'病毒瓶',meat:'肉块',beer:'啤酒',slow:'冰冻瓶',sword:'强化木刀'};
 function showResult(winner){
   const multi=world.bestOf>1&&!world.stock&&!world.training;
-  $('resultSub').textContent=world.brawl?`${STAGES[world.stage]?.name||''} · 四人乱斗`:multi?`${STAGES[world.stage]?.name||''} · 三局两胜`:STAGES[world.stage]?.name||'';
-  $('resultTitle').textContent=winner===null?'DRAW':`${nameOf(winner)} WIN!`;
+  $('resultSub').textContent=world.teamMode?`${STAGES[world.stage]?.name||''} · 2v2 组队战`:world.brawl?`${STAGES[world.stage]?.name||''} · 四人乱斗`:multi?`${STAGES[world.stage]?.name||''} · 三局两胜`:STAGES[world.stage]?.name||'';
+  $('resultTitle').textContent=winner===null?'DRAW':world.teamMode?`${TEAM_NAMES[world.winnerTeam]??''}获胜！`:`${nameOf(winner)} WIN!`;
   $('resultPortrait').src=winner===null?'':portraits[world.fighters[winner].char]||'';if(winner===null)$('resultPortrait').removeAttribute('src');
   $('resultQuote').textContent=winner===null?'':`「${CHARACTERS[world.fighters[winner].char].quote}」`;
-  $('resultScore').textContent=(winner===null?'平局！':winner===localPlayerId?'你赢了！':'再来挑战！')+(multi?` 回合比分 ${world.wins[0]} - ${world.wins[1]}`:'');
+  $('resultScore').textContent=(winner===null?'平局！':(world.teamMode?world.winnerTeam===world.fighters[localPlayerId].team:winner===localPlayerId)?'你赢了！':'再来挑战！')+(multi?` 回合比分 ${world.wins[0]} - ${world.wins[1]}`:'');
   if(!$('result').open)$('result').showModal();
 }
 function fighterStatus(p){const states=[];let kind='';const add=(active,text,tone)=>{if(active){states.push(text);if(!kind)kind=tone;}};add(p.poisonTime>0,`中毒 ${p.poisonTime.toFixed(1)}s`,'poison');add(p.virusTime>0,`病毒感染 ${p.virusTime.toFixed(1)}s`,'virus');add(p.slowTime>0,`冻伤减速 ${p.slowTime.toFixed(1)}s`,'ice');add(p.burnTime>0,`炸伤 ${p.burnTime.toFixed(1)}s`,'burn');add(p.weapon==='sword',`强化刀 ${p.attackBoostTime.toFixed(1)}s`,'sword');add(p.attackBoostTime>0&&p.weapon!=='sword',`啤酒强化 ${p.attackBoostTime.toFixed(1)}s`,'beer');return {text:states.join(' · '),kind};}
@@ -336,8 +339,8 @@ function clearVisualEffects(){
 // ---- Match flow and select screen ----
 // Brawl fills the four slots with the two picks plus the roster members not yet chosen.
 function brawlRoster(){const list=[selection.p1,selection.p2];for(const id of CHARACTER_IDS)if(list.length<4&&!list.includes(id))list.push(id);while(list.length<4)list.push(CHARACTER_IDS[list.length%CHARACTER_IDS.length]);return list;}
-let brawlMode=false;
-function matchOptions(){const {training,stock,online}=world;if(brawlMode&&!training&&!stock&&!online)return {chars:brawlRoster(),stage:selection.stage,bestOf:1,roundTime:120,intro:3.6};return {chars:[selection.p1,world.online?guestChar:selection.p2],stage:selection.stage,bestOf:training||stock?1:3,roundTime:training?120:99,intro:training?0:3.6};}
+let brawlMode='';
+function matchOptions(){const {training,stock,online}=world;if(brawlMode&&!training&&!stock&&!online)return {chars:brawlRoster(),teams:brawlMode==='team'?[0,1,0,1]:undefined,stage:selection.stage,bestOf:1,roundTime:120,intro:3.6};return {chars:[selection.p1,world.online?guestChar:selection.p2],stage:selection.stage,bestOf:training||stock?1:3,roundTime:training?120:99,intro:training?0:3.6};}
 function reset(){
   if(netRole==='guest')return;
   const {training,online,stock}=world,round=(world.round||0)+1;world=createWorld(matchOptions());Object.assign(world,{training,online,stock,round,rematchVotes:[false,false]});
@@ -368,7 +371,7 @@ function refreshSelect(){
   for(const b of [...$('p2Roster').children,...$('stageList').children,$('randomRival')])b.disabled=guest||world.online;
   for(const b of $('p1Roster').children)b.disabled=guest;
   $('startMatch').disabled=guest;$('startMatch').textContent=guest?'等待房主开始…':world.online?'开始联机对战 ▶':'开始对战 ▶';
-  $('ruleLabel').textContent=world.brawl?'四人乱斗 · 最后站着的人获胜 · 120 秒':world.training?'练习模式 · 不限时间':world.stock?'三命制 · 一局定胜负':'三局两胜 · 每局 99 秒';
+  $('ruleLabel').textContent=world.teamMode?'2v2 组队战 · 队友不会误伤 · 消灭对方全队获胜 · 120 秒':world.brawl?'四人乱斗 · 最后站着的人获胜 · 120 秒':world.training?'练习模式 · 不限时间':world.stock?'三命制 · 一局定胜负':'三局两胜 · 每局 99 秒';
 }
 // While browsing the menu the arena behind shows the current picks.
 function previewSelection(){refreshSelect();if(netRole==='solo'&&!selectHidden())reset();}
@@ -384,10 +387,11 @@ $('randomRival').onclick=()=>{selection.p2=CHARACTER_IDS[Math.floor(Math.random(
 $('menuButton').onclick=()=>{showSelect();$('menuButton').blur();};$('resultMenu').onclick=showSelect;
 $('restart').onclick=()=>{if(world.ended&&netRole!=='solo')requestRematch();else reset();$('restart').blur();};$('playAgain').onclick=requestRematch;
 $('aimButton').onclick=()=>{action('KeyQ');$('aimButton').blur();};
-$('training').onclick=()=>{if(netRole!=='solo')return;brawlMode=false;world.training=!world.training;$('training').textContent=world.training?'对手：静止练习':'对手：战斗 AI';reset();refreshSelect();};
-$('livesMode').onclick=()=>{if(netRole==='guest')return;brawlMode=false;world.stock=!world.stock;reset();refreshSelect();};
-$('brawlMode').onclick=()=>{if(netRole!=='solo')return;brawlMode=!brawlMode;if(brawlMode){world.training=false;world.stock=false;$('training').textContent='对手：战斗 AI';}reset();refreshSelect();};
-$('platformPractice').onclick=()=>{if(netRole!=='solo')return;brawlMode=false;world.training=true;$('training').textContent='对手：静止练习';hideSelect();reset();Object.assign(world.fighters[0],{x:0,z:-2.2});Object.assign(world.fighters[1],{x:6,z:3});announce('按空格 · 跳上中央高台');};
+$('training').onclick=()=>{if(netRole!=='solo')return;brawlMode='';world.training=!world.training;$('training').textContent=world.training?'对手：静止练习':'对手：战斗 AI';reset();refreshSelect();};
+$('livesMode').onclick=()=>{if(netRole==='guest')return;brawlMode='';world.stock=!world.stock;reset();refreshSelect();};
+const pickBrawl=kind=>()=>{if(netRole!=='solo')return;brawlMode=brawlMode===kind?'':kind;if(brawlMode){world.training=false;world.stock=false;$('training').textContent='对手：战斗 AI';}reset();refreshSelect();};
+$('brawlMode').onclick=pickBrawl('ffa');$('teamMode').onclick=pickBrawl('team');
+$('platformPractice').onclick=()=>{if(netRole!=='solo')return;brawlMode='';world.training=true;$('training').textContent='对手：静止练习';hideSelect();reset();Object.assign(world.fighters[0],{x:0,z:-2.2});Object.assign(world.fighters[1],{x:6,z:3});announce('按空格 · 跳上中央高台');};
 
 // ---- HUD ----
 const hudCache=new Map();
@@ -409,7 +413,10 @@ function updateBrawlHud(){
     if(c.char!==p.char){c.char=p.char;c.name.textContent=CHARACTERS[p.char].name;c.img.src=portraits[p.char]||'';}
     const hp=clamp(p.hp,0,100),key='bc'+i;
     if(hudCache.get(key)!==hp){hudCache.set(key,hp);c.fill.style.width=hp+'%';c.lag.style.width=hp+'%';c.el.classList.toggle('low',hp>0&&hp<=30);c.el.classList.toggle('out',hp<=0);}
-    const tag=i===localPlayerId?'YOU':'CPU';if(c.tag.textContent!==tag)c.tag.textContent=tag;
+    const mate=world.teamMode&&p.team===world.fighters[localPlayerId].team,tag=i===localPlayerId?'YOU':mate?'ALLY':'CPU';if(c.tag.textContent!==tag)c.tag.textContent=tag;
+    // Team mode groups each team on its own side of the clock.
+    const color=teamColorOf(p)||SLOT_COLORS[i],col=world.teamMode?(p.team===0?1:4)+world.fighters.filter(f=>f.team===p.team&&f.id<p.id).length:(i<2?i+1:i+2),layout=color+col;
+    if(c.layout!==layout){c.layout=layout;c.el.style.setProperty('--c',color);c.el.style.gridColumn=String(col);}
     c.pips.forEach((pip,j)=>pip.classList.toggle('on',p.energy>=j+1));
     const fs=fighterStatus(p),sub=hp<=0?'淘汰':p.pendingSkill?'蓄力中':fs.text?fs.text.split(' · ')[0]:p.item?ITEM_NAMES[p.item]:'';
     if(c.sub.textContent!==sub)c.sub.textContent=sub;
@@ -432,7 +439,7 @@ function updateHud(){
   document.body.classList.toggle('brawl',Boolean(world.brawl));$('brawlHud').hidden=!world.brawl;
   const t=$('time');setHud(t,'text',world.training?'∞':String(Math.ceil(world.time)));t.toggleAttribute('data-low',!world.training&&world.time<=10);
   const final=multi&&world.wins[0]===need-1&&world.wins[1]===need-1;
-  setHud($('roundLabel'),'text',world.brawl?'FREE-FOR-ALL':world.training?'TRAINING':world.stock?'STOCK ×3':multi?(final?'FINAL ROUND':`ROUND ${world.roundNo}`):'1 ROUND');
+  setHud($('roundLabel'),'text',world.teamMode?'TEAM BATTLE':world.brawl?'FREE-FOR-ALL':world.training?'TRAINING':world.stock?'STOCK ×3':multi?(final?'FINAL ROUND':`ROUND ${world.roundNo}`):'1 ROUND');
   setHud($('p1Tag'),'text',localPlayerId===0?'YOU':'HOST');setHud($('p2Tag'),'text',localPlayerId===1?'YOU':world.online?'FRIEND':world.training?'DUMMY':'CPU');
   const local=world.fighters[localPlayerId],c=characterOf(local);
   setHud($('attackLabel'),'text',`连击 / 移动+J ${c.moveAttack==='shot'?'射击':c.moveAttack==='rush'?'突进拳':c.moveAttack==='shieldBash'?'盾冲':'冲刺斩'}`);
@@ -446,14 +453,14 @@ function updateHud(){
   $('playAgain').disabled=netRole!=='solo'&&Boolean(voted);
   setHud($('playAgain'),'text',netRole==='solo'?'再战':voted?'已准备 · 等待朋友':otherVoted?'朋友已准备 · 再战':'准备再战');
   $('restart').disabled=netRole==='guest'&&!world.ended;
-  setHud($('livesMode'),'text',world.stock?'三命模式：开':'三命模式：关');setHud($('brawlMode'),'text',world.brawl?'四人乱斗：开':'四人乱斗：关');$('brawlMode').disabled=netRole!=='solo';$('livesMode').disabled=netRole==='guest';$('training').disabled=netRole!=='solo';$('platformPractice').disabled=netRole!=='solo';
+  setHud($('livesMode'),'text',world.stock?'三命模式：开':'三命模式：关');setHud($('brawlMode'),'text',world.brawl&&!world.teamMode?'四人乱斗：开':'四人乱斗：关');setHud($('teamMode'),'text',world.teamMode?'2v2 组队：开':'2v2 组队：关');$('brawlMode').disabled=$('teamMode').disabled=netRole!=='solo';$('livesMode').disabled=netRole==='guest';$('training').disabled=netRole!=='solo';$('platformPractice').disabled=netRole!=='solo';
   // "ROUND n" is derived from state so the guest sees the same banner from snapshots.
   const vsOn=world.roundNo===1&&world.intro>1.9&&started&&selectHidden()&&!world.training&&!world.brawl,vs=$('vs');
   if(vsOn&&!vs.classList.contains('show')){world.fighters.forEach((p,i)=>{const c=CHARACTERS[p.char];$('vsP'+(i+1)).src=portraits[p.char]||'';$('vsName'+(i+1)).textContent=c.name;$('vsTitle'+(i+1)).textContent=c.title;});$('vsStage').textContent=`STAGE · ${STAGES[world.stage]?.name||''}`;vs.classList.add('show');tone(330,.3,'square',.04);}
   else if(!vsOn&&vs.classList.contains('show'))vs.classList.remove('show');
   comboState.forEach((c,i)=>{if(world.tick-c.tick>150||world.tick<c.tick)$('combo'+i).classList.remove('show');});
   const key=`${world.round}-${world.roundNo}`;
-  if(world.intro>0&&world.intro<=1.85&&started&&selectHidden()&&bannerKey!==key){bannerKey=key;banner(world.brawl?'BRAWL<small>READY…</small>':final?'FINAL ROUND<small>READY…</small>':`ROUND ${world.roundNo}<small>READY…</small>`,'',1.6);tone(440,.2,'triangle');}
+  if(world.intro>0&&world.intro<=1.85&&started&&selectHidden()&&bannerKey!==key){bannerKey=key;banner(world.teamMode?'TEAM BATTLE<small>READY…</small>':world.brawl?'BRAWL<small>READY…</small>':final?'FINAL ROUND<small>READY…</small>':`ROUND ${world.roundNo}<small>READY…</small>`,'',1.6);tone(440,.2,'triangle');}
 }
 
 // ---- Per-frame visuals ----

@@ -15,7 +15,7 @@ test('AI opens a nearby crate while the opponent is distant',()=>{
 });
 test('AI equips a collected sword and uses heavy attacks against guard',()=>{
   const w=setup(),p=w.fighters[1],q=w.fighters[0];p.item='sword';step(w,{});assert.equal(p.weapon,'sword');assert.equal(p.item,null);
-  Object.assign(q,{x:2,z:5});w.tick=219-p.id*41;step(w,{guard:true});assert.equal(p.attackType,'heavy');
+  Object.assign(q,{x:2,z:5});w.tick=219;p.aiClock={20:0};step(w,{guard:true});assert.equal(p.attackType,'heavy');
 });
 test('training and remote players do not make autonomous loot decisions',()=>{
   for(const mode of ['training','online']){const w=setup(),p=w.fighters[1];w[mode]=true;p.item='sword';w.pickups=[{type:'beer',x:7,z:5,life:10}];step(w,{});assert.equal(p.vx,0);assert.equal(p.item,'sword');assert.equal(p.weapon,null);}
