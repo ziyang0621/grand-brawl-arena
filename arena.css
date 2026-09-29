@@ -99,6 +99,7 @@ header>*{pointer-events:auto}
 .chip{padding:0 8px;border:2px solid var(--ink);color:var(--ink);background:var(--p1);transform:skewX(-10deg);text-shadow:none}.chip.p2{background:var(--p2)}
 .link{border:0;background:none;color:#ffe14a;text-decoration:underline;font-size:12px}
 .roster,.stages{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.roster{grid-template-columns:repeat(3,1fr)}
 .stages{grid-template-columns:repeat(3,1fr)}
 .card{position:relative;display:flex;flex-direction:column;align-items:stretch;padding:0;border:3px solid var(--ink);background:var(--cream);color:var(--ink);text-align:left;box-shadow:4px 4px 0 var(--ink);transform:skewX(-4deg);transition:transform .12s;overflow:hidden}
 .card:hover{transform:skewX(-4deg) translateY(-2px)}

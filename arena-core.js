@@ -84,9 +84,9 @@ function nearestFoe(w,p,maxY=Infinity){let best=null,bd=Infinity;for(const q of 
 // Otherwise it picks the closest foe, leaning toward healthy ones so nobody wins by dodging the crowd, and keeps that pick for a moment.
 function aiTarget(w,p){
   const ok=f=>f&&f!==p&&f.team!==p.team&&f.hp>0&&f.respawnTimer<=0;
-  const a=p.aggro!==undefined&&w.tick-(p.aggroTick||0)<240?w.fighters.find(f=>f.id===p.aggro):null;if(ok(a))return a;
+  const a=p.aggro!==undefined&&w.tick-(p.aggroTick||0)<420?w.fighters.find(f=>f.id===p.aggro):null;if(ok(a))return a;
   const kept=p.aiFoe!==undefined&&w.tick<p.aiFoeUntil?w.fighters.find(f=>f.id===p.aiFoe):null;if(ok(kept))return kept;
-  let best=null,bs=Infinity;for(const f of w.fighters){if(!ok(f))continue;const sc=distance(p,f)-f.hp*.08;if(sc<bs){bs=sc;best=f;}}
+  let best=null,bs=Infinity;for(const f of w.fighters){if(!ok(f))continue;const sc=distance(p,f)-f.hp*.12;if(sc<bs){bs=sc;best=f;}}
   if(best){p.aiFoe=best.id;p.aiFoeUntil=w.tick+150+p.id*13;}return best;
 }
 function faceTarget(p,q){const d=distance(p,q);if(d>0.001){p.fx=(q.x-p.x)/d;p.fz=(q.z-p.z)/d;}}
@@ -123,7 +123,7 @@ function hit(w,p,q,damage,force,options={}){
   const wasAirborne=!q.grounded&&q.y>.3;
   // Juggle damage scaling keeps a full launcher combo around a third of the bar.
   if(wasAirborne&&(q.juggle||0)>0&&!options.grab)damage*=Math.max(.45,1-.17*q.juggle);
-  q.hp=Math.max(0,q.hp-damage);q.hurtTime=.45;q.hurtKind=options.kind||'melee';if(options.kind==='bomb')q.burnTime=1.25;q.vx=fx*force;q.vz=fz*force;q.vy=force*.45;q.grounded=false;q.support=null;q.stun=brokeGuard?.52:.28;q.invuln=.25;
+  q.hp=Math.max(0,q.hp-damage);q.hurtTime=.45;q.hurtKind=options.kind||'melee';if(options.kind==='bomb'||options.kind==='flameKick')q.burnTime=1.25;q.vx=fx*force;q.vz=fz*force;q.vy=force*.45;q.grounded=false;q.support=null;q.stun=brokeGuard?.52:.28;q.invuln=.25;
   w.hitStop=Math.max(w.hitStop,options.grab?.08:force>=8?.075:.055);emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force,kind:options.kind||'melee'});
   if(options.grab){q.grabbed=2.2;q.grabbedBy=p.id;q.grabEscape=0;q.knocked=0;q.stun=0;q.vx=0;q.vz=0;q.vy=0;p.grabbedTarget=q.id;p.grabHoldTime=2.2;p.grabThrow='forward';}
   else if(force>=8||damage>=18){q.knocked=.82;emit(w,'knockdown',{x:q.x,y:q.y+1.1,z:q.z,id:q.id});}
@@ -145,7 +145,7 @@ function beginAttack(w,p,type){
   assistAim(w,p,type==='shot'?9:4.2);
   const actual=!p.grounded&&type==='heavy'?'slam':!p.grounded&&['light','rush','shot'].includes(type)?'air':type;const chained=p.comboWindow>0&&p.attackType==='air';p.attackType=actual;p.combo=actual==='light'?(p.comboWindow>0?(p.combo+1)%3:0):0;p.airCombo=actual==='air'?(chained?Math.min(2,(p.airCombo||0)+1):0):0;p.comboWindow=actual==='light'?.9:actual==='air'?.55:0;
   p.attackTime=['slam','heavy','upper','shieldBash'].includes(actual)?.5:actual==='grab'?.42:actual==='rush'?.4:actual==='dash'?.38:actual==='shot'?.32:.34;
-  p.attackCD=actual==='slam'?.55:actual==='grab'?.65:['upper','shieldBash'].includes(actual)?.5:actual==='shot'?.45:actual==='rush'?.42:p.char==='swordsman'?.24:p.char==='brawler'?.22:.3;
+  p.attackCD=actual==='slam'?.55:actual==='grab'?.65:['upper','shieldBash'].includes(actual)?.5:actual==='shot'?.45:actual==='rush'?.42:p.char==='swordsman'?.24:p.char==='brawler'?.22:p.char==='cook'?.26:.3;
   p.hitDone=false;p.attackConnected=false;if(actual==='slam')p.vy=-14;if(actual==='upper')p.vy=5.5;
   const lunge=(actual==='dash'?12:actual==='rush'?9.5:actual==='shieldBash'?7:0)*(p.running?1.25:1);if(lunge){p.vx=p.fx*lunge;p.vz=p.fz*lunge;}p.running=false;
   emit(w,['light','air','slam','dash','upper','rush'].includes(actual)?'slash':actual,{id:p.id,char:p.char,x:p.x,y:p.y+1.1,z:p.z,fx:p.fx,fz:p.fz,combo:p.combo,airCombo:p.airCombo,attackType:actual,weapon:p.weapon});
@@ -204,6 +204,8 @@ function skillSpec(w,p,level){
   if(kind==='shieldQuake')return {radius:4.1+l*.8,damage:18+l*10,force:15+l*2,height:1.2};
   if(kind==='fistStorm')return {radius:2.4+l*.5,damage:24+l*10,force:12+l*2,height:2,ahead:1.6};
   if(kind==='barrage')return {radius:2+l*.5,damage:15+l*9,force:9+l*2,height:3,targeted:true};
+  if(kind==='flameKick')return {radius:2.5+l*.5,damage:18+l*9,force:12+l*2,height:2,ahead:1.8};
+  if(kind==='thunder')return {radius:2.3+l*.45,damage:11+l*7,force:8+l*2,height:4,targeted:true};
   return {radius:3.4+l*.8,damage:22+l*10,force:10+l*2,height:2.5};
 }
 function skillCenter(w,p,spec){
@@ -232,7 +234,7 @@ function releaseSkill(w,p){
   const center=self?{x:p.x,z:p.z}:{x:p.pendingSkill.cx,z:p.pendingSkill.cz},from=self?p:{...center,owner:p.id,fx:p.fx,fz:p.fz};
   p.pendingSkill=null;p.skillWindup=0;p.skillTime=.4;p.invuln=.18;
   emit(w,'skill',{id:p.id,char:p.char,x:center.x,y:p.y+.7,z:center.z,casterX:p.x,casterZ:p.z,level,radius,kind});
-  for(const q of w.fighters)if(q!==p&&distance(center,q)<radius&&Math.abs(p.y-q.y)<height)hit(w,from,q,damage,force,{guardBreak:level===3,kind});
+  for(const q of w.fighters)if(q!==p&&distance(center,q)<radius&&Math.abs(p.y-q.y)<height){const blocked=q.blocking;if(hit(w,from,q,damage,force,{guardBreak:level===3,kind})&&kind==='thunder'&&(!blocked||level===3)){q.slowTime=Math.max(q.slowTime,2.2);emit(w,'slow',{id:q.id,x:q.x,y:q.y+1,z:q.z});}}
   for(const c of w.crates)if(c.hp>0&&distance(center,c)<radius&&Math.abs(p.y-c.y)<2.5)breakCrate(w,c,2);
   for(const pc of w.pieces)if(pc.state==='standing'&&distance(center,pc)<radius+pc.r&&p.y<pc.h)hurtPiece(w,pc,damage*1.3,{owner:p.id,x:center.x,z:center.z});
 }
@@ -318,14 +320,15 @@ function ai(w,p,q){
   }
   if(d>4&&d<8&&due(w,p,420))bomb(w,p);
   // Melee CPUs close a gap with their movement attack instead of walking into a stream of shots.
-  if(p.char!=='gunner'&&d>3.2&&d<7&&p.grounded&&Math.abs(p.y-q.y)<1.4&&w.tick>120&&due(w,p,70)){
+  const ranged=characterOf(p).moveAttack==='shot';
+  if(!ranged&&d>3.2&&d<7&&p.grounded&&Math.abs(p.y-q.y)<1.4&&w.tick>120&&due(w,p,70)){
     if(p.char==='guardian')heavy(w,p,{x:p.fx,z:p.fz});else attack(w,p,{x:p.fx,z:p.fz});
   }
-  if(p.char==='gunner'){
+  if(ranged){
     if(d>3&&d<9&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&due(w,p,100))attack(w,p,{x:p.fx,z:p.fz});
     const move=d>6.5?1:d<2.6?-.6:0;return {x:p.fx*move+(move===0?-p.fz*.5:0),z:p.fz*move+(move===0?p.fx*.5:0)};
   }
-  if(!danger&&d>7&&p.grounded&&!p.running)sprint(p);
+  if(!danger&&d>(characterOf(q).moveAttack==='shot'&&!ranged?3.6:7)&&p.grounded&&!p.running)sprint(p);
   const move=d>1.8?1:d<1.3?-.5:0;return {x:p.fx*move,z:p.fz*move};
 }
 export function stepFighter(p,input,dt,stage=STAGES.port){
@@ -507,8 +510,9 @@ export function step(w,input={},dt=STEP){
       if(!p.hitDone&&p.attackTime<active){
         p.hitDone=true;
         if(p.attackType==='shot'){
-          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,vx:p.fx*17,vz:p.fz*17,fx:p.fx,fz:p.fz,life:.62,boost:p.attackBoost});
-          emit(w,'shotFire',{id:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,fx:p.fx,fz:p.fz});
+          const sh=characterOf(p).shot||{speed:17,damage:6,life:.62};
+          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,vx:p.fx*sh.speed,vz:p.fz*sh.speed,fx:p.fx,fz:p.fz,life:sh.life,boost:p.attackBoost,damage:sh.damage,slow:sh.slow||0,style:sh.style||'ball'});
+          emit(w,'shotFire',{id:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,fx:p.fx,fz:p.fz,style:sh.style||'ball'});
         }else if(p.attackType==='grab'){
           for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);if(d<1.85&&(dot>-.25||d<.8))hit(w,p,q,12*(characterOf(p).boost.grab||1)*p.attackBoost,8,{grab:true});
           }
@@ -561,7 +565,7 @@ export function step(w,input={},dt=STEP){
   for(let i=w.shots.length-1;i>=0;i--){
     const s=w.shots[i];s.life-=dt;s.x+=s.vx*dt;s.z+=s.vz*dt;
     const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
-    if(target){hit(w,s,target,6*s.boost,3.5,{kind:'shot'});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
+    if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,3.5,{kind:'shot'})&&s.slow&&!blocked){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
     const shotPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,s)<pc.r+.35&&s.y<pc.h);
     if(shotPiece){hurtPiece(w,shotPiece,4*s.boost,{owner:s.owner,x:s.x-s.vx*.05,z:s.z-s.vz*.05});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     const crate=w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&distance(c,s)<.75&&s.y<c.y+1.4);

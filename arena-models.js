@@ -87,6 +87,30 @@ const BUILDERS={
     cylinder(.1,.1,.08,'#f0c040',gun,0,.9,.02,10);box(.08,.14,.08,'#39404a',gun,0,.2,-.08);barrel.userData.muzzle=true;
     return {...rig,weapon:gun,glowSize:[.3,1],glowY:.46};
   },
+  cook(body,c){
+    cylinder(.44,.5,.84,c.color,body,0,1.13,0);box(.4,.62,.1,'#f6f6f2',body,0,1.18,.43);box(.1,.5,.06,'#c9372c',body,0,1.18,.49);
+    cylinder(.51,.5,.16,'#20232b',body,0,.78,0);
+    for(const side of [-1,1]){const lapel=box(.14,.6,.08,'#20232b',body,side*.26,1.2,.46);lapel.rotation.z=side*-.08;}
+    const rig=limbs(body,c,{pants:'#2b2f3a',shoes:'#15171c',sleeve:c.color});animeFace(body,c,'#23384f');
+    const hair=sphere(.58,c.hair,body,0,2.2,-.05,16);hair.scale.set(1,.74,.95);
+    const fringe=sphere(.3,c.hair,body,-.2,2.15,.44,12);fringe.scale.set(.75,1.25,.42);fringe.rotation.z=-.18;
+    for(let i=0;i<3;i++){const spike=cone(.13,.34,c.hair,body,-.2+i*.2,2.52,.05,6);spike.rotation.z=(i-1)*-.25;}
+    const foot=weaponMount(rig.arms[1]);
+    return {...rig,weapon:foot,glowSize:[.6,.6],glowY:-.05};
+  },
+  stormcaller(body,c){
+    cylinder(.4,.46,.78,c.color,body,0,1.14,0);box(.42,.5,.1,'#fff4e0',body,0,1.22,.4);
+    cylinder(.48,.5,.2,'#3a2c44',body,0,.8,0);
+    const skirt=cylinder(.4,.62,.34,'#3a2c44',body,0,.66,0,14);skirt.scale.z=.95;
+    const rig=limbs(body,c,{pants:'#4a3a5a',shoes:'#e8d3b0',sleeve:'#fff4e0'});animeFace(body,c,'#5a3a1a');
+    const hair=sphere(.62,c.hair,body,0,2.2,-.05,16);hair.scale.set(1.05,.82,1);
+    for(const side of [-1,1]){const lock=sphere(.2,c.hair,body,side*.5,1.95,.1,10);lock.scale.set(.8,1.5,.8);}
+    const ribbon=box(.5,.14,.1,c.accent,body,0,2.5,.3);ribbon.rotation.z=.15;
+    const staff=weaponMount(rig.arms[1]);
+    cylinder(.05,.05,1.5,'#6b4a2a',staff,0,.7,0,8);sphere(.17,'#fff4b0',staff,0,1.5,0,10);
+    for(const a of [0,2.1,4.2])sphere(.08,'#7fd8ff',staff,Math.cos(a)*.24,1.5,Math.sin(a)*.24,6);
+    return {...rig,weapon:staff,glowSize:[.36,1.5],glowY:.75};
+  },
 };
 
 // Status effect decorations are identical for every character.

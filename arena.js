@@ -65,14 +65,14 @@ function ensureModels(){
   for(let i=world.fighters.length;i<models.length;i++)if(models[i]){disposeFighter(models[i]);models[i]=null;}
 }
 const PIECE_FALL_TIME=.7;
-const CHARGE_TEXT={whirlwind:'旋风蓄力！快离开',shieldQuake:'震盾蓄力！跳起来',fistStorm:'连打蓄力！拉开距离',barrage:'弹幕锁定！离开红圈'};
+const CHARGE_TEXT={whirlwind:'旋风蓄力！快离开',shieldQuake:'震盾蓄力！跳起来',fistStorm:'连打蓄力！拉开距离',barrage:'弹幕锁定！离开红圈',flameKick:'烈焰蓄力！拉开距离',thunder:'雷云聚集！离开红圈'};
 const CHARGE_COLORS=['#ffb448','#69dfff','#ff8fd0','#9dff8a'];
 const chargeModels=[0,1,2,3].map(i=>{
   const root=new THREE.Group();scene.add(root);
   const color=CHARGE_COLORS[i];
   const edge=fxMesh(new THREE.RingGeometry(.94,1,64),color,root,0,.09,0,.9,false);edge.rotation.x=-Math.PI/2;edge.material.side=THREE.DoubleSide;
   const fill=fxMesh(new THREE.CircleGeometry(1,64),color,root,0,.08,0,.2,false);fill.rotation.x=-Math.PI/2;fill.material.side=THREE.DoubleSide;
-  const tags={};for(const [kind,text] of Object.entries(CHARGE_TEXT)){const tag=label(text,kind==='barrage'?'#ff8a6a':color,42);tag.position.y=3.8;tag.scale.set(3.8,.65,1);tag.visible=false;root.add(tag);tags[kind]=tag;}
+  const tags={};for(const [kind,text] of Object.entries(CHARGE_TEXT)){const tag=label(text,kind==='barrage'?'#ff8a6a':kind==='thunder'?'#ffe27a':color,42);tag.position.y=3.8;tag.scale.set(3.8,.65,1);tag.visible=false;root.add(tag);tags[kind]=tag;}
   root.visible=false;return {root,edge,fill,tags};
 });
 
@@ -233,8 +233,8 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='rockImpact'){dust(e.x,e.y,e.z,14,1.8);particles(e,'#8a6a48',18);starBurst({...e,y:.9},2.2,'#ffcf8a');shakeCam(.18);tone(55,.3,'sawtooth',.06);}
   if(e.type==='snowBurst'){particles(e,'#ffffff',22);starBurst(e,1.6,'#e8f6ff');tone(160,.15,'triangle');}
   if(e.type==='shieldBash'){ringEffect(e,'#72dbff',1.6,.2);tone(200,.08,'triangle');}
-  if(e.type==='shotFire'){starBurst({x:e.x+e.fx*.5,y:e.y,z:e.z+e.fz*.5},.8,'#ffcf6a',0,.1);tone(900,.05,'square',.03);}
-  if(e.type==='shotHit'){starBurst(e,1.1,'#ffd08a');particles(e,'#ffb35a',6);}
+  if(e.type==='shotFire'){const bolt=e.style==='bolt';starBurst({x:e.x+e.fx*.5,y:e.y,z:e.z+e.fz*.5},bolt?1.1:.8,bolt?'#bfeaff':'#ffcf6a',0,.1);tone(bolt?1300:900,.05,bolt?'sawtooth':'square',.03);}
+  if(e.type==='shotHit'){const bolt=e.style==='bolt';starBurst(e,bolt?1.5:1.1,bolt?'#d8f4ff':'#ffd08a');particles(e,bolt?'#9fe0ff':'#ffb35a',6);}
   if(e.type==='heavy'){ringEffect(e,'#ffb45c',2.2,.22);particles(e,'#ffe19a',12);announce('重击！');tone(180,.12,'sawtooth');}
   if(e.type==='grab'){announce('擒抱！J 前投 / U 高投；被抓连按攻击挣脱');tone(260,.09,'square');}
   if(e.type==='throwHit'){ringEffect(e,'#ffcf72',1.5,.28);starBurst(e,1.8);announce('抓取投摔！');tone(100,.18,'sawtooth');}
@@ -243,9 +243,11 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='explosion'){particles(e,e.kind==='poison'?'#83f09a':e.kind==='slow'?'#8ab8ff':'#ffab4c',28);ringEffect(e,e.kind==='poison'?'#8dffac':e.kind==='slow'?'#8ab8ff':'#ffdf76',3);starBurst(e,2.6,'#ffcf6a');flash(.15);tone(70,.24,'sawtooth',.06);}
   if(e.type==='cloud'){const color=e.kind==='slow'?'#8ab8ff':e.kind==='virus'?'#c084ff':'#83f09a';particles(e,color,24);ringEffect(e,color,e.kind==='virus'?2.8:2.2,.55);announce(e.kind==='slow'?'冰雾扩散！':e.kind==='virus'?'病毒云扩散！':'毒雾扩散！');tone(e.kind==='virus'?150:190,.18,'sawtooth');}
   if(e.type==='skill'){
-    const c=CHARACTERS[e.char]||characterOf(world.fighters[e.id]),kind=e.kind,color=kind==='shieldQuake'?'#80dfff':kind==='barrage'?'#ff8a3c':kind==='fistStorm'?'#ffcf5a':e.level===3?'#ffd84f':'#ffe6a1';
+    const c=CHARACTERS[e.char]||characterOf(world.fighters[e.id]),kind=e.kind,color=kind==='shieldQuake'?'#80dfff':kind==='thunder'?'#ffe27a':kind==='flameKick'?'#ff8a2a':kind==='barrage'?'#ff8a3c':kind==='fistStorm'?'#ffcf5a':e.level===3?'#ffd84f':'#ffe6a1';
     if(kind==='shieldQuake'){ringEffect(e,color,e.radius,.5+e.level*.12);ringEffect({...e,y:e.y-.5},'#d4f6ff',e.radius*.6,.65);particles(e,color,24);}
     else if(kind==='fistStorm'){for(let j=0;j<6+e.level*3;j++){const a=Math.random()*Math.PI*2,r=Math.random()*e.radius*.8;starBurst({x:e.x+Math.cos(a)*r,y:e.y+.3+Math.random()*1.4,z:e.z+Math.sin(a)*r},1.2+Math.random()*.6,'#ffffff',j*.035,.16);}ringEffect(e,color,e.radius,.4);}
+    else if(kind==='flameKick'){ringEffect(e,'#ff8a2a',e.radius,.45);for(let j=0;j<7+e.level*3;j++){const a=Math.random()*Math.PI*2,r=Math.random()*e.radius*.85;const p={x:e.x+Math.cos(a)*r,y:e.y+.2+Math.random()*1.2,z:e.z+Math.sin(a)*r};starBurst(p,1.2+Math.random()*.7,j%2?'#ffd34a':'#ff7a2a',j*.03,.18);particles(p,'#ff8a2a',3);}}
+    else if(kind==='thunder'){for(let j=0;j<5+e.level*3;j++){const a=Math.random()*Math.PI*2,r=Math.random()*e.radius,p={x:e.x+Math.cos(a)*r,y:.4,z:e.z+Math.sin(a)*r};ringEffect(p,'#ffe27a',1.2,.25,j*.05);const bolt=fxMesh(new THREE.CylinderGeometry(.06,.14,9,6),'#fff6b0',scene,p.x,4.6,p.z,.95);effects.push({m:bolt,life:.16,max:.16,delay:j*.05});bolt.visible=false;starBurst({...p,y:.9},1.8,'#dff6ff',j*.05,.18);}ringEffect(e,'#8fe0ff',e.radius,.5);flash(.25);}
     else if(kind==='barrage'){for(let j=0;j<5+e.level*3;j++){const a=Math.random()*Math.PI*2,r=Math.random()*e.radius,p={x:e.x+Math.cos(a)*r,y:.4,z:e.z+Math.sin(a)*r};ringEffect(p,'#ff8a3c',1.1,.25,j*.05);starBurst({...p,y:.8},1.6,'#ffcf6a',j*.05,.18);}ringEffect(e,color,e.radius,.5);}
     else{for(let j=0;j<3;j++)ringEffect({...e,y:e.y+j*.6},color,e.radius*(1-j*.15),.35+j*.12);particles(e,color,18);}
     announce(`${e.level}级 · ${c.skillName}！`);tone(kind==='shieldQuake'?100:500,.3+e.level*.08,kind==='shieldQuake'?'sawtooth':'triangle');
@@ -491,14 +493,16 @@ function animateFighter(p,i,m,dt){
   const walking=p.grounded&&Math.hypot(p.vx,p.vz)>1;
   m.legs.forEach((leg,j)=>leg.rotation.x=walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:0);
   m.arms[0].rotation.set(walking?-Math.sin(p.walk)*.5:-.25,0,.16);
+  const ranged=CHARACTERS[c].moveAttack==='shot';
   m.arms[1].rotation.set(c==='brawler'?-.9:-.5,0,-.25);
   if(c==='brawler'&&!walking){m.arms[0].rotation.x=-1;m.arms[0].rotation.z=.35;m.arms[1].rotation.z=-.35;}
-  if(c==='gunner'&&!walking)m.arms[1].rotation.set(-1.1,0,-.1);
+  if(ranged&&!walking)m.arms[1].rotation.set(c==='gunner'?-1.1:-.8,0,-.1);
   if(p.running&&walking&&p.attackTime<=0){m.arms[0].rotation.set(.95,0,.25);m.arms[1].rotation.set(.95,0,-.25);m.legs.forEach((leg,j)=>leg.rotation.x=Math.sin(p.walk+j*Math.PI)*1.05);}
   if(p.attackTime>0){
     const total=['heavy','slam','upper','shieldBash'].includes(p.attackType)?.5:p.attackType==='grab'?.42:p.attackType==='rush'?.4:p.attackType==='dash'?.38:p.attackType==='shot'?.32:.34,swing=clamp(1-p.attackTime/total,0,1),arc=Math.sin(swing*Math.PI);
     if(p.attackType==='grab'){m.arms[0].rotation.set(-.45-arc*1.15,0,.25);m.arms[1].rotation.set(-.45-arc*1.15,0,-.25);}
     else if(p.attackType==='shot'){m.arms[1].rotation.set(-1.55+arc*.35,0,0);m.arms[0].rotation.set(-1.2,0,.4);}
+    else if(c==='cook'&&['light','dash','air','rush','heavy','upper'].includes(p.attackType)){const kick=p.combo===1?0:1,big=p.attackType==='heavy'||p.attackType==='upper';m.legs[kick].rotation.x=-(big?2:1.55)*arc-.1;m.arms[0].rotation.set(-.6,0,.5);m.arms[1].rotation.set(-.6,0,-.5);m.legs[1-kick].rotation.x=.25;}
     else if(c==='brawler'&&['light','rush','air'].includes(p.attackType)){const punch=p.combo===1||p.attackType==='rush'?0:1;m.arms[punch].rotation.set(-1.55,0,punch?-.1:.1);m.arms[punch].position.z=arc*.45;m.arms[1-punch].rotation.set(-.9,0,punch?.35:-.35);}
     else if(p.attackType==='slam'){m.arms[1].rotation.set(-2.3+arc*3.4,0,-.6+arc*1.4);}
     else if(p.attackType==='shieldBash'){m.arms[0].rotation.set(-1.3+arc*.7,0,.35);m.arms[1].rotation.set(-1.3+arc*.7,0,-.35);}
@@ -507,7 +511,8 @@ function animateFighter(p,i,m,dt){
   if(p.skillTime>0&&!p.pendingSkill){
     if(c==='guardian'){m.arms[0].rotation.set(-1.7,0,.3);m.arms[1].rotation.set(-.8,0,-.4);}
     else if(c==='brawler'){const k=Math.floor(world.tick/4)%2;m.arms[k].rotation.set(-1.6,0,0);m.arms[k].position.z=.4;m.arms[1-k].rotation.set(-.8,0,0);m.arms[1-k].position.z=0;}
-    else if(c==='gunner'){m.arms[0].rotation.set(-2.6,0,.2);m.arms[1].rotation.set(-2.7,0,-.2);}
+    else if(c==='gunner'||c==='stormcaller'){m.arms[0].rotation.set(-2.6,0,.2);m.arms[1].rotation.set(-2.7,0,-.2);}
+    else if(c==='cook'){const k=Math.floor(world.tick/3)%2;m.legs[k].rotation.x=-1.7;m.legs[1-k].rotation.x=.4;m.arms[0].rotation.set(-.5,0,.6);m.arms[1].rotation.set(-.5,0,-.6);}
     else{m.arms[0].rotation.z=1.2;m.arms[1].rotation.z=-1.3;}
   }else if(p.blocking){m.arms[0].rotation.set(-1.25,0,.62);m.arms[1].rotation.set(-1.25,0,-.62);}
   if(p.carrying||p.grabbedTarget!==null){const lift=p.carrying?1:Math.min(1,(2.2-p.grabHoldTime)/.25);m.arms[0].rotation.set(-1.1-lift*1.55,0,.18);m.arms[1].rotation.set(-1.1-lift*1.55,0,-.18);}
@@ -519,7 +524,7 @@ function animateFighter(p,i,m,dt){
     if(!p.grounded&&!p.attackTime&&!p.skillTime){m.arms[0].rotation.x=-1.15;m.arms[1].rotation.x=-1.3;m.legs.forEach((leg,j)=>leg.rotation.x=j===0?-.7:.3);}
   }
   if(p.throwTime>0){const follow=1-p.throwTime/.3;m.arms[0].rotation.x=m.arms[1].rotation.x=-2.65+follow*(p.throwHigh?1.1:2.3);roll=-Math.sin(follow*Math.PI)*.25;}
-  if(p.pendingSkill){squash=.88;bodyY=-.04;m.arms[0].rotation.set(c==='guardian'?-1.5:-.9,0,.3);m.arms[1].rotation.set(-2.5,0,-.35);if(c==='gunner'){m.arms[1].rotation.set(-2.9,0,-.1);}}
+  if(p.pendingSkill){squash=.88;bodyY=-.04;m.arms[0].rotation.set(c==='guardian'?-1.5:-.9,0,.3);m.arms[1].rotation.set(-2.5,0,-.35);if(c==='gunner'||c==='stormcaller'){m.arms[1].rotation.set(-2.9,0,-.1);}}
   if(p.thrownTime>0&&!p.grounded&&p.grabbedBy===null){roll=-.9-(.65-p.thrownTime)*Math.PI*2;m.legs[0].rotation.x=-.8;m.legs[1].rotation.x=.7;}
   const beerActive=p.attackBoostTime>0&&p.weapon!=='sword';if(beerActive&&!p.recoveryTime)pitch+=Math.sin(t*3.4+i)*.035;
   // Round outcome poses: loser lies on the deck, winner raises a fist.
@@ -548,7 +553,7 @@ function updateVisuals(dt){
   world.fighters.forEach((p,i)=>animateFighter(p,i,models[i],dt));
   for(const b of world.bombs){let g=bombModels.get(b.id);if(!g){g=new THREE.Group();const bottle=b.kind==='poison'||b.kind==='virus'||b.kind==='slow';if(bottle){const color=b.kind==='virus'?'#8d55bd':b.kind==='slow'?'#4c9ee8':'#55a866';const glow=b.kind==='virus'?'#d19aff':b.kind==='slow'?'#bde8ff':'#a7f58c';cylinder(.18,.23,.48,color,g,0,0,0);sphere(.16,glow,g,0,.3,0);box(.16,.08,.16,'#e7d1a7',g,0,.28,0);}else{sphere(.26,'#29394b',g,0,0,0);const fuse=box(.055,.23,.055,'#ffd366',g,.06,.3,0);fuse.rotation.z=-.3;sphere(.07,'#fff1a2',g,.1,.42,0);}ink(g,.03);scene.add(g);bombModels.set(b.id,g);}g.position.set(b.x,b.y,b.z);g.rotation.z+=dt*(b.kind==='bomb'?6:3);}
   for(const [id,m] of bombModels)if(!world.bombs.some(b=>b.id===id)){scene.remove(m);bombModels.delete(id);}
-  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g){g=new THREE.Group();fxMesh(new THREE.SphereGeometry(.18,10,8),'#ffe08a',g,0,0,0,1);const trail=fxMesh(new THREE.CylinderGeometry(.02,.16,1.2,8),'#ff8a3c',g,0,0,0,.7);trail.rotation.x=Math.PI/2;trail.position.z=-.6;scene.add(g);shotModels.set(s.id,g);}g.position.set(s.x,s.y,s.z);g.rotation.y=Math.atan2(s.vx,s.vz);}
+  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g){g=new THREE.Group();const bolt=s.style==='bolt';fxMesh(new THREE.SphereGeometry(bolt?.26:.18,10,8),bolt?'#fff6a0':'#ffe08a',g,0,0,0,1);if(bolt)fxMesh(new THREE.IcosahedronGeometry(.4,0),'#8fe0ff',g,0,0,0,.5);const trail=fxMesh(new THREE.CylinderGeometry(.02,.16,1.2,8),bolt?'#7fd0ff':'#ff8a3c',g,0,0,0,.7);trail.rotation.x=Math.PI/2;trail.position.z=-.6;scene.add(g);shotModels.set(s.id,g);}g.position.set(s.x,s.y,s.z);g.rotation.y=Math.atan2(s.vx,s.vz);}
   for(const [id,g] of shotModels)if(!(world.shots||[]).some(s=>s.id===id)){scene.remove(g);g.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});shotModels.delete(id);}
   for(const c of world.clouds){let g=cloudModels.get(c.id);if(!g){g=createCloudVisual(c.kind);scene.add(g);cloudModels.set(c.id,g);}updateCloudVisual(g,c);}
   for(const [id,m] of cloudModels)if(!world.clouds.some(c=>c.id===id)){scene.remove(m);m.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});cloudModels.delete(id);}

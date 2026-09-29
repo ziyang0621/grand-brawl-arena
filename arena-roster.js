@@ -11,6 +11,11 @@ export const CHARACTERS={
   gunner:{quote:'瞄准完毕——百发百中！',name:'火哨',title:'炮手狙击',color:'#e0a21c',accent:'#6b3fa0',skin:'#f0c49a',hair:'#8a3b1e',speed:8,moveAttack:'shot',skill:'barrage',skillName:'火哨流星弹幕',
     blurb:'移动+J 远程射击，弹幕瞄准对手',boost:{}},
 };
+CHARACTERS.cook={quote:'饭要好好吃，架也要好好打。',name:'灶火',title:'踢技厨师',color:'#3a3f4c',accent:'#ffcf3a',skin:'#f3c9a0',hair:'#f2d46a',speed:7.7,moveAttack:'dash',skill:'flameKick',skillName:'灶火烈焰踢',
+  blurb:'脚下功夫最快，烈焰踢会点燃对手',boost:{dash:1.05,air:1.05}};
+CHARACTERS.stormcaller={quote:'天气预报说，你今天会倒霉。',name:'云雀',title:'气象航海士',color:'#e0507a',accent:'#ffe27a',skin:'#f6cfa6',hair:'#ff8f2a',speed:7.9,moveAttack:'shot',skill:'thunder',skillName:'云雀落雷',
+  shot:{speed:13,damage:4.5,life:.7,slow:.8,style:'bolt'},
+  blurb:'移动+J 放电击，落雷范围大会麻痹',boost:{}};
 export const CHARACTER_IDS=Object.keys(CHARACTERS);
 // Slot colours for the 1P–4P rings, name tags and brawl HUD cards.
 export const SLOT_COLORS=['#ffd24a','#5fd8ff','#ff7ac8','#8dff7a'],SLOT_LABELS=['1P','2P','3P','4P'];

@@ -5,10 +5,11 @@ import {CHARACTERS,CHARACTER_IDS,STAGE_IDS} from '../arena-roster.js';
 const advance=(w,seconds,input={})=>{for(let t=0;t<seconds;t+=STEP)step(w,input);};
 const duel=(chars,options={})=>{const w=createWorld({chars,...options});w.training=true;w.crates=[];return w;};
 
-test('roster has four distinct characters and three stages',()=>{
-  assert.equal(CHARACTER_IDS.length,4);assert.equal(STAGE_IDS.length,3);
-  assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].moveAttack)).size,4);
-  assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].skill)).size,4);
+test('roster has six distinct characters and three stages',()=>{
+  assert.equal(CHARACTER_IDS.length,6);assert.equal(STAGE_IDS.length,3);
+  assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].skill)).size,6);
+  assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].name)).size,6);
+  assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].moveAttack)).size,4,'four attack styles, shared by the two ranged and two dash fighters');
 });
 test('default world keeps the original swordsman vs guardian pairing',()=>{
   const w=createWorld();assert.deepEqual(w.fighters.map(p=>p.char),['swordsman','guardian']);assert.equal(w.bestOf,1);assert.equal(w.intro,0);
@@ -56,4 +57,35 @@ test('best-of-three: K.O. awards a round, freezes, then restarts with an intro',
 test('time-up awards the round to the healthier fighter',()=>{
   const w=createWorld({bestOf:3,roundTime:1});w.crates=[];w.fighters[0].hp=60;w.fighters[1].hp=70;w.nextCannonTick=1e9;w.nextWaveTick=1e9;
   advance(w,1.1);assert.deepEqual(w.wins,[0,1]);assert.ok(w.events.some(e=>e.type==='ko'&&e.timeUp));
+});
+
+test('flame kick burns and knocks back whoever stands in front of the cook',()=>{
+  const w=duel(['cook','guardian']);const [p,q]=w.fighters;
+  Object.assign(p,{x:0,z:3,fx:1,fz:0,energy:3});Object.assign(q,{x:1.8,z:3});
+  skill(w,p,1);advance(w,.8);
+  assert.ok(q.hp<100);assert.ok(q.burnTime>0||w.events.some(e=>e.type==='hit'&&e.id===q.id));
+  assert.ok(w.events.some(e=>e.type==='skillCharge'&&e.kind==='flameKick'));
+});
+test('thunder strikes the targeted area and slows opponents that are not guarding',()=>{
+  const w=duel(['stormcaller','swordsman']);const [p,q]=w.fighters;
+  Object.assign(p,{x:0,z:3,fx:1,fz:0,energy:3});Object.assign(q,{x:5,z:3});
+  skill(w,p,1);advance(w,.9);
+  assert.ok(q.hp<100);assert.ok(q.slowTime>0);
+  const g=duel(['stormcaller','swordsman']);Object.assign(g.fighters[0],{x:0,z:3,fx:1,fz:0,energy:3});Object.assign(g.fighters[1],{x:5,z:3});
+  skill(g,g.fighters[0],1);advance(g,.6,{});g.fighters[1].blocking=false;
+});
+test('the storm caller fires slower, weaker bolts that slow on hit',()=>{
+  const w=duel(['stormcaller','swordsman']);const [p,q]=w.fighters;
+  Object.assign(p,{x:0,z:3,fx:1,fz:0});Object.assign(q,{x:6,z:3});
+  attack(w,p,{x:1});advance(w,.2);
+  const shot=w.shots[0];assert.ok(shot);assert.equal(shot.style,'bolt');assert.ok(Math.hypot(shot.vx,shot.vz)<15);
+  advance(w,.8);assert.ok(q.hp<100);assert.ok(q.slowTime>0);
+  const g=createWorld({chars:['gunner','swordsman']});g.training=true;g.crates=[];Object.assign(g.fighters[0],{x:0,z:3,fx:1,fz:0});attack(g,g.fighters[0],{x:1});advance(g,.2);
+  assert.ok(Math.hypot(g.shots[0].vx,g.shots[0].vz)>Math.hypot(shot.vx,shot.vz),'gunner bullets are faster');
+});
+test('every pairing of the six fighters finishes a match without invalid state',()=>{
+  for(const a of CHARACTER_IDS)for(const b of CHARACTER_IDS){
+    const w=createWorld({chars:[a,b],stage:'port'});w.autoplay=true;let t=0;while(!w.ended&&t<110){step(w);t+=STEP;}
+    assert.ok(w.ended,`${a} vs ${b}`);for(const p of w.fighters)assert.ok(Number.isFinite(p.hp+p.x+p.z),`${a} vs ${b}`);
+  }
 });
