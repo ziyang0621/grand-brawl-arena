@@ -27,6 +27,15 @@ export function jump(p,input={}){
 }
 // Nearest fighter still in the match; a duel always resolves to the other player.
 function nearestFoe(w,p,maxY=Infinity){let best=null,bd=Infinity;for(const q of w.fighters){if(q===p||q.hp<=0||q.respawnTimer>0||Math.abs(p.y-q.y)>=maxY)continue;const d=distance(p,q);if(d<bd){bd=d;best=q;}}return best;}
+// A CPU that was just hurt turns on whoever hit it, so ranged fighters cannot pick off a melee brawl for free.
+// Otherwise it picks the closest foe, leaning toward healthy ones so nobody wins by dodging the crowd, and keeps that pick for a moment.
+function aiTarget(w,p){
+  const ok=f=>f&&f!==p&&f.hp>0&&f.respawnTimer<=0;
+  const a=p.aggro!==undefined&&w.tick-(p.aggroTick||0)<240?w.fighters.find(f=>f.id===p.aggro):null;if(ok(a))return a;
+  const kept=p.aiFoe!==undefined&&w.tick<p.aiFoeUntil?w.fighters.find(f=>f.id===p.aiFoe):null;if(ok(kept))return kept;
+  let best=null,bs=Infinity;for(const f of w.fighters){if(!ok(f))continue;const sc=distance(p,f)-f.hp*.08;if(sc<bs){bs=sc;best=f;}}
+  if(best){p.aiFoe=best.id;p.aiFoeUntil=w.tick+150+p.id*13;}return best;
+}
 function faceTarget(p,q){const d=distance(p,q);if(d>0.001){p.fx=(q.x-p.x)/d;p.fz=(q.z-p.z)/d;}}
 // Aim only at a nearby, reachable rival; a closer container remains a valid target.
 function assistAim(w,p,range=4.2){
@@ -71,7 +80,7 @@ function hit(w,p,q,damage,force,options={}){
     else{q.vy=5.2;q.vx=fx*.35;q.vz=fz*.35;}
     if(p.owner===undefined&&!p.grounded)p.vy=Math.max(p.vy,finisher?2:4.6);
   }
-  const attacker=p.owner===undefined?p:w.fighters.find(f=>f.id===p.owner);if(attacker!==q){gainEnergy(w,attacker,.22);gainEnergy(w,q,.08);}
+  const attacker=p.owner===undefined?p:w.fighters.find(f=>f.id===p.owner);if(attacker&&attacker!==q){gainEnergy(w,attacker,.22);gainEnergy(w,q,.08);q.aggro=attacker.id;q.aggroTick=w.tick;}
   if(p.attackType&&['light','dash','air'].includes(p.attackType))p.attackConnected=true;
   emit(w,'hit',{x:q.x,y:q.y+1.2,z:q.z,damage,id:q.id});return true;
 }
@@ -178,6 +187,8 @@ function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Ma
 function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=open[Math.floor(Math.random()*open.length)]||[0,5];c.x=x;c.z=z;c.y=9;c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=.48){c.y=.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
 function ai(w,p,q){
   if(w.training)return {x:0,z:0};
+  // Each CPU keeps its own rhythm; identical timers would let the first fighter in the update order always win the trade.
+  const beat=w.tick+p.id*41;
   const d=distance(p,q);faceTarget(p,q);
   const hazards=[...w.clouds.filter(c=>c.life>0&&Math.abs(p.y+1-c.y)<2.8),
     ...w.bombs.filter(b=>b.kind==='bomb'&&b.life<.65&&Math.abs(p.y+1-b.y)<2.8).map(b=>({...b,radius:3})),
@@ -208,6 +219,9 @@ function ai(w,p,q){
     const cx=q.pendingSkill.cx??q.x,cz=q.pendingSkill.cz??q.z,away=Math.max(.01,Math.hypot(p.x-cx,p.z-cz));
     return away>.05?{x:(p.x-cx)/away,z:(p.z-cz)/away}:{x:-p.fx,z:-p.fz};
   }
+  // Raise the guard against some incoming shots (not all: a CPU should still be worth shooting).
+  const incoming=w.shots.find(sh=>sh.owner!==p.id&&(sh.id+p.id)%5<2&&Math.abs(sh.y-(p.y+1.1))<1.2&&distance(sh,p)<5.5&&distance(sh,p)>1.2&&((p.x-sh.x)*sh.vx+(p.z-sh.z)*sh.vz)>0);
+  if(incoming&&p.grounded&&p.attackTime<=0)return {x:0,z:0,guard:true};
   // Decisions use visible fighters/items only, and share the player's action rules.
   if(p.grabbedTarget!==null){if(p.grabHoldTime<1.6)attack(w,p);return {x:p.fx*.5,z:p.fz*.5};}
   if(p.item==='sword'||p.item==='beer'||(p.item==='meat'&&p.hp<80))bomb(w,p);
@@ -218,24 +232,29 @@ function ai(w,p,q){
     if(loot&&p.y<1.2){faceTarget(p,loot);return {x:p.fx,z:p.fz};}
     const crate=!p.item&&d>4&&w.crates.filter(c=>c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(p.y-c.y)<1.4&&distance(p,c)<5)
       .sort((a,b)=>distance(p,a)-distance(p,b))[0];
-    if(crate){faceTarget(p,crate);if(distance(p,crate)<2&&w.tick%36===0)attack(w,p);return distance(p,crate)>1.2?{x:p.fx,z:p.fz}:{x:0,z:0};}
+    if(crate){faceTarget(p,crate);if(distance(p,crate)<2&&beat%36===0)attack(w,p);return distance(p,crate)>1.2?{x:p.fx,z:p.fz}:{x:0,z:0};}
   }
-  if(d<3.5&&p.grounded&&w.tick>300&&w.tick%480===0&&p.energy>=1)skill(w,p,Math.min(3,Math.floor(p.energy)));
-  if(q.y>p.y+.6&&p.grounded)jump(p);
+  if(d<3.5&&p.grounded&&beat>300&&beat%480===0&&p.energy>=1)skill(w,p,Math.min(3,Math.floor(p.energy)));
+  // Hop up only to reach a rival standing on a deck; two CPUs otherwise mirror each other's jumps forever.
+  if(q.y>p.y+.6&&q.grounded&&p.grounded)jump(p);
   // Grand Battle CPUs press: chain the light string whenever the previous hit landed.
   if(p.comboWindow>0&&p.attackConnected&&!p.comboQueued&&p.attackType==='light'&&p.combo<2&&d<2.6)attack(w,p);
   // Chase a launched opponent: jump after it, then keep pressing air attacks.
-  if((q.juggle||0)>0&&!q.grounded&&d<2.6){if(p.grounded&&q.y>1.2&&p.attackTime<=0)jump(p);else if(!p.grounded&&!p.comboQueued&&w.tick%6===0)attack(w,p);}
-  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&w.tick%55===0){
-    if(!q.blocking&&Math.floor(w.tick/55)%7===3&&p.grounded)heavy(w,p,{z:-1});
-    else if(q.blocking||Math.floor(w.tick/110)%3===0)heavy(w,p);
-    else if(Math.floor(w.tick/110)%4===0)grab(w,p);
+  if((q.juggle||0)>0&&!q.grounded&&d<2.6){if(p.grounded&&q.y>1.2&&p.attackTime<=0)jump(p);else if(!p.grounded&&!p.comboQueued&&beat%6===0)attack(w,p);}
+  if(d<2.3&&Math.abs(p.y-q.y)<1.4&&beat>180&&beat%20===0){
+    if(!q.blocking&&Math.floor(beat/55)%7===3&&p.grounded)heavy(w,p,{z:-1});
+    else if(q.blocking||Math.floor(beat/110)%3===0)heavy(w,p);
+    else if(Math.floor(beat/110)%4===0)grab(w,p);
     else attack(w,p);
   }
-  if(d>4&&d<8&&w.tick%420===0)bomb(w,p);
+  if(d>4&&d<8&&beat%420===0)bomb(w,p);
+  // Melee CPUs close a gap with their movement attack instead of walking into a stream of shots.
+  if(p.char!=='gunner'&&d>3.2&&d<7&&p.grounded&&Math.abs(p.y-q.y)<1.4&&beat>120&&beat%70===0){
+    if(p.char==='guardian')heavy(w,p,{x:p.fx,z:p.fz});else attack(w,p,{x:p.fx,z:p.fz});
+  }
   if(p.char==='gunner'){
-    if(d>3&&d<9&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&w.tick%75===0)attack(w,p,{x:p.fx,z:p.fz});
-    const move=d>6.5?1:d<3.2?-.8:0;return {x:p.fx*move+(move===0?-p.fz*.5:0),z:p.fz*move+(move===0?p.fx*.5:0)};
+    if(d>3&&d<9&&Math.abs(p.y-q.y)<1.4&&beat>180&&beat%100===0)attack(w,p,{x:p.fx,z:p.fz});
+    const move=d>6.5?1:d<2.6?-.6:0;return {x:p.fx*move+(move===0?-p.fz*.5:0),z:p.fz*move+(move===0?p.fx*.5:0)};
   }
   if(!danger&&d>7&&p.grounded&&!p.running)sprint(p);
   const move=d>1.8?1:d<1.3?-.5:0;return {x:p.fx*move,z:p.fz*move};
@@ -400,7 +419,7 @@ export function step(w,input={},dt=STEP){
       if(p.wallImpact){emit(w,'wallBounce',{...p.wallImpact,id:p.id});w.hitStop=Math.max(w.hitStop,.045);p.wallImpact=null;}
       if(Math.hypot(p.vx,p.vz)>4)for(const c of w.crates)if(c.hp>0&&!c.falling&&c.heldBy===null&&distance(p,c)<1&&Math.abs(p.y-c.y)<1.2){breakCrate(w,c,1);emit(w,'bodyCrash',{id:p.id,x:c.x,y:c.y+.6,z:c.z});}
       p.knocked=Math.max(0,p.knocked-dt);if(p.knocked===0&&!p.grounded)p.knocked=.01;else if(p.knocked===0){p.invuln=.35;emit(w,'wakeup',{id:p.id,x:p.x,y:p.y+1,z:p.z});}continue;}
-    const foe=w.online||p.id===0?null:nearestFoe(w,p),controls=p.id===0?input:(w.online?w.remoteInput:foe?ai(w,p,foe):{x:0,z:0});
+    const human=p.id===0&&!w.autoplay,foe=w.online||human?null:aiTarget(w,p),controls=human?input:(w.online?w.remoteInput:foe?ai(w,p,foe):{x:0,z:0});
     stepFighter(p,controls,dt,stageOf(w.stage));
     p.landTime=Math.max(0,(p.landTime||0)-dt);
     if(p.attackTime>0){
@@ -457,7 +476,7 @@ export function step(w,input={},dt=STEP){
   for(let i=w.shots.length-1;i>=0;i--){
     const s=w.shots[i];s.life-=dt;s.x+=s.vx*dt;s.z+=s.vz*dt;
     const target=w.fighters.find(q=>q.id!==s.owner&&q.hp>0&&q.respawnTimer<=0&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
-    if(target){hit(w,s,target,8*s.boost,5,{kind:'shot'});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
+    if(target){hit(w,s,target,6*s.boost,3.5,{kind:'shot'});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     const crate=w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&distance(c,s)<.75&&s.y<c.y+1.4);
     if(crate){breakCrate(w,crate,1);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     if(s.life<=0||Math.abs(s.x)>15||Math.abs(s.z)>9)w.shots.splice(i,1);
