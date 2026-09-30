@@ -15,6 +15,7 @@ export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,
 export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
+export const CANNON_WARN=1.5,SNOWBALL_WARN=1.6;
 const PIECE_FALL=.7,PIECE_DAMAGE={light:6,dash:9,air:7,heavy:14,slam:16,upper:10,rush:10,shieldBash:12};
 // Ground containers plus the chests sitting on top of decks (the reward for climbing).
 export function makeCrates(stage){
@@ -72,6 +73,15 @@ function collidePieces(w){
       else{const into=p.vx*nx+p.vz*nz;if(into<0){p.vx-=nx*into;p.vz-=nz*into;}}
     }
   }
+}
+// Where a thrown bomb or bottle will land, for the on-screen marker (same physics as the update loop).
+export function predictBomb(w,b){
+  const stage=stageOf(w.stage);let {x,y,z,vx,vy,vz,life}=b;const dt=1/60;
+  for(let t=0;t<3;t+=dt){
+    const oldY=y;life-=dt;vy-=16*dt;x+=vx*dt;y+=vy*dt;z+=vz*dt;
+    if(y<.22||stage.platforms.some(p=>supported(x,z,p)&&vy<0&&oldY>=p.top+.22&&y<=p.top+.22)||life<=0)return {x,z,y:Math.max(0,y),time:t};
+  }
+  return {x,z,y:Math.max(0,y),time:3};
 }
 export function jump(p,input={}){
   if(p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0)return;
@@ -338,6 +348,9 @@ function ai(w,p,q){
   const sand=p.terrain==='quicksand'?zoneAt(stageOf(w.stage),p.x,p.z):null;
   if(sand&&d>2.4){const dx=p.x-sand.x,dz=p.z-sand.z,l=Math.hypot(dx,dz)||1;return {x:dx/l,z:dz/l};}
   const stageDef=stageOf(w.stage);
+  // A wound-up cannon or snowball has told us its lane: step out of it (after a human-like beat) or hop the snowball as it arrives.
+  const lane=w.cannonballs.find(c=>(c.kind==='cannon'||c.kind==='snowball')&&Math.abs(c.z-p.z)<1.5&&p.y<1.5&&(c.delay>0?c.delay<(c.kind==='cannon'?CANNON_WARN:SNOWBALL_WARN)-.4:false));
+  if(lane&&!p.blocking){const away=p.z>=lane.z?1:-1,tz=clamp(lane.z+away*2.4,-8.2,8.2);if(Math.abs(tz-p.z)>.3&&Math.abs(tz)<8.3)return {x:0,z:Math.sign(tz-p.z)};}
   // Roll or leap over a ground-level snowball heading our way.
   const ball=w.cannonballs.find(c=>c.kind==='snowball'&&Math.abs(c.z-p.z)<1.1&&Math.abs(c.x-p.x)<3.2&&(p.x-c.x)*c.vx>0);
   if(ball&&p.grounded&&p.y<.3)jump(p);
@@ -497,13 +510,14 @@ function updateStageHazards(w,dt){
   const stage=stageOf(w.stage),kind=stage.cannonKind;
   if(!w.training&&w.tick>=w.nextCannonTick){
     const pool=w.fighters.filter(p=>p.hp>0),target=(pool.length?pool:w.fighters)[Math.floor(Math.random()*(pool.length||w.fighters.length))],side=Math.random()<.5?-1:1;
-    if(kind==='rockfall'){const x=clamp(target.x+(Math.random()-.5)*1.5,-14,14),z=clamp(target.z+(Math.random()-.5)*1.5,-8,8);w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'rock',x,y:12,z,vx:0,vy:0,vz:0,life:4,delay:1.1});w.nextCannonTick=w.tick+620;emit(w,'rockWarn',{x,y:.14,z,delay:1.1});}
-    else if(kind==='snowball'){w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'snowball',x:side*15,y:.75,z:target.z,vx:-side*9,vy:0,vz:0,life:3.6});w.nextCannonTick=w.tick+760;emit(w,'cannon',{x:side*14,y:.75,z:target.z,side,kind:'snowball'});}
-    else{w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'cannon',x:side*15,y:1.2,z:target.z,vx:-side*11,vy:1.8,vz:0,life:3});w.nextCannonTick=w.tick+840;emit(w,'cannon',{x:side*14,y:1.2,z:target.z,side,kind:'cannon'});}
+    if(kind==='rockfall'){const x=clamp(target.x+(Math.random()-.5)*1.5,-14,14),z=clamp(target.z+(Math.random()-.5)*1.5,-8,8);w.cannonballs.push({id:w.nextCannon++,owner:-1,kind:'rock',x,y:12,z,vx:0,vy:0,vz:0,life:4,delay:1.3});w.nextCannonTick=w.tick+620;emit(w,'rockWarn',{x,y:.14,z,delay:1.3});}
+    // Off-screen launchers wind up first: a lane warning, a visible thrower and an edge alert give the players time to sidestep, jump or guard.
+    else if(kind==='snowball'){const z=clamp(target.z,-7.6,7.6),id=w.nextCannon++;w.cannonballs.push({id,owner:-1,kind:'snowball',x:side*15,y:.75,z,vx:-side*9,vy:0,vz:0,life:3.6,delay:SNOWBALL_WARN,fire:{x:side*14,y:.75,z,side,kind:'snowball'}});w.nextCannonTick=w.tick+760;emit(w,'hazardWarn',{id,kind:'snowball',side,z,delay:SNOWBALL_WARN});}
+    else{const z=clamp(target.z,-7.6,7.6),id=w.nextCannon++;w.cannonballs.push({id,owner:-1,kind:'cannon',x:side*15,y:1.2,z,vx:-side*11,vy:1.8,vz:0,life:3,delay:CANNON_WARN,fire:{x:side*14,y:1.2,z,side,kind:'cannon'}});w.nextCannonTick=w.tick+840;emit(w,'hazardWarn',{id,kind:'cannon',side,z,delay:CANNON_WARN});}
   }
   for(let i=w.cannonballs.length-1;i>=0;i--){
     const c=w.cannonballs[i];
-    if(c.delay>0){c.delay=Math.max(0,c.delay-dt);continue;}
+    if(c.delay>0){c.delay=Math.max(0,c.delay-dt);if(c.delay===0&&c.fire)emit(w,'cannon',c.fire);continue;}
     c.life-=dt;
     if(c.kind==='rock'){
       c.vy-=40*dt;c.y+=c.vy*dt;

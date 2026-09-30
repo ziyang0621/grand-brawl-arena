@@ -53,7 +53,7 @@ test('desert rockfall is marked first, then hits whoever stays under it',()=>{
 test('snowball rolls along the ground and chills on hit',()=>{
   const w=hazards('snow');w.nextCannonTick=1;w.fighters[1].x=12;w.fighters[1].z=-7;
   step(w,{});const ball=w.cannonballs[0];assert.equal(ball.kind,'snowball');Object.assign(w.fighters[0],{z:ball.z,x:0});Object.assign(w.fighters[1],{x:0,z:ball.z>0?-8:8});
-  for(let t=0;t<2.5;t+=STEP)step(w,{});assert.ok(w.fighters[0].hp<100);assert.ok(w.fighters[0].slowTime>0||w.events.some(e=>e.type==='slow'));
+  for(let t=0;t<4.4;t+=STEP)step(w,{});assert.ok(w.fighters[0].hp<100);assert.ok(w.fighters[0].slowTime>0||w.events.some(e=>e.type==='slow'));
 });
 test('sandstorm pushes even airborne fighters and deals no damage; avalanche hurts',()=>{
   const w=hazards('desert');w.nextWaveTick=1;const p=w.fighters[0];

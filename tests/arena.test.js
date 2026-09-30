@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {STEP,PLATFORMS,createWorld,createFighter,stepFighter,step,jump,attack,heavy,grab,bomb,skill,dodge,toggleAim} from '../arena-core.js';
+import {STEP,PLATFORMS,CANNON_WARN,createWorld,createFighter,stepFighter,step,jump,attack,heavy,grab,bomb,skill,dodge,toggleAim} from '../arena-core.js';
 const advance=(w,seconds,input={})=>{for(let t=0;t<seconds;t+=STEP)step(w,input);};
 const cast=(w,p,level=1)=>{skill(w,p,level);advance(w,.25+level*.15+STEP);};
 test('assisted dash velocity and sword face the same nearby opponent',()=>{
@@ -188,7 +188,8 @@ test('container classes use separate loot pools',()=>{
   const pools={barrel:['bomb','poison','virus','slow'],crate:['meat','beer','bomb'],chest:['sword','beer','meat']};for(const kind of Object.keys(pools)){const w=createWorld();w.training=true;const p=w.fighters[0],c=w.crates[0];c.kind=kind;p.x=c.x;p.z=c.z;cast(w,p);assert.ok(pools[kind].includes(w.events.find(e=>e.type==='break').item));}
 });
 test('port stage schedules cannon fire and a warning before the wave',()=>{
-  const w=createWorld();w.nextCannonTick=1;w.nextWaveTick=1;step(w);assert.equal(w.cannonballs.length,1);assert.ok(w.waveWarning>0);assert.ok(w.events.some(e=>e.type==='cannon'));assert.ok(w.events.some(e=>e.type==='waveWarning'));
+  const w=createWorld();w.nextCannonTick=1;w.nextWaveTick=1;step(w);assert.equal(w.cannonballs.length,1);assert.ok(w.waveWarning>0);assert.ok(w.events.some(e=>e.type==='hazardWarn'&&e.kind==='cannon'),'winds up first');assert.equal(w.events.some(e=>e.type==='cannon'),false,'not fired yet');assert.ok(w.events.some(e=>e.type==='waveWarning'));
+  advance(w,CANNON_WARN+.05);assert.ok(w.events.some(e=>e.type==='cannon'),'fires after the warning');
 });
 test('the expanded dock has more walkable space',()=>{
   const p=createFighter(0,0,0);for(let i=0;i<5000;i++)stepFighter(p,{x:1},STEP);assert.ok(p.x>12);assert.ok(p.x<=14.5);

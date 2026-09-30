@@ -1,10 +1,10 @@
 import * as THREE from './vendor/three.module.js';
 import {createCloudVisual,updateCloudVisual} from './arena-clouds.js';
-import {STEP,createWorld,step,jump,attack,heavy,grab,bomb,skill,dodge,sprint,toggleAim} from './arena-core.js';
+import {STEP,createWorld,step,jump,attack,heavy,grab,bomb,skill,dodge,sprint,toggleAim,predictBomb} from './arena-core.js';
 import {CHARACTERS,CHARACTER_IDS,STAGES,STAGE_IDS,SLOT_COLORS,SLOT_LABELS,characterOf} from './arena-roster.js';
 import {createTouchControls,isTouchDevice} from './arena-touch.js';
 import {ConnectionAttempt,InputLease,cleanInput,neutralInput,sameRound,voteRematch} from './arena-session.js';
-import {mesh,box,sphere,cylinder,fxMesh,label,ink,starSprite,sfxSprite,isSharedMaterial} from './arena-gfx.js';
+import {mesh,box,sphere,cylinder,cone,fxMesh,label,ink,starSprite,sfxSprite,isSharedMaterial} from './arena-gfx.js';
 import {buildFighter,disposeFighter,renderPortraits} from './arena-models.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -336,6 +336,7 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='lift'){announce(`举起${e.kind==='barrel'?'木桶':e.kind==='chest'?'宝箱':'木箱'} · J前投 / U高投`);tone(250,.1,'square');}
   if(e.type==='propThrow'){announce(e.high?'高抛！':'向前投掷！');tone(180,.1,'sawtooth');}
   if(e.type==='propBreak'){debris(e,e.kind==='chest'?['#9a5f2e','#e2a93c','#ffd45e']:e.kind==='barrel'?['#a86a3c','#7a4a2a','#3d4650']:['#c08a50','#a06a36','#5e4636'],13,{size:.24,speed:7,flat:true});if(e.kind==='chest')debris(e,['#ffd45e','#fff2a0'],7,{size:.12,speed:5.5,geo:shardGeo});dust(e.x,Math.max(0,e.y-.5),e.z,6,1.4);starBurst(e,1.4,'#fff2b0');}
+  if(e.type==='hazardWarn')startHazardWarning(e);
   if(e.type==='cannon'){announce(e.kind==='snowball'?'滚地雪球来了！跳起来躲':`${stageText('cannon')}！注意两侧`);tone(80,.28,'sawtooth');}
   if(e.type==='waveWarning'){announce(`${stageText('wave')}将从${e.dir>0?'左':'右'}侧袭来！`);tone(140,.35,'triangle');}
   if(e.type==='waveStart'){announce(e.kind==='sandstorm'?'沙暴来袭！空中也会被吹走':`${stageText('wave')}来袭！跳上高台！`);tone(65,.45,'sawtooth');}
@@ -414,7 +415,7 @@ for(const [id,code] of [['jumpButton','Space'],['attackButton','KeyJ'],['heavyBu
 renderer.domElement.addEventListener('pointerdown',()=>{unlockAudio();document.activeElement?.blur();});
 function removeEffect(e){scene.remove(e.m);if(e.sfx){e.m.material.dispose();return;}if(e.strip){e.m.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});return;}if(e.sprite)e.m.material.map.dispose();if(e.star){e.m.material.dispose();return;}if(!e.shared){if(!e.keepGeo)e.m.geometry?.dispose();e.m.material.dispose();}}
 function clearVisualEffects(){
-  clearGhosts();
+  clearGhosts();clearWarnings();
   clearPieceModels();
   for(const map of [bombModels,cloudModels,propModels,cannonModels,shotModels]){for(const m of map.values()){scene.remove(m);m.traverse(o=>{if(!o.userData.ink)o.geometry?.dispose();if(o.material&&!isSharedMaterial(o.material)&&o.material.side!==THREE.BackSide)o.material.dispose();});}map.clear();}
   for(const e of effects)removeEffect(e);effects.length=0;
@@ -659,6 +660,99 @@ function animateFighter(p,i,m,dt){
   const warning=chargeModels[i];warning.root.visible=Boolean(p.pendingSkill)&&!world.ended;
   if(p.pendingSkill){const s=p.pendingSkill,progress=1-p.skillWindup/s.windup,cx=s.cx??p.x,cz=s.cz??p.z,self=s.kind==='whirlwind'||s.kind==='shieldQuake';warning.root.position.set(self?p.x:cx,p.y,self?p.z:cz);warning.edge.scale.setScalar(s.radius);warning.fill.scale.setScalar(s.radius*Math.max(.05,progress));warning.fill.material.opacity=.12+progress*.16;for(const [kind,tag] of Object.entries(warning.tags))tag.visible=kind===s.kind;}
 }
+// ---- Telegraphing: lane warnings, visible launchers and edge alerts for shots that come from outside the arena ----
+const warnings=[],alertsEl=()=>$('alerts');
+const laneTextures=new Map();
+function laneTexture(kind){
+  if(laneTextures.has(kind))return laneTextures.get(kind);
+  const c=document.createElement('canvas');c.width=128;c.height=64;const g=c.getContext('2d');
+  g.strokeStyle=kind==='snowball'?'#ffffff':'#fff3a0';g.lineWidth=11;g.lineJoin='miter';g.beginPath();g.moveTo(88,8);g.lineTo(38,32);g.lineTo(88,56);g.stroke();
+  const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.repeat.set(9,1);t.colorSpace=THREE.SRGBColorSpace;laneTextures.set(kind,t);return t;
+}
+function cannonLauncher(side,z){
+  const g=new THREE.Group();g.position.set(side*15.7,.95,z);g.rotation.y=side>0?-Math.PI/2:Math.PI/2;
+  const barrel=cylinder(.4,.5,2.1,'#2b2f36',g,0,.1,.5);barrel.rotation.x=Math.PI/2;
+  cylinder(.55,.55,.22,'#3a3f48',g,0,.1,-.55).rotation.x=Math.PI/2;
+  for(const wx of [-.6,.6]){const wheel=cylinder(.55,.55,.18,'#6b4128',g,wx,-.35,0,14);wheel.rotation.z=Math.PI/2;}
+  box(1.1,.3,1.6,'#5a3622',g,0,-.4,0);
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(.42,12,10),new THREE.MeshBasicMaterial({color:'#ff7a2a',transparent:true,opacity:0,depthWrite:false}));glow.position.set(0,.1,1.6);g.add(glow);
+  ink(g,.05);scene.add(g);return {g,glow,barrel};
+}
+function snowmanLauncher(side,z){
+  const g=new THREE.Group();g.position.set(side*16.4,0,z);g.rotation.y=side>0?-Math.PI/2:Math.PI/2;
+  const lean=new THREE.Group();g.add(lean);
+  sphere(.95,'#ffffff',lean,0,.95,0);sphere(.7,'#f4f9ff',lean,0,2.05,0);sphere(.5,'#ffffff',lean,0,2.85,0);
+  cone(.1,.6,'#ff8a2a',lean,0,2.85,.55).rotation.x=Math.PI/2;
+  for(const x of [-.17,.17])sphere(.07,'#1d1f26',lean,x,2.98,.44,6);
+  cylinder(.42,.5,.55,'#2f3542',lean,0,3.45,0);cylinder(.58,.58,.08,'#2f3542',lean,0,3.2,0);
+  for(const s of [-1,1]){const arm=cylinder(.05,.06,1.4,'#6a4a2a',lean,s*1.05,2.15,0,6);arm.rotation.z=s*-.9;}
+  const ball=sphere(1,'#ffffff',g,0,.75,1.9,14);
+  ink(g,.05);scene.add(g);return {g,lean,ball};
+}
+function startHazardWarning(e){
+  const cannon=e.kind==='cannon',side=e.side,dir=-side;
+  const lane=new THREE.Group();lane.position.set(0,.12,e.z);
+  const base=new THREE.Mesh(new THREE.PlaneGeometry(31,2.5),new THREE.MeshBasicMaterial({color:cannon?'#ff4a2a':'#ff3b3b',transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide}));base.rotation.x=-Math.PI/2;lane.add(base);
+  const tex=laneTexture(e.kind).clone();tex.needsUpdate=true;tex.wrapS=THREE.RepeatWrapping;tex.repeat.set(dir<0?9:-9,1);
+  const chev=new THREE.Mesh(new THREE.PlaneGeometry(31,2.3),new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));chev.rotation.x=-Math.PI/2;chev.position.y=.01;lane.add(chev);
+  for(const dz of [-1.25,1.25]){const edge=new THREE.Mesh(new THREE.PlaneGeometry(31,.09),new THREE.MeshBasicMaterial({color:'#ff3b2a',transparent:true,opacity:.9,depthWrite:false}));edge.rotation.x=-Math.PI/2;edge.position.set(0,.02,dz);lane.add(edge);}
+  scene.add(lane);
+  const launcher=cannon?cannonLauncher(side,e.z):snowmanLauncher(side,e.z);
+  const el=document.createElement('div');el.className='alert '+(cannon?'':'snow ')+(side>0?'right':'left');el.innerHTML=`<b>!</b><span class="arrow">${side>0?'◀':'▶'}</span><span class="bar"><i></i></span>`;alertsEl().append(el);
+  warnings.push({id:e.id,kind:e.kind,side,z:e.z,delay:e.delay,t:0,lane,base,chev,tex,launcher,el,beeps:0,fired:false,after:0,spark:0});
+  announce(cannon?'炮口对准了这一条线！横向躲开或跳起来':'雪人在推雪球！横向躲开或跳起来');tone(760,.12,'square',.05);
+}
+function updateWarnings(dt){
+  for(let i=warnings.length-1;i>=0;i--){
+    const w=warnings[i];w.t+=dt;const k=Math.min(1,w.t/w.delay),left=w.delay-w.t,cannon=w.kind==='cannon';
+    // Fired: either the shot has left (event) or the timer ran out. The launcher hangs around a moment for its recoil.
+    if(!w.fired&&(left<=0||!(world.cannonballs||[]).some(c=>c.id===w.id&&c.delay>0))){w.fired=true;w.after=0;w.el.remove();w.lane.visible=false;
+      if(cannon){starBurst({x:w.side*14.2,y:1.2,z:w.z},2,'#ffe27a',0,.2);for(let j=0;j<5;j++){const puff=fxMesh(smokeGeo,'#6a6c76',scene,w.side*14+(Math.random()-.5)*.6,1.1,w.z+(Math.random()-.5)*.6,.6,false);effects.push({m:puff,life:.8,max:.8,smoke:.5,keepGeo:true,v:new THREE.Vector3(-w.side*1.5,.5,(Math.random()-.5)*.6)});}shakeCam(.12);}
+      else{dust(w.side*14.6,0,w.z,8,1.6);particles({x:w.side*14.6,y:.8,z:w.z},'#ffffff',10);}}
+    if(w.fired){
+      w.after+=dt;const r=Math.min(1,w.after/.5);
+      if(cannon)w.launcher.g.position.x=w.side*(15.7+Math.sin(r*Math.PI)*.7);else w.launcher.lean.rotation.x=-.5+r*.9;
+      if(w.after>.9){scene.remove(w.launcher.g);w.launcher.g.traverse(o=>{if(!o.userData.ink){o.geometry?.dispose();}if(o.material&&!isSharedMaterial(o.material)&&o.material.side!==THREE.BackSide)o.material.dispose();});scene.remove(w.lane);w.lane.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});w.tex.dispose();warnings.splice(i,1);}
+      continue;
+    }
+    // Lane: pulses faster as the shot gets close, chevrons run the way the shot will travel.
+    w.tex.offset.x+=dt*(.8+k*2.2);
+    w.base.material.opacity=.16+.16*Math.abs(Math.sin(w.t*(4+k*10)));w.chev.material.opacity=.45+.4*k;
+    // Launcher winds up: cannon glows and trembles, the snowman leans back and rocks the ball.
+    if(cannon){const shake=Math.sin(w.t*40)*.03*k;w.launcher.g.position.z=w.z+shake;w.launcher.glow.material.opacity=.25+.7*k*Math.abs(Math.sin(w.t*(6+k*14)));w.launcher.glow.scale.setScalar(.6+k*.7);
+      w.spark-=dt;if(w.spark<=0){w.spark=.07;const m=fxMesh(shardGeo,'#ffd066',scene,w.side*16.4,1.4,w.z+(Math.random()-.5)*.3,1,true);m.scale.setScalar(.09);effects.push({m,life:.35,max:.35,chunk:true,keepGeo:true,v:new THREE.Vector3(-w.side*.6,1.6+Math.random(),(Math.random()-.5)),spin:new THREE.Vector3(4,6,2),floor:-5});}}
+    else{w.launcher.lean.rotation.x=.55*k+Math.sin(w.t*(10+k*12))*.07*k;w.launcher.ball.scale.setScalar(.35+.45*k);w.launcher.ball.rotation.z-=dt*6*(1+k*3);w.launcher.ball.position.y=.35+.4*k;}
+    // Beeps quicken toward the launch.
+    const marks=[.35,.6,.78,.9];while(w.beeps<marks.length&&k>=marks[w.beeps]){tone(760+w.beeps*140,.09,'square',.05);w.beeps++;}
+    // Edge alert follows the launcher on screen.
+    const v=new THREE.Vector3(w.side*14.6,1.4,w.z).project(camera);
+    let x=(v.x*.5+.5)*innerWidth,y=(-v.y*.5+.5)*innerHeight;
+    x=clamp(x,58,innerWidth-58);y=clamp(y,110,innerHeight-Math.min(200,innerHeight*.3));
+    const pulse=1+.12*Math.sin(w.t*(6+k*12));w.el.style.transform=`translate(${x.toFixed(0)}px,${y.toFixed(0)}px) scale(${(pulse*(1+k*.3)).toFixed(2)})`;
+    w.el.classList.toggle('soon',left<.6);w.el.querySelector('.bar i').style.setProperty('--w',(100*(1-k)).toFixed(0)+'%');
+  }
+}
+function clearWarnings(){for(const w of warnings){w.el.remove();scene.remove(w.launcher.g);scene.remove(w.lane);}warnings.length=0;}
+// ---- Where a thrown bomb or bottle is going to land: corner brackets shrink onto the spot ----
+const landMarks=new Map();
+function landMarker(kind){
+  const g=new THREE.Group(),color=kind==='bomb'?'#ff5a3a':kind==='poison'?'#5fe07a':kind==='virus'?'#b66cff':'#6db9ff';
+  const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide});
+  for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4,corner=new THREE.Group();corner.position.set(Math.cos(a),0,Math.sin(a));corner.rotation.y=-a+Math.PI/4;
+    const h=new THREE.Mesh(new THREE.PlaneGeometry(.55,.12),mat),v=h.clone();h.rotation.x=v.rotation.x=-Math.PI/2;h.position.set(-.2,0,0);v.rotation.z=Math.PI/2;v.position.set(0,0,.2);corner.add(h);g.add(corner);}
+  const cross=new THREE.Mesh(new THREE.PlaneGeometry(.75,.12),mat),cross2=cross.clone();cross.rotation.x=cross2.rotation.x=-Math.PI/2;cross.rotation.z=Math.PI/4;cross2.rotation.z=-Math.PI/4;g.add(cross,cross2);
+  g.userData={mat};scene.add(g);return g;
+}
+function updateLandMarks(dt){
+  const live=new Set();
+  for(const b of world.bombs||[]){
+    live.add(b.id);let g=landMarks.get(b.id);if(!g){g=landMarker(b.kind);landMarks.set(b.id,g);}
+    const hit=predictBomb(world,b),radius=b.kind==='bomb'?3:b.kind==='virus'?2.8:b.kind==='slow'?2.4:2.2;
+    g.position.set(hit.x,hit.y+.14,hit.z);const near=Math.max(0,Math.min(1,hit.time/1.2));g.scale.setScalar(radius*(.62+.38*near));g.rotation.y+=dt*1.6;
+    g.userData.mat.opacity=.55+.4*Math.abs(Math.sin(world.tick*.25));
+  }
+  for(const [id,g] of landMarks)if(!live.has(id)){scene.remove(g);g.traverse(o=>{if(o.isMesh)o.geometry.dispose();});g.userData.mat.dispose();landMarks.delete(id);}
+}
 // ---- Afterimage silhouettes ----
 const ghosts=[];
 function ghost(m,p){
@@ -675,7 +769,7 @@ function updateGhosts(dt){
 }
 function clearGhosts(){for(const g of ghosts){scene.remove(g.wrap);g.material.dispose();}ghosts.length=0;}
 function updateVisuals(dt){
-  ensureStage();ensureModels();syncPieces();updateGhosts(dt);
+  ensureStage();ensureModels();syncPieces();updateGhosts(dt);updateWarnings(dt);updateLandMarks(dt);
   world.fighters.forEach((p,i)=>animateFighter(p,i,models[i],dt));
   for(const b of world.bombs){let g=bombModels.get(b.id);if(!g){g=new THREE.Group();const bottle=b.kind==='poison'||b.kind==='virus'||b.kind==='slow';if(bottle){const color=b.kind==='virus'?'#8d55bd':b.kind==='slow'?'#4c9ee8':'#55a866';const glow=b.kind==='virus'?'#d19aff':b.kind==='slow'?'#bde8ff':'#a7f58c';cylinder(.18,.23,.48,color,g,0,0,0);sphere(.16,glow,g,0,.3,0);box(.16,.08,.16,'#e7d1a7',g,0,.28,0);}else{sphere(.26,'#29394b',g,0,0,0);const fuse=box(.055,.23,.055,'#ffd366',g,.06,.3,0);fuse.rotation.z=-.3;sphere(.07,'#fff1a2',g,.1,.42,0);}ink(g,.03);scene.add(g);bombModels.set(b.id,g);}g.position.set(b.x,b.y,b.z);g.rotation.z+=dt*(b.kind==='bomb'?6:3);g.userData.trail=(g.userData.trail||0)-dt;if(g.userData.trail<=0){g.userData.trail=.04;trailBit(b);}}
   for(const [id,m] of bombModels)if(!world.bombs.some(b=>b.id===id)){scene.remove(m);bombModels.delete(id);}
