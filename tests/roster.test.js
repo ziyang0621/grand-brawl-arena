@@ -113,3 +113,22 @@ test('expressions swap eyes and mouths and never show two mouths at once',()=>{
     assert.equal(e.white.visible,eyes==='open'||eyes==='wide'||eyes==='daze');
   }
 });
+
+import {updateGuard} from '../arena-guards.js';
+test('each character has its own guard that only shows while blocking and flashes on a hit',()=>{
+  globalThis.document??={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>({addColorStop(){}}),set:()=>true}),width:0,height:0,style:{}})};
+  const looks=new Set();
+  for(const id of CHARACTER_IDS){
+    const m=buildFighter(id,0,null),g=m.guard;
+    assert.equal(g.root.visible,false,`${id} hidden by default`);
+    for(let i=0;i<30;i++)updateGuard(g,true,i/60,1/60);
+    assert.equal(g.root.visible,true);assert.ok(g.on>.9);
+    updateGuard(g,true,1,1/60,true);assert.ok(g.flash>.9,'flash on hit');
+    for(let i=0;i<120;i++)updateGuard(g,false,2+i/60,1/60);
+    assert.equal(g.root.visible,false,`${id} hidden after release`);
+    let meshes=0;g.root.traverse(o=>{if(o.isMesh)meshes++;});looks.add(g.pose+':'+Object.keys(g.parts).sort().join());
+    assert.ok(meshes>=8,`${id} guard has real geometry (${meshes})`);
+    g.root.traverse(o=>{if(o.isMesh&&o.material.transparent&&o.material.opacity<.5&&o.material.opacity>0&&!o.userData.ink)assert.fail(`${id} guard has a glass-like part`);});
+  }
+  assert.equal(looks.size,CHARACTER_IDS.length,'no two guards share a build');
+});

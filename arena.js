@@ -6,6 +6,7 @@ import {createTouchControls,isTouchDevice} from './arena-touch.js';
 import {ConnectionAttempt,InputLease,cleanInput,neutralInput,sameRound,voteRematch} from './arena-session.js';
 import {mesh,box,sphere,cylinder,cone,fxMesh,label,ink,starSprite,sfxSprite,isSharedMaterial} from './arena-gfx.js';
 import {buildFighter,disposeFighter,renderPortraits} from './arena-models.js';
+import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
 
@@ -195,6 +196,7 @@ function streak(p){for(let i=0;i<2;i++){const m=fxMesh(streakGeo,'#ffffff',scene
 function slashArc(e,color,inner,outer,life=.2){const rot=-Math.atan2(e.fz,e.fx),vertical=e.attackType==='upper'||e.attackType==='slam';for(const [a,b,c,o] of [[inner,outer,color,.85],[outer-.14,outer+.06,'#ffffff',.95]]){const m=new THREE.Mesh(new THREE.RingGeometry(a,b,32,1,-1.25,2.5),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,side:THREE.DoubleSide,depthWrite:false}));if(vertical)m.rotation.set(0,rot,0);else m.rotation.set(-Math.PI/2,0,rot);m.position.set(e.x,e.y+(vertical?-.3:0),e.z);scene.add(m);effects.push({m,life,max:life,sweep:true});}}
 const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;let shake=0;
 function shakeCam(amount){if(!reduceMotion)shake=Math.max(shake,amount);}
+const guardHits=new Set();
 const comboState=[{count:0,tick:-1e9},{count:0,tick:-1e9}];
 function comboHit(e){if(world.brawl||e.guarded||!(e.id===0||e.id===1))return;const a=1-e.id,s=comboState[a];s.count=world.tick-s.tick<130?s.count+1:1;s.tick=world.tick;if(s.count>=2){const el=$('combo'+a);el.querySelector('b').textContent=s.count;el.classList.remove('pop');void el.offsetWidth;el.classList.add('show','pop');}}
 const fxState=[0,1,2,3].map(()=>({grounded:true,t:0}));
@@ -220,6 +222,7 @@ function sfx(e,word,color=SFX_COLORS[0],size=1){
   effects.push({m:s,life:.62,max:.62,pop:[2.9*size,1.16*size],v:new THREE.Vector3((Math.random()-.5)*.6,1.1,0),sprite:true,sfx:true});
 }
 const pick=list=>list[Math.floor(Math.random()*list.length)];
+const GUARD_SPARK={swordsman:'#ff8a5a',guardian:'#9fdcff',brawler:'#ffb03a',gunner:'#f0c040',cook:'#ff9a3a',stormcaller:'#ffe27a'};
 // ---- Ground effects for thrown and broken things: real debris, fireballs, splashes, scorch marks ----
 const debrisGeo=new THREE.BoxGeometry(1,1,1),shardGeo=new THREE.TetrahedronGeometry(1,0),dropGeo=new THREE.SphereGeometry(1,6,5),smokeGeo=new THREE.SphereGeometry(1,10,8);
 // Chunks that fly out, spin, hit the floor, bounce once and fade.
@@ -340,8 +343,8 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='cannon'){announce(e.kind==='snowball'?'滚地雪球来了！跳起来躲':`${stageText('cannon')}！注意两侧`);tone(80,.28,'sawtooth');}
   if(e.type==='waveWarning'){announce(`${stageText('wave')}将从${e.dir>0?'左':'右'}侧袭来！`);tone(140,.35,'triangle');}
   if(e.type==='waveStart'){announce(e.kind==='sandstorm'?'沙暴来袭！空中也会被吹走':`${stageText('wave')}来袭！跳上高台！`);tone(65,.45,'sawtooth');}
-  if(e.type==='guard'){ringEffect(e,'#8bd8ff',1.5,.18);announce('挡住了！');tone(220,.08,'triangle');}
-  if(e.type==='parry'){sfx(e,'锵!','#fff2a0',1.1);ringEffect(e,'#fff1a0',1.7,.28);starBurst(e,1.6,'#fff6c0');announce('完美反击！');tone(760,.16,'triangle');}
+  if(e.type==='guard'){guardHits.add(e.id);ringEffect(e,GUARD_SPARK[world.fighters[e.id]?.char]||'#8bd8ff',1.5,.18);starBurst(e,1.2,'#ffffff');announce('挡住了！');tone(220,.08,'triangle');}
+  if(e.type==='parry'){guardHits.add(e.id);sfx(e,'锵!','#fff2a0',1.1);ringEffect(e,'#fff1a0',1.7,.28);starBurst(e,1.6,'#fff6c0');announce('完美反击！');tone(760,.16,'triangle');}
   if(e.type==='guardBreak'){sfx(e,'咔嚓!','#ff6a3a',1.1);ringEffect(e,'#ff8b72',1.8,.3);starBurst(e,2,'#ffb0a0');announce('防御崩溃！');tone(90,.2,'sawtooth');}
   if(e.type==='knockdown'){ringEffect(e,'#ffb477',1.35,.25);}
   if(e.type==='wakeup'){ringEffect(e,'#b5f5ff',1.1,.25);}
@@ -600,7 +603,16 @@ function animateFighter(p,i,m,dt){
     else if(c==='gunner'||c==='stormcaller'){m.arms[0].rotation.set(-2.6,0,.2);m.arms[1].rotation.set(-2.7,0,-.2);}
     else if(c==='cook'){const k=Math.floor(world.tick/3)%2;m.legs[k].rotation.x=-1.7;m.legs[1-k].rotation.x=.4;m.arms[0].rotation.set(-.5,0,.6);m.arms[1].rotation.set(-.5,0,-.6);}
     else{m.arms[0].rotation.z=1.2;m.arms[1].rotation.z=-1.3;}
-  }else if(p.blocking){m.arms[0].rotation.set(-1.25,0,.62);m.arms[1].rotation.set(-1.25,0,-.62);}
+  }else if(p.blocking){
+    // Each guard has its own stance: swords crossed, shield up, fists crossed, gun held flat, a raised leg, arms spread to the wind.
+    const g=m.guard.pose;
+    if(g==='swordsman'){m.arms[0].rotation.set(-1.7,0,.5);m.arms[1].rotation.set(-1.9,0,-.5);}
+    else if(g==='guardian'){m.arms[0].rotation.set(-1.5,0,.25);m.arms[1].rotation.set(-1.2,0,-.5);}
+    else if(g==='brawler'){m.arms[0].rotation.set(-1.9,0,1.05);m.arms[1].rotation.set(-1.9,0,-1.05);}
+    else if(g==='gunner'){m.arms[0].rotation.set(-1.4,0,.5);m.arms[1].rotation.set(-1.3,0,-.4);}
+    else if(g==='cook'){m.arms[0].rotation.set(-.5,0,.7);m.arms[1].rotation.set(-.5,0,-.7);m.legs[1].rotation.x=-1.5;}
+    else{m.arms[0].rotation.set(-.6,0,1.35);m.arms[1].rotation.set(-.6,0,-1.35);}
+  }
   if(p.carrying||p.grabbedTarget!==null){const lift=p.carrying?1:Math.min(1,(2.2-p.grabHoldTime)/.25);m.arms[0].rotation.set(-1.1-lift*1.55,0,.18);m.arms[1].rotation.set(-1.1-lift*1.55,0,-.18);}
   let bodyY=walking?Math.abs(Math.sin(p.walk))*.07:Math.sin(t*2.5+i)*.02,lean=walking?(p.running?-.4:-.12):0,roll=0,pitch=0,squash=1;
   if(p.grabbedBy!==null){const s=Math.sin(world.tick*.2)*.18;m.arms[0].rotation.x=-1.9+s;m.arms[1].rotation.x=-1.9-s;m.legs.forEach((leg,j)=>leg.rotation.x=(j===0?-.65:.65)+s);roll=1.15;}
@@ -640,7 +652,7 @@ function animateFighter(p,i,m,dt){
     for(const w of m.sway||[])w.o.rotation[w.ax]=w.base+Math.sin(t*(3+w.ph)+w.ph*2)*w.amp*(.55+Math.min(1,speedNow/6))+(w.ax==='x'?back*w.drag:0);
   }
   if(p.recoveryTime>0){const a=(1-p.recoveryTime/.22)*Math.PI*2;m.body.rotation.x=a;m.body.rotation.z=0;m.body.position.set(0,1.3*(1-Math.cos(a)),-1.3*Math.sin(a));}else m.body.position.set(0,bodyY-(p.sink||0)*.45,0);
-  m.shield.position.z=p.blocking?.9:.74;m.shield.visible=p.blocking;m.shield.material.opacity=.3+Math.sin(world.tick*.12)*.08;
+  updateGuard(m.guard,p.blocking&&p.hp>0,t,dt,guardHits.delete(p.id));
   m.body.visible=!(p.invuln>0&&p.hp>0&&Math.floor(world.tick/6)%2===0);
   m.poisonFx.visible=p.poisonTime>0;m.poisonBubbles.forEach((b,j)=>{b.position.x=Math.cos(b.userData.a+t*(1.5+j*.08))*b.userData.r;b.position.z=Math.sin(b.userData.a+t*(1.5+j*.08))*b.userData.r;b.position.y=.35+((b.userData.y+t*(.55+j*.04))%2.25);b.scale.setScalar(.8+Math.sin(t*7+j)*.25);});
   m.virusFx.visible=p.virusTime>0;m.virusFx.rotation.y=-t*2.2;m.virusNodes.forEach((n,j)=>{n.position.y=n.userData.y+Math.sin(t*9+j)*.13;n.rotation.x+=dt*(2+j*.2);n.rotation.y+=dt*3;n.scale.setScalar(.8+Math.abs(Math.sin(t*8+j))*.65);});

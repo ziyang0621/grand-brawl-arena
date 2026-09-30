@@ -3,6 +3,7 @@
 import * as THREE from './vendor/three.module.js';
 import {CHARACTERS,SLOT_COLORS,SLOT_LABELS} from './arena-roster.js';
 import {box,sphere,cylinder,cone,mesh,fxMesh,label,ink} from './arena-gfx.js';
+import {buildGuard,disposeGuard} from './arena-guards.js';
 
 // ---- Proportions: a taller, longer-legged figure than the old chibi (about three heads tall) ----
 const HEAD_Y=2.28,HEAD_R=.45,SHOULDER_Y=1.68,HIP_Y=.9;
@@ -24,7 +25,7 @@ function limbs(body,c,{sleeve=c.color,pants='#2a3144',shoes='#3b2a22',bareArms=f
     cylinder(.19*legW,.155*legW,.5,thigh||pants,leg,0,-.26,0,12);sphere(.155*legW,thigh||pants,leg,0,-.52,0,10);
     cylinder(.17*legW,.19*legW,.4,boot||pants,leg,0,-.7,0,12);
     if(cuff)cylinder(.2*legW,.2*legW,.07,cuff,leg,0,-.5,0,12);
-    box(.31*legW,.15,.5,shoes,leg,0,-.84,.08);sphere(.16*legW,shoes,leg,0,-.81,.26,8).scale.set(1,.7,.8);legs.push(leg);
+    box(.34*legW,.17,.56,shoes,leg,0,-.84,.1);sphere(.18*legW,shoes,leg,0,-.81,.3,8).scale.set(1,.72,.85);legs.push(leg);
   }
   const arms=[];
   for(const side of [-1,1]){
@@ -33,7 +34,7 @@ function limbs(body,c,{sleeve=c.color,pants='#2a3144',shoes='#3b2a22',bareArms=f
     cylinder(.135*armW,.115*armW,.52,sleeve,arm,0,-.3,0,10);sphere(.115*armW,bareArms?c.skin:sleeve,arm,0,-.57,0,8);
     cylinder(.11*armW,.095*armW,.46,bareArms?c.skin:sleeve,arm,0,-.82,0,10);
     if(cuff)cylinder(.13*armW,.13*armW,.08,cuff,arm,0,-1.03,0,10);
-    sphere(glove?.17*armW:.145*armW,glove||c.skin,arm,0,-1.1,.05,12);arms.push(arm);
+    sphere(glove?.205*armW:.18*armW,glove||c.skin,arm,0,-1.11,.05,12);arms.push(arm);
   }
   return {legs,arms};
 }
@@ -42,13 +43,13 @@ function weaponMount(arm){const g=new THREE.Group();g.position.set(.02,-1.1,.16)
 // ---- Faces: big two-tone eyes with lids, brows, mouths and reaction marks, all driven by one expression state ----
 const noInk=m=>{m.userData.noInk=true;m.castShadow=false;return m;};
 const arcGeo=(r,tube,arc=Math.PI)=>new THREE.TorusGeometry(r,tube,6,14,arc);
-function makeFace(body,c,{iris='#2a2f3c',irisLow='#5a6a88',lash='thin',brow=1,jaw=1,cute=false,browColor=c.hair,lidColor=c.skin,eye=1}={}){
+function makeFace(body,c,{iris='#2a2f3c',irisLow='#5a6a88',lash='thin',brow=1,jaw=1,cute=false,browColor=c.hair,lidColor=c.skin,eye=1,nose=1}={}){
   const HY=HEAD_Y,R=HEAD_R;
   const head=sphere(R,c.skin,body,0,HY,.02,26);head.scale.set(jaw,1.08,.96);
   const faceZ=.41;
   // ears and nose
   for(const side of [-1,1])sphere(.085,c.skin,body,side*R*.98,HY-.02,-.02,8);
-  noInk(cone(.04,.1,dk(c.skin,.93),body,0,HY-.09,faceZ+.03,8)).rotation.x=Math.PI/2;
+  noInk(cone(.04*Math.min(nose,1.3),.1*nose,dk(c.skin,.93),body,0,HY-.09,faceZ+.03+(nose>1.5?.06:0),8)).rotation.x=Math.PI/2;
   const eyes=[];
   for(const side of [-1,1]){
     const g=new THREE.Group();g.position.set(side*.185,HY-.005,faceZ);g.rotation.y=side*.12;g.scale.setScalar(eye);body.add(g);
@@ -85,6 +86,10 @@ function makeFace(body,c,{iris='#2a2f3c',irisLow='#5a6a88',lash='thin',brow=1,ja
   const dark='#6a2626',mouths={};
   const mk=(name,fn)=>{const gp=new THREE.Group();gp.visible=false;mg.add(gp);fn(gp);mouths[name]=gp;};
   mk('smile',gp=>{const a=noInk(new THREE.Mesh(arcGeo(.075,.018),new THREE.MeshBasicMaterial({color:dark})));a.rotation.z=Math.PI;a.position.y=.05;gp.add(a);});
+  // the wide open-mouthed grin that anime pirates wear
+  mk('grin',gp=>{const m=noInk(new THREE.Mesh(new THREE.CircleGeometry(.17,16,Math.PI,Math.PI),new THREE.MeshBasicMaterial({color:'#3a1212',side:THREE.DoubleSide})));m.position.set(0,.06,0);m.scale.set(1.15,.95,1);gp.add(m);
+    noInk(box(.3,.045,.03,'#ffffff',gp,0,.052,.02));const t=noInk(sphere(.075,'#e8607a',gp,0,-.06,.02,8));t.scale.set(1.4,.5,.3);
+    const line=noInk(new THREE.Mesh(arcGeo(.19,.02,Math.PI),new THREE.MeshBasicMaterial({color:'#14161c'})));line.rotation.z=Math.PI;line.position.set(0,.13,.01);line.scale.set(1.15,.95,1);gp.add(line);});
   mk('flat',gp=>{noInk(box(.15,.03,.03,dark,gp,0,0,0));});
   mk('smirk',gp=>{const a=noInk(new THREE.Mesh(arcGeo(.07,.018,Math.PI*.8),new THREE.MeshBasicMaterial({color:dark})));a.rotation.z=Math.PI*1.08;a.position.set(.03,.045,0);gp.add(a);});
   mk('open',gp=>{const m=noInk(sphere(.11,'#3a1212',gp,0,-.02,0,12));m.scale.set(1.05,.85,.28);noInk(box(.16,.035,.03,'#ffffff',gp,0,.03,.02));noInk(sphere(.055,'#e8607a',gp,0,-.06,.02,8)).scale.set(1.3,.55,.3);});
@@ -152,12 +157,17 @@ const BUILDERS={
     for(const side of [-1,1]){const t=sway(box(.09,.42,.05,c.color,body,side*.1,HY+.1,-.55),.3,side+1.5,.6,'z');t.geometry.translate(0,-.2,0);t.position.y=HY+.28;t.rotation.z=side*.35;sw[sw.length-1].base=side*.35;}
     // scar and gold earring
     const scar=noInk(box(.12,.018,.012,'#b8605a',body,-.27,HY-.2,.4));scar.rotation.z=-.7;
+    // a battered straw-brimmed captain's hat hangs down his back on a cord
+    const hat=new THREE.Group();hat.position.set(0,SHOULDER_Y-.15,-.4);hat.rotation.x=.5;body.add(hat);
+    cylinder(.62,.66,.06,'#e9c66a',hat,0,0,0,20);cylinder(.3,.34,.26,'#e9c66a',hat,0,.14,0,16);cylinder(.35,.35,.07,c.color,hat,0,.09,0,16);
+    sway(hat,.1,1.7,.6,'z');
+    for(const sd of [-1,1])box(.025,.5,.025,'#8a6a3a',body,sd*.2,SHOULDER_Y+.05,.02).rotation.z=sd*.25;
     sphere(.035,c.accent,body,HEAD_R*.98+.02,HY-.14,-.02,6);
     const weapon=weaponMount(rig.arms[1]);
     cylinder(.06,.06,.34,'#352a24',weapon,0,0,0);cylinder(.15,.15,.05,c.accent,weapon,0,.18,0);
     const blade=box(.12,1.3,.05,'#eef6f8',weapon,0,.86,0);blade.rotation.z=-.04;
     const tip=cone(.08,.22,'#eef6f8',weapon,-.03,1.62,0,4);tip.rotation.y=.8;
-    return {...rig,face,weapon,glowSize:[.32,1.6],glowY:.86,sway:sw,expr:{mouth:'smirk',browColor:c.hair}};
+    return {...rig,face,weapon,glowSize:[.32,1.6],glowY:.86,sway:sw,expr:{mouth:'grin',browColor:c.hair}};
   },
   guardian(body,c){
     const sw=[],sway=swayer(sw);
@@ -191,6 +201,8 @@ const BUILDERS={
     torso(body,c,{chest:.6,waist:.4,color:c.color,height:1.02,skinChest:true,z:.74});
     // open green vest over a bare chest with an orange sash and a big buckle
     for(const s of [-1,1]){const half=box(.24,.98,.2,c.color,body,s*.4,HIP_Y+.52,.1);half.rotation.z=s*.1;}
+    // a scarred star mark across the chest
+    for(const r of [0,1.26,2.51,3.77,5.03]){const ray=noInk(box(.3,.035,.02,'#9a4a3a',body,0,HIP_Y+.62,.4));ray.rotation.z=r*.5+.3;}
     cylinder(.46,.46,.16,'#3a2a20',body,0,HIP_Y+.08,0,16).scale.z=.78;box(.2,.16,.06,c.accent,body,0,HIP_Y+.08,.36);
     const sash=sway(box(.2,.7,.05,c.accent,body,-.34,HIP_Y-.3,.24),.14,0,1.1);sash.geometry.translate(0,-.3,0);sash.position.y=HIP_Y+.05;
     const rig=limbs(body,c,{sleeve:c.skin,bareArms:true,pants:'#4a5a78',shoes:'#2a1d18',glove:c.accent,boot:'#3a2a20',thigh:'#4a5a78',legW:1.14,armW:1.22,shoulder:.7,shoulderColor:c.skin});
@@ -204,7 +216,7 @@ const BUILDERS={
     for(const s of [-1,1]){const burn=box(.07,.26,.05,c.hair,body,s*.4,HY-.08,.16);burn.rotation.z=s*.1;}
     const plaster=noInk(box(.14,.045,.02,'#f4e6c8',body,.26,HY-.14,.42));plaster.rotation.z=.5;noInk(box(.14,.045,.02,'#f4e6c8',body,.26,HY-.14,.42)).rotation.z=-.5;
     const weapon=weaponMount(rig.arms[1]);
-    return {...rig,face,weapon,glowSize:[.7,.7],glowY:-.05,sway:sw,expr:{mouth:'grit',browColor:c.hair}};
+    return {...rig,face,weapon,glowSize:[.7,.7],glowY:-.05,sway:sw,expr:{mouth:'grin',browColor:c.hair}};
   },
   gunner(body,c){
     const sw=[],sway=swayer(sw);
@@ -217,7 +229,7 @@ const BUILDERS={
     const scarf=box(.95,.2,.5,c.accent,body,0,SHOULDER_Y+.12,.02);scarf.userData.noInk=false;
     const tail=box(.2,.66,.06,c.accent,body,.26,SHOULDER_Y-.2,-.36);tail.geometry.translate(0,-.3,0);tail.position.y=SHOULDER_Y+.08;tail.rotation.z=-.3;sway(tail,.28,0,1.4,'x');sway(tail,.15,2,0,'z');
     const rig=limbs(body,c,{sleeve:c.color,pants:'#5b4636',shoes:'#2b221c',glove:'#3a2a4a',boot:'#4a3628',cuff:'#3a2a4a',armW:.96});
-    const face=makeFace(body,c,{iris:'#7a3b14',irisLow:'#e0a04a',brow:1.05,eye:.92});
+    const face=makeFace(body,c,{iris:'#7a3b14',irisLow:'#e0a04a',brow:1.05,eye:.92,nose:2.6});
     // curly brown hair, goggles pushed up on the forehead
     hairCap(body,c.hair,{scale:1.06});
     for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const curl=sphere(.17,c.hair,body,Math.cos(a)*.42,HY+.36+Math.sin(a*3)*.05,Math.sin(a)*.4-.08,8);curl.userData.noInk=true;sway(curl,.05,i,.2,'x');}
@@ -228,10 +240,10 @@ const BUILDERS={
     const weapon=weaponMount(rig.arms[1]);
     box(.14,.32,.16,'#5a3a22',weapon,0,0,0);const barrel=cylinder(.07,.08,.9,'#39404a',weapon,0,.46,.02,10);
     cylinder(.1,.1,.08,'#f0c040',weapon,0,.9,.02,10);box(.08,.14,.08,'#39404a',weapon,0,.2,-.08);barrel.userData.muzzle=true;
-    return {...rig,face,weapon,glowSize:[.3,1],glowY:.46,sway:sw,expr:{mouth:'smirk',browColor:c.hair}};
+    return {...rig,face,weapon,glowSize:[.3,1],glowY:.46,sway:sw,expr:{mouth:'grin',browColor:c.hair}};
   },
   cook(body,c){
-    const sw=[],sway=swayer(sw);
+    const sw=[],sway=swayer(sw),faceZ2=.41;
     torso(body,c,{chest:.46,waist:.32,color:c.color,height:1.0,z:.68});
     // black suit, white shirt, thin red tie
     box(.3,.9,.05,'#f6f6f2',body,0,HIP_Y+.5,.25).userData.noInk=true;
@@ -247,8 +259,9 @@ const BUILDERS={
     const fringe2=sphere(.2,c.hair,body,-.14,HY+.25,.36,10);fringe2.scale.set(.9,.8,.4);
     for(const side of [-1,1]){const lock=sphere(.1,c.hair,body,side*.4,HY-.04,.08,8);lock.scale.set(.7,1.5,.7);}
     const curl=noInk(new THREE.Mesh(new THREE.TorusGeometry(.04,.014,6,10,Math.PI*1.6),new THREE.MeshBasicMaterial({color:'#20232b'})));curl.position.set(-.3,HY+.2,.4);body.add(curl);
+    const stick=cylinder(.02,.02,.32,'#f6f6f2',body,.08,HEAD_Y-.22,faceZ2+.06,6);stick.rotation.set(1.2,0,-.5);sphere(.075,'#ff6a9a',body,.16,HEAD_Y-.27,faceZ2+.24,10);
     const weapon=weaponMount(rig.arms[1]);
-    return {...rig,face,weapon,glowSize:[.6,.6],glowY:-.05,sway:sw,expr:{mouth:'smirk',browColor:c.hair,hideLeftEye:true}};
+    return {...rig,face,weapon,glowSize:[.6,.6],glowY:-.05,sway:sw,expr:{mouth:'grin',browColor:c.hair,hideLeftEye:true}};
   },
   stormcaller(body,c){
     const sw=[],sway=swayer(sw);
@@ -271,6 +284,8 @@ const BUILDERS={
       sway(tailG,.22,side+1,.5,'z');
     }
     const back=sway(sphere(.36,c.hair,body,0,HY-.2,-.28,10),.1,0,.6,'x');back.scale.set(1.1,1.5,.55);
+    for(const sd of [-1,1]){const star=cone(.06,.13,'#ffe27a',body,sd*(HEAD_R+.02),HY-.2,-.02,5);star.rotation.z=Math.PI;}
+    for(const arm of rig.arms)cylinder(.13,.13,.09,'#ffe27a',arm,0,-.95,0,10);
     const staff=weaponMount(rig.arms[1]);
     cylinder(.045,.045,1.25,'#6b4a2a',staff,0,.55,0,8);sphere(.15,'#fff4b0',staff,0,1.24,0,10);
     for(const a of [0,2.1,4.2])sphere(.07,'#7fd8ff',staff,Math.cos(a)*.21,1.24,Math.sin(a)*.21,6);
@@ -295,19 +310,19 @@ export function buildFighter(charId,slot,parent,teamColor=null){
   const c=CHARACTERS[charId],root=new THREE.Group(),body=new THREE.Group();root.add(body);parent?.add(root);
   const rig=BUILDERS[charId](body,c);
   rig.face.update({lid:0,tilt:0,raise:0,gx:0,gy:0,eyes:'open',mouth:rig.expr?.mouth||'smile'},1);
-  ink(body,.04);
+  ink(body,.058);
   const sword=rig.weapon,[gw,gh]=rig.glowSize;
   const weaponGlow=fxMesh(new THREE.BoxGeometry(gw,gh,.16),'#ffd84e',sword,0,rig.glowY,.01,0);
   const swordTrail=fxMesh(new THREE.PlaneGeometry(gw*2.2,gh*1.2),'#ffbf28',sword,-.1,rig.glowY,-.08,0);
   const swordSparks=[];for(let i=0;i<5;i++){const spark=fxMesh(new THREE.SphereGeometry(.055+(i%2)*.025,8,6),i%2?'#fff3a0':'#ffbe2e',sword,0,.25+i*.25,.12,0);spark.userData={phase:i*.23};swordSparks.push(spark);}
   const ringColor=teamColor||SLOT_COLORS[slot]||SLOT_COLORS[0];
   const ring=mesh(new THREE.RingGeometry(.58,.7,40),ringColor,root,0,.035,0);ring.rotation.x=-Math.PI/2;ring.material=new THREE.MeshBasicMaterial({color:ringColor,side:THREE.DoubleSide,transparent:true,opacity:.9});ring.castShadow=false;
-  const shield=new THREE.Mesh(new THREE.CircleGeometry(.9,32),new THREE.MeshBasicMaterial({color:'#87dfff',transparent:true,opacity:.42,side:THREE.DoubleSide,depthWrite:false}));shield.position.set(0,1.35,.74);shield.visible=false;body.add(shield);
+  const guard=buildGuard(charId,body,c);
   const tag=label(SLOT_LABELS[slot]||'1P',ringColor,60);tag.scale.set(1.5,.38,1);tag.position.y=3.5;root.add(tag);
-  return {char:charId,root,body,...rig,sword,weaponGlow,swordTrail,swordSparks,ring,shield,tag,...statusFx(root,body)};
+  return {char:charId,root,body,...rig,sword,weaponGlow,swordTrail,swordSparks,ring,guard,tag,...statusFx(root,body)};
 }
 export function disposeFighter(m){
-  m.root.parent?.remove(m.root);
+  m.root.parent?.remove(m.root);if(m.guard)disposeGuard(m.guard);
   m.root.traverse(o=>{if(o.isMesh&&!o.userData.ink)o.geometry.dispose();if(o.material&&!o.material.isMeshToonMaterial&&o.material.side!==THREE.BackSide){o.material.map?.dispose();o.material.dispose();}});
 }
 
