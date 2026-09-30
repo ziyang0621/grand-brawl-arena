@@ -9,7 +9,7 @@ import {makeHead,lock,hairShellGeometry} from './arena-face.js';
 // ---- Proportions: roughly five heads tall with long legs and a small head, like a PS2 anime brawler ----
 // Head parts (face, hair, hats) are authored in "head space" (centre at HEAD_Y, radius HEAD_R) and shrunk
 // as a group, so the whole face system scales together.
-const HEAD_Y=2.28,HEAD_R=.45,HEAD_K=.74,HEAD_WORLD_Y=2.87,SHOULDER_Y=2.3,HIP_Y=1.3;
+const HEAD_Y=2.28,HEAD_R=.45,HEAD_K=.86,HEAD_WORLD_Y=2.9,SHOULDER_Y=2.3,HIP_Y=1.3;
 const dk=(hex,k)=>{const c=new THREE.Color(hex);c.multiplyScalar(k);return '#'+c.getHexString();};
 function headGroup(body){const g=new THREE.Group();g.position.y=HEAD_WORLD_Y-HEAD_Y*HEAD_K;g.scale.setScalar(HEAD_K);body.add(g);return g;}
 const capsule=(r,len,color,parent,x,y,z,seg=10)=>mesh(new THREE.CapsuleGeometry(r,len,4,seg),color,parent,x,y,z);
@@ -20,7 +20,7 @@ function torso(body,c,{chest=.4,waist=.28,hip=.31,color=c.color,z=.74,skinChest=
   const t=mesh(new THREE.LatheGeometry(prof,22),color,body,0,HIP_Y,0);t.scale.z=z;
   if(skinChest){const sp=prof.map(v=>new THREE.Vector2(v.x*.62,v.y));const sk=mesh(new THREE.LatheGeometry(sp,16),c.skin,body,0,HIP_Y+.02,.05);sk.scale.z=z;}
   const hips=cylinder(hip+.02,hip+.04,.22,dk(color,.62),body,0,HIP_Y+.02,0,18);hips.scale.z=z+.06;
-  cylinder(.085,.1,.34,neckColor,body,0,SHOULDER_Y+.16,.01,10);
+  cylinder(.11,.13,.3,neckColor,body,0,SHOULDER_Y+.14,.01,10);
   return t;
 }
 // Limbs: capsule thighs, calves, upper arms and forearms on the same joints the animation drives.
@@ -147,7 +147,7 @@ const HY=HEAD_Y;
 function hairMass(hd,color,{scale=1.07,back=.08,up=.05}={}){const h=mesh(hairShellGeometry(HEAD_R*scale),color,hd,0,HY+up,-back+.02);h.scale.set(1.02,1,1.04);return h;}
 // L: one tapered lock on the head that sways a little.
 let swayList=null;
-function L(hd,color,pts,r0,amp=.05,ph=0){const g=lock(hd,color,pts,r0,0,{cy:HY});if(swayList)swayList.push({o:g,ax:'z',amp,ph,drag:.25,base:0});return g;}
+function L(hd,color,pts,r0,amp=.05,ph=0){const g=lock(hd,color,pts,r0*1.4,0,{cy:HY,flat:.45});if(swayList)swayList.push({o:g,ax:'z',amp,ph,drag:.25,base:0});return g;}
 function hairCap(body,color,{scale=1,lift=.11,back=-.06}={}){const h=sphere(HEAD_R+.05,color,body,0,HY+lift,back,18);h.scale.set(1.02*scale,.8,1.04*scale);return h;}
 function spike(body,color,x,y,z,len,rx,rz,w=.12){const sp=cone(w,len,color,body,x,y,z,6);sp.rotation.set(rx,0,rz);return sp;}
 function bang(body,color,x,y,len=.36,tilt=0,w=.11,z=.36){const b=cone(w,len,color,body,x,y,z,6);b.rotation.set(Math.PI-.25,0,tilt);return b;}
@@ -240,7 +240,7 @@ const BUILDERS={
     const face=makeHead(hd,c,{iris:'#5a2a10',irisLow:'#d49040',eye:.86,freckles:[[118,.7],[134,.74],[104,.75]],eyeStyle:'round',browStyle:'thin',noseStyle:'none',teeth:'buck',jaw:.7,chin:.92,cheek:1.06,spread:.9,eyeY:-.02,grinW:1.1});
     hairMass(hd,c.hair,{scale:1.1});
     // a long comic nose that sticks straight out
-    {const n=cylinder(.045,.07,.42,c.skin,hd,0,HY-.1,.62,10);n.rotation.x=Math.PI/2;sphere(.06,c.skin,hd,0,HY-.1,.83,10);}
+    {const n=cylinder(.035,.075,.4,c.skin,hd,0,HY-.08,.6,12);n.rotation.x=Math.PI/2;const tip=sphere(.052,'#f2b9a0',hd,0,HY-.08,.8,12);tip.scale.set(1,.9,1.1);}
     // curly mop: fat curls round the crown, short curled fringe
     for(let i=0;i<9;i++){const a=i/9*Math.PI*2;const curl=sphere(.17,c.hair,hd,Math.cos(a)*.4,HY+.34+Math.sin(a*3)*.05,Math.sin(a)*.36-.1,10);sway(curl,.05,i,.2,'x');}
     for(const [x,t] of [[-.24,.8],[-.06,.2],[.14,-.4]])L(hd,c.hair,[[x,HY+.32,.28],[x+t*.05,HY+.26,.42],[x+t*.12,HY+.14,.44]],.11,.04,x*5);
@@ -313,7 +313,7 @@ export function buildFighter(charId,slot,parent,teamColor=null){
   const c=CHARACTERS[charId],root=new THREE.Group(),body=new THREE.Group();root.add(body);parent?.add(root);
   const rig=BUILDERS[charId](body,c);
   rig.face.update({lid:0,tilt:0,raise:0,gx:0,gy:0,eyes:'open',mouth:rig.expr?.mouth||'smile'},1);
-  ink(body,.04);
+  ink(body,.03);
   const sword=rig.weapon,[gw,gh]=rig.glowSize;
   const weaponGlow=fxMesh(new THREE.BoxGeometry(gw,gh,.16),'#ffd84e',sword,0,rig.glowY,.01,0);
   const swordTrail=fxMesh(new THREE.PlaneGeometry(gw*2.2,gh*1.2),'#ffbf28',sword,-.1,rig.glowY,-.08,0);

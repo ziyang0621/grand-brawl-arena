@@ -7,15 +7,15 @@ import {mesh} from './arena-gfx.js';
 
 export const HEAD_R=.45;
 // Skin gets a gentler ramp than the rest of the scene so faces stay clean instead of banded.
-const SKIN_RAMP=new THREE.DataTexture(new Uint8Array([206,190,204,255, 238,230,236,255, 255,252,248,255]),3,1,THREE.RGBAFormat);
-SKIN_RAMP.minFilter=SKIN_RAMP.magFilter=THREE.NearestFilter;SKIN_RAMP.generateMipmaps=false;SKIN_RAMP.needsUpdate=true;
+const SKIN_RAMP=new THREE.DataTexture(new Uint8Array([214,198,206,255, 236,226,228,255, 250,244,240,255, 255,253,250,255]),4,1,THREE.RGBAFormat);
+SKIN_RAMP.minFilter=SKIN_RAMP.magFilter=THREE.LinearFilter;SKIN_RAMP.generateMipmaps=false;SKIN_RAMP.needsUpdate=true;
 const skinMats=new Map();
 function skinMat(color){if(!skinMats.has(color))skinMats.set(color,new THREE.MeshToonMaterial({color,gradientMap:SKIN_RAMP}));return skinMats.get(color);}
 // Hair shell: covers crown, sides and back; the lower front folds away so it never shows through the cheeks.
 export function hairShellGeometry(R){
   const g=new THREE.SphereGeometry(R,28,20),p=g.attributes.position,v=new THREE.Vector3();
   for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const ny=v.y/R,nz=v.z/R;
-    if(nz>-.1){const k=THREE.MathUtils.smoothstep(-ny,-.35,.25);v.z-=(v.z+.1*R)*k*.95;v.x*=1-.08*k;}
+    if(nz>-.1){const k=THREE.MathUtils.smoothstep(-ny,-.12,.32);v.z-=(v.z+.1*R)*k*.95;v.x*=1-.08*k;}
     p.setXYZ(i,v.x,v.y,v.z);}
   g.computeVertexNormals();return g;
 }
@@ -29,7 +29,7 @@ function sculpt(geo,R,jaw=1,{chin=1,square=0,cheek=1}={}){
   for(let i=0;i<p.count;i++){
     v.fromBufferAttribute(p,i);const nx=v.x/R,ny=v.y/R,nz=v.z/R;
     const low=THREE.MathUtils.smoothstep(-ny,-.1,1);           // 0 above the cheekbones, 1 at the chin
-    const sq=square*THREE.MathUtils.smoothstep(-ny,.35,.9);let x=nx*(1-.36*low*jaw*(1-square*.55))*(ny>-.35&&ny<.1?cheek:1),z=nz*(1-.1*low),y=ny*(ny<0?1.16*chin*(1-sq*.12):1.02);
+    const sq=square*THREE.MathUtils.smoothstep(-ny,.35,.9);let x=nx*(1-.22*low*jaw*(1-square*.55))*(ny>-.45&&ny<.15?cheek*1.03:1),z=nz*(1-.08*low),y=ny*(ny<0?1.02*chin*(1-sq*.08):1.0);
     if(nz>0)z+=.1*low*nz;                                       // chin comes forward a little
     if(nz>.2&&ny>-.3&&ny<.35)z*=.96;                            // flatter face so painted eyes read
     p.setXYZ(i,x*R,y*R,z*R);
@@ -69,16 +69,16 @@ const LINE='#1a1414';
 //  h: height vs width, iris: iris size, pupil: pupil size, slant: outer corner tilt, lid: resting lid,
 //  top: how flat the upper lid is, lash: lash-line weight, flick: lash sweep past the corner, shine: highlights
 const EYES={
-  sharp:{w:78,h:.62,iris:.8,pupil:.55,slant:.28,lid:.12,top:.7,lash:11,flick:.3,shine:1},     // hot-headed swordsman: narrow, slanted, intense
-  stern:{w:70,h:.55,iris:.7,pupil:.5,slant:-.04,lid:.22,top:.95,lash:9,flick:.05,shine:1},    // guardian: level, heavy-lidded, serious
+  sharp:{w:80,h:.82,iris:.6,pupil:.6,slant:.2,lid:0,top:.45,lash:11,flick:.25,shine:1},     // hot-headed swordsman: narrow, slanted, intense
+  stern:{w:72,h:.66,iris:.66,pupil:.5,slant:-.04,lid:.16,top:.9,lash:9,flick:.05,shine:1},    // guardian: level, heavy-lidded, serious
   fierce:{w:74,h:.78,iris:.42,pupil:.9,slant:.18,lid:0,top:.4,lash:10,flick:.1,shine:0},      // brawler: small pupils in a big white, wild
   round:{w:70,h:1.05,iris:.78,pupil:.5,slant:-.08,lid:0,top:.1,lash:7,flick:0,shine:2},       // gunner: big round goofy eyes
   cool:{w:76,h:.58,iris:.72,pupil:.45,slant:.1,lid:.38,top:.9,lash:8,flick:.35,shine:1},      // cook: half-lidded and cool
   cute:{w:80,h:1.18,iris:.9,pupil:.42,slant:-.12,lid:0,top:.3,lash:10,flick:.45,shine:3}      // storm caller: tall sparkly eyes
 };
 function drawEye(g,s,side,st){
-  const E0=EYES[s.eyeStyle]||EYES.sharp,w=E0.w*s.eye,h=w*E0.h;
-  const cx=CW/2+side*98*s.spread,cy=CH*(.5+s.eyeY);
+  const E0=EYES[s.eyeStyle]||EYES.sharp,w=E0.w*s.eye*1.42,h=w*E0.h;
+  const cx=CW/2+side*114*s.spread,cy=CH*(.56+s.eyeY);
   g.save();g.translate(cx,cy);g.scale(side,1);g.rotate(-E0.slant*.5);  // draw the right eye, mirror for the left
   g.lineCap='round';g.lineJoin='round';
   const E=st.eyes,lw=E0.lash;
@@ -88,7 +88,7 @@ function drawEye(g,s,side,st){
   if(E==='closed'){g.lineWidth=lw*.85;g.strokeStyle=LINE;g.beginPath();g.moveTo(-w*.5,2);g.quadraticCurveTo(0,h*.3,w*.55,-2);g.stroke();g.restore();return;}
   const top=-h*.62*(1-E0.top*.35),rest=Math.max(E0.lid,st.lid);
   const shape=()=>{g.beginPath();g.moveTo(-w*.5,-h*.04);g.bezierCurveTo(-w*.42,top-(1-E0.top)*h*.3,w*.35,top-(1-E0.top)*h*.3,w*.6,-h*.2);g.bezierCurveTo(w*.52,h*.5,-w*.2,h*.62,-w*.5,-h*.04);g.closePath();};
-  shape();g.fillStyle='#ffffff';g.fill();
+  shape();g.fillStyle='#ffffff';g.fill();g.strokeStyle=LINE;g.lineWidth=3.5;g.stroke();
   g.save();shape();g.clip();
   if(E==='daze'){g.lineWidth=5;g.strokeStyle=LINE;g.beginPath();for(let a=0;a<Math.PI*5;a+=.2){const r=a*2.6;g.lineTo(Math.cos(a+st.t)*r,Math.sin(a+st.t)*r*.9);}g.stroke();}
   else{
@@ -106,17 +106,17 @@ function drawEye(g,s,side,st){
   }
   g.restore();
   // lash line and lower lid
-  const lidY=top*.85+rest*h*1.05;
+  const T=top-(1-E0.top)*h*.3,dl=rest*h*1.05,lidY=T*.75+dl;
   g.strokeStyle=LINE;g.fillStyle=LINE;g.lineWidth=lw;
-  g.beginPath();g.moveTo(-w*.52,-h*.02+rest*h*.3);g.bezierCurveTo(-w*.35,lidY-h*.05,w*.3,lidY-h*.05,w*.62,-h*.2+rest*h*.4);g.stroke();
+  g.beginPath();g.moveTo(-w*.5,-h*.04+dl*.3);g.bezierCurveTo(-w*.42,T+dl,w*.35,T+dl,w*.6,-h*.2+dl*.4);g.stroke();
   if(E0.flick>0){g.beginPath();g.moveTo(w*.55,-h*.18+rest*h*.4);g.lineTo(w*(.62+E0.flick*.4),-h*(.2+E0.flick*.6)+rest*h*.4);g.lineWidth=lw*.7;g.stroke();}
   if(s.lash==='long'){g.lineWidth=5;for(const [a,b] of [[.62,.35],[.72,.12]]){g.beginPath();g.moveTo(w*.5,lidY+h*.18);g.lineTo(w*(a+.12),lidY-h*b);g.stroke();}}
   g.lineWidth=3;g.beginPath();g.moveTo(-w*.18,h*.56);g.quadraticCurveTo(w*.15,h*.62,w*.44,h*.28);g.stroke();
   g.restore();
 }
 function drawBrow(g,s,side,st){
-  const cx=CW/2+side*100*s.spread,cy=CH*(.27+s.eyeY)-st.raise*14+(st.eyes==='wide'?-10:0),B=s.browStyle;
-  g.save();g.translate(cx,cy);g.scale(side,1);g.rotate(-st.tilt*.34+(B==='angry'?.25:B==='worried'?-.2:0));
+  const cx=CW/2+side*116*s.spread,cy=CH*(.31+s.eyeY)-st.raise*14+(st.eyes==='wide'?-10:0),B=s.browStyle;
+  g.save();g.translate(cx,cy);g.scale(side*1.25,1.3);g.rotate(-st.tilt*.34+(B==='angry'?.25:B==='worried'?-.2:0));
   g.fillStyle=s.brow;g.strokeStyle=s.brow;g.lineCap='round';
   if(B==='bushy'){for(let i=0;i<6;i++){g.beginPath();g.moveTo(-44+i*16,10);g.lineTo(-38+i*16,-14-i%2*6);g.lineTo(-28+i*16,8);g.fill();}g.fillRect(-46,-2,92,12);}
   else if(B==='thin'){g.lineWidth=5;g.beginPath();g.moveTo(-34,6);g.quadraticCurveTo(0,-12,36,0);g.stroke();}
@@ -126,7 +126,7 @@ function drawBrow(g,s,side,st){
   g.restore();
 }
 function drawMouth(g,s,name){
-  const x=CW/2+s.mouthX,y=CH*(.86+s.mouthY);g.save();g.translate(x,y);g.scale(1.35*s.mouthW,1.35);g.lineCap='round';g.lineJoin='round';g.strokeStyle='#5a1e1e';g.lineWidth=5;
+  const x=CW/2+s.mouthX,y=CH*(.85+s.mouthY);g.save();g.translate(x,y);g.scale(1.7*s.mouthW,1.6);g.lineCap='round';g.lineJoin='round';g.strokeStyle='#5a1e1e';g.lineWidth=5;
   const dark='#3a1010',tongue='#e8707a';
   const open=(w,h,teeth=true,ton=true)=>{g.fillStyle=dark;g.beginPath();g.moveTo(-w,-h*.2);g.quadraticCurveTo(0,-h*.45,w,-h*.2);g.quadraticCurveTo(w*.6,h,0,h);g.quadraticCurveTo(-w*.6,h,-w,-h*.2);g.fill();
     if(teeth&&s.teeth==='shark'){g.fillStyle='#fff';g.beginPath();g.moveTo(-w*.9,-h*.22);for(let i=0;i<=8;i++){const xx=-w*.9+i*w*.225;g.lineTo(xx,-h*.3);g.lineTo(xx+w*.11,h*.12);}g.lineTo(w*.9,-h*.22);g.fill();
@@ -155,7 +155,7 @@ function paintFace(g,s,st){
   for(const [x,y] of s.freckles)for(const side of [-1,1]){g.fillStyle='rgba(150,80,50,.7)';g.beginPath();g.arc(CW/2+side*(x*s.spread),CH*y,3.2,0,Math.PI*2);g.fill();}
   for(const side of [-1,1])if(s.hideSide!==side){drawEye(g,s,side,st);drawBrow(g,s,side,st);}
   // nose: a small shading stroke
-  const nY=CH*(.68+s.eyeY*.5);g.lineCap='round';
+  const nY=CH*(.72+s.eyeY*.5);g.lineCap='round';
   if(s.nose==='broad'){g.strokeStyle='rgba(110,50,40,.8)';g.lineWidth=5;g.beginPath();g.moveTo(CW/2-22,nY+8);g.quadraticCurveTo(CW/2,nY+20,CW/2+22,nY+8);g.stroke();g.fillStyle='rgba(90,40,30,.8)';for(const sd of [-1,1]){g.beginPath();g.ellipse(CW/2+sd*11,nY+8,5,3.5,0,0,Math.PI*2);g.fill();}}
   else if(s.nose==='line'){g.strokeStyle='rgba(110,55,45,.75)';g.lineWidth=4;g.beginPath();g.moveTo(CW/2+8,nY-38);g.lineTo(CW/2+12,nY+2);g.lineTo(CW/2-2,nY+8);g.stroke();}
   else if(s.nose==='hook'){g.strokeStyle='rgba(110,55,45,.8)';g.lineWidth=4;g.beginPath();g.moveTo(CW/2+2,nY-20);g.quadraticCurveTo(CW/2+18,nY+2,CW/2,nY+8);g.stroke();}
@@ -165,7 +165,7 @@ function paintFace(g,s,st){
   if(s.stubble){g.fillStyle='rgba(50,45,60,.5)';for(let i=0;i<46;i++){const a=Math.PI*(.12+i/46*.76),r=96+(i%3)*9;g.beginPath();g.arc(CW/2+Math.cos(a)*r,CH*.8+Math.sin(a)*r*.42,2.2,0,Math.PI*2);g.fill();}}
   if(s.goatee){g.fillStyle=s.brow;g.beginPath();g.moveTo(CW/2-14,CH*.965);g.lineTo(CW/2+14,CH*.965);g.lineTo(CW/2+4,CH*1.02);g.lineTo(CW/2-4,CH*1.02);g.fill();}
   if(s.mole){g.fillStyle='#3a2020';g.beginPath();g.arc(CW/2+76,CH*.84,4,0,Math.PI*2);g.fill();}
-  if(s.scar){g.strokeStyle='#b0504a';g.lineWidth=4;g.beginPath();g.moveTo(CW/2-150,CH*.58);g.lineTo(CW/2-110,CH*.7);g.moveTo(CW/2-146,CH*.66);g.lineTo(CW/2-120,CH*.6);g.stroke();}
+  if(s.scar){g.strokeStyle='#b0504a';g.lineWidth=4;g.beginPath();g.moveTo(CW/2-150,CH*.72);g.lineTo(CW/2-112,CH*.82);g.moveTo(CW/2-146,CH*.8);g.lineTo(CW/2-120,CH*.74);g.stroke();}
   if(s.plaster){g.save();g.translate(CW/2+120,CH*.63);g.rotate(-.4);g.fillStyle='#f4e2c0';rr(g,-26,-9,52,18,6);g.fill();g.strokeStyle='#c8aa80';g.lineWidth=2;g.stroke();g.restore();}
   drawMouth(g,s,st.mouth);
   if(st.sweat){g.fillStyle='#8fd8ff';g.strokeStyle='#2a6a9a';g.lineWidth=3;g.beginPath();g.moveTo(CW/2+170,CH*.2);g.quadraticCurveTo(CW/2+190,CH*.3,CW/2+170,CH*.33);g.quadraticCurveTo(CW/2+150,CH*.3,CW/2+170,CH*.2);g.fill();g.stroke();}
