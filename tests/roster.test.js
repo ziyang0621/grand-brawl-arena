@@ -51,7 +51,8 @@ test('best-of-three: K.O. awards a round, freezes, then restarts with an intro',
   advance(w,3);assert.equal(w.roundNo,2);assert.equal(w.fighters[1].hp,100);assert.ok(w.intro>0);assert.equal(w.time,99);
   const beforeIntro=w.fighters[0].attackTime;attack(w,w.fighters[0]);assert.equal(w.fighters[0].attackTime,beforeIntro);
   advance(w,2);assert.equal(w.intro,0);assert.ok(w.events.some(e=>e.type==='fight'));
-  w.fighters[1].hp=1;Object.assign(w.fighters[0],{x:0,z:2,fx:1});Object.assign(w.fighters[1],{x:1.5,z:2});attack(w,w.fighters[0]);advance(w,.3);
+  // The CPU now fights back in round two, so shield the player from it for the instant of this scripted strike.
+  w.fighters[1].hp=1;Object.assign(w.fighters[0],{x:0,z:2,fx:1,invuln:1,stun:0,knocked:0,attackCD:0});Object.assign(w.fighters[1],{x:1.5,z:2,attackTime:0,stun:0});attack(w,w.fighters[0]);advance(w,.3);
   assert.deepEqual(w.wins,[2,0]);assert.equal(w.ended,false);advance(w,2.6);assert.equal(w.ended,true);assert.equal(w.winner,0);
 });
 test('time-up awards the round to the healthier fighter',()=>{

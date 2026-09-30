@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {STEP,createWorld,step,attack} from '../arena-core.js';
 import {STAGES} from '../arena-roster.js';
+const advance=(w,seconds,input={})=>{for(let t=0;t<seconds;t+=STEP)step(w,input);};
 
 // Player 0 stands still on a deck; the CPU (player 1) starts on the floor and has to get up to it.
 function chase({stage,deck,chars=['swordsman','guardian'],seconds=14,cpuAt=[6,4],foeAt}){
@@ -95,4 +96,22 @@ test('a CPU does not bounce between a ladder and the deck edge',()=>{
     for(let t=0;t<40;t+=STEP){step(w,{});p.hp=100;p.x=d.x;p.z=d.z;p.y=Math.max(p.y,d.top);if(q.climbing&&!was)attaches++;was=q.climbing;}
     assert.ok(attaches<=10,`${stage}/${foeDeck}: ${attaches} ladder attaches`);
   }
+});
+
+test('after a round ends the next round starts with CPUs that still chase and fight',()=>{
+  for(const chars of [['swordsman','guardian'],['gunner','cook']]){
+    const w=createWorld({chars,stage:'port',bestOf:3,intro:0});w.crates=[];w.nextCannonTick=w.nextWaveTick=1e9;
+    w.fighters[0].hp=0;advance(w,.3);advance(w,3.2);
+    assert.equal(w.roundNo,2,'second round began');assert.equal(w.wins[1],1);
+    for(const f of w.fighters)assert.notEqual(f.team,undefined,'teams survive the reset');
+    assert.notEqual(w.fighters[0].team,w.fighters[1].team,'rivals are not partners');
+    advance(w,2);// intro
+    const q=w.fighters[1],start={x:q.x,z:q.z};let moved=0,hit=false;
+    for(let t=0;t<8;t+=STEP){step(w,{});moved=Math.max(moved,Math.hypot(q.x-start.x,q.z-start.z));if(w.fighters[0].hp<100)hit=true;}
+    assert.ok(moved>2,`${chars}: CPU moved ${moved.toFixed(1)}`);
+  }
+});
+test('a team-mode round reset keeps partners and opponents apart',()=>{
+  const w=createWorld({chars:['swordsman','guardian','brawler','gunner'],teams:[0,1,0,1]});
+  assert.deepEqual(w.fighters.map(f=>f.team),[0,1,0,1]);
 });
