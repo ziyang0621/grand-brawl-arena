@@ -643,7 +643,8 @@ function animateFighter(p,i,m,dt){
       bend([q[2],q[3]],[q[8],q[9]]);
       pitch+=rise*-.12;
     }else if(p.grounded){air.pose=null;air.flip=0;}
-    if(air.flip>0&&!p.grounded&&p.knocked<=0){air.flip+=dt;const f=Math.min(1,air.flip/.42),e=f*f*(3-2*f);pitch+=e*Math.PI*2;if(!p.attackTime&&!p.skillTime){bend([1.5,1.5],[-1.4,-1.4]);m.legs.forEach(l=>l.rotation.x=-1.1);m.arms.forEach((a,j)=>a.rotation.set(-1.2,0,j?-.3:.3));}if(air.flip>.42)air.flip=0;}
+    // double jump: no somersault, just a second push off thin air - legs kick down then tuck, arms sweep down and back up
+    if(air.flip>0&&!p.grounded&&p.knocked<=0){air.flip+=dt;const f=Math.min(1,air.flip/.32),push=Math.sin(Math.min(1,f*1.6)*Math.PI);if(!p.attackTime&&!p.skillTime){bend([.3+push*.9,.9-push*.5],[-.5,-.5]);m.legs[0].rotation.x=-.2-push*.5;m.legs[1].rotation.x=.25+push*.35;m.arms[0].rotation.set(.5-f*2.4,0,-.6);m.arms[1].rotation.set(.5-f*2.2,0,.6);}pitch+=Math.sin(f*Math.PI)*.12;if(air.flip>.32)air.flip=0;}
     // landing: absorb with the knees, drop the hips, arms come forward, then straighten
     if(p.grounded&&(p.landTime||0)>0&&!p.attackTime&&!p.skillTime&&!p.blocking){const k=Math.sin(clamp(p.landTime/.2,0,1)*Math.PI*.5);bend([1.2*k,1.05*k],[-.5*k,-.5*k]);m.legs[0].rotation.x=-.65*k;m.legs[1].rotation.x=-.5*k;m.arms[0].rotation.set(-.6*k,0,-.3*k);m.arms[1].rotation.set(-.5*k,0,.3*k);bodyY-=.34*k;pitch+=.16*k;}
   }
