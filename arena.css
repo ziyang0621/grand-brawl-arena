@@ -203,6 +203,13 @@ body.touch #select{touch-action:pan-y}
 #touchPad .tbtn.main{background:#d4462fe6;border-color:#ffd267}
 #touchPad .tbtn.heavy{background:#a8561fdd}#touchPad .tbtn.skill{background:#7a3cc0dd}
 #touchPad .tbtn.guard,#touchPad .tbtn.dodge{background:#2f7fb4cc}
+#touchPad .tbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+#touchPad .tbtn b{font:900 calc(var(--s)*.34)/1 system-ui,"PingFang SC","Noto Sans SC",sans-serif}
+#touchPad .tbtn.bomb b,#touchPad .tbtn.aim b{font-size:calc(var(--s)*.27)}
+#touchPad .tbtn small{font:800 calc(var(--s)*.185)/1.05 system-ui,"PingFang SC","Noto Sans SC",sans-serif;max-width:calc(var(--s)*.95);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ffe9a8;letter-spacing:0}
+#touchPad .tbtn.main small{color:#fff}
+#touchPad .tbtn.empty{opacity:.55}#touchPad .tbtn.off{opacity:.62}
+#touchPad .tbtn.bomb{background:#4a2f1f}
 #touchPad .tbtn.down{transform:scale(.92);filter:brightness(1.35)}
 body.touch footer .skills,body.touch footer .quick-controls{display:none}
 body.touch footer{bottom:auto;top:0;pointer-events:none}

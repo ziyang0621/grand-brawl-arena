@@ -1,9 +1,10 @@
 // Touch controls: a virtual stick plus action buttons that drive the same `keys` set and action() as the keyboard.
 const DEAD_ZONE=.28,DOUBLE_TAP_MS=260,TAP_MS=220;
 export const TOUCH_BUTTONS=[
-  {code:'KeyK',label:'弹',name:'bomb'},{code:'KeyI',label:'抓',name:'grab'},{code:'KeyU',label:'重',name:'heavy'},
-  {code:'KeyL',label:'技',name:'skill'},{code:'KeyJ',label:'攻',name:'attack',main:true},{code:'Space',label:'跳',name:'jump'},
-  {code:'KeyR',label:'防',name:'guard',hold:true},{code:'ShiftLeft',label:'闪',name:'dodge',hold:true},{code:'KeyQ',label:'瞄',name:'aim'}
+  // label: big glyph, hint: the plain-language caption printed under it (the item and aim captions update while playing)
+  {code:'KeyK',label:'道具',hint:'无道具',name:'bomb'},{code:'KeyI',label:'抓',hint:'抓取',name:'grab'},{code:'KeyU',label:'重',hint:'重击',name:'heavy'},
+  {code:'KeyL',label:'技',hint:'必杀',name:'skill'},{code:'KeyJ',label:'攻',hint:'攻击',name:'attack',main:true},{code:'Space',label:'跳',hint:'跳跃',name:'jump'},
+  {code:'KeyR',label:'防',hint:'按住防御',name:'guard',hold:true},{code:'ShiftLeft',label:'闪',hint:'闪避',name:'dodge',hold:true},{code:'KeyQ',label:'朝向',hint:'辅助开',name:'aim'}
 ];
 // Stick offset (dx,dy in px, radius in px) -> movement key codes; 8 directions, diagonals inside a 45° window.
 export function stickToKeys(dx,dy,radius){
@@ -56,7 +57,7 @@ export function createTouchControls({keys,action,unlock,doc=document}){
   stick.addEventListener('pointerup',endStick);stick.addEventListener('pointercancel',endStick);
   const pressed=new Map();
   for(const b of TOUCH_BUTTONS){
-    const el=doc.createElement('button');el.type='button';el.className='tbtn'+(b.main?' main':'')+' '+b.name;el.textContent=b.label;el.dataset.code=b.code;el.setAttribute('aria-label',b.name);btns.append(el);
+    const el=doc.createElement('button');el.type='button';el.className='tbtn'+(b.main?' main':'')+' '+b.name;el.innerHTML='<b></b><small></small>';el.querySelector('b').textContent=b.label;el.querySelector('small').textContent=b.hint;el.dataset.code=b.code;el.setAttribute('aria-label',b.label+' '+b.hint);btns.append(el);
     el.addEventListener('pointerdown',e=>{
       e.preventDefault();unlock?.();el.setPointerCapture?.(e.pointerId);pressed.set(e.pointerId,b);el.classList.add('down');
       if(b.hold)keys.add(b.code);
@@ -66,5 +67,7 @@ export function createTouchControls({keys,action,unlock,doc=document}){
     el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
     el.addEventListener('contextmenu',e=>e.preventDefault());
   }
-  return {root,release(){setKeys([]);knob.style.transform='';stickId=null;for(const b of TOUCH_BUTTONS)if(b.hold)keys.delete(b.code);pressed.clear();for(const el of btns.children)el.classList.remove('down');}};
+  // Captions that change with the game: the held item's name, the aim-assist state and whether the special is ready.
+  const caption=(name,text,cls)=>{const el=btns.querySelector('.'+name);if(!el)return;const small=el.querySelector('small');if(small.textContent!==text)small.textContent=text;for(const [k,v] of Object.entries(cls||{}))el.classList.toggle(k,Boolean(v));};
+  return {root,setState({item,aimOn,skill}={}){caption('bomb',item||'无道具',{empty:!item});caption('aim',aimOn?'辅助开':'辅助关',{off:!aimOn});if(skill!==undefined)caption('skill',skill||'必杀',{empty:skill==='能量不足'});},release(){setKeys([]);knob.style.transform='';stickId=null;for(const b of TOUCH_BUTTONS)if(b.hold)keys.delete(b.code);pressed.clear();for(const el of btns.children)el.classList.remove('down');}};
 }

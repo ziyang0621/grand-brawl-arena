@@ -41,3 +41,9 @@ test('slow second press or a long first press does not sprint',()=>{
 test('a first press that already pushed a direction is not a tap',()=>{
   const d=createSprintDetector();d.down(0);d.direction(true);d.up(100);d.down(150);assert.equal(d.direction(true),false);
 });
+
+test('every touch button carries a plain-language caption and the item/aim captions update',()=>{
+  for(const b of TOUCH_BUTTONS){assert.ok(b.hint&&b.hint.length>=2,b.code);assert.ok(b.label);}
+  assert.equal(TOUCH_BUTTONS.some(b=>b.label==='弹'||b.label==='瞄'),false,'no cryptic single glyphs for item and aim');
+  const aim=TOUCH_BUTTONS.find(b=>b.name==='aim');assert.equal(aim.label,'朝向');assert.ok(/辅助/.test(aim.hint));
+});

@@ -540,6 +540,7 @@ function updateHud(){
   const status=local.grabbedBy!==null?'被擒抱 · 连按 J/U/I 挣脱':local.grabbedTarget!==null?'已抱住对手 · J 前投 / U 高投':local.carrying?'举着容器 · J前投 / U高投':local.knocked>0?'倒地中':local.blocking?'防御中':local.climbing?'爬梯中':local.poisonTime>0?'中毒 · 禁止闪避':local.virusTime>0?'病毒感染 · 禁止闪避':local.slowTime>0?'冰冻减速 · 禁止闪避':local.terrain==='quicksand'?'陷入流沙 · 减速、跳不高':local.terrain==='ice'?'冰面 · 加速但会打滑':'';
   setHud($('movement'),'text',`${local.climbing?'梯子':local.grounded?(local.support==='ground'?'地面':'高台'):'空中'} · 二段跳 ${local.jumps}/2${status?' · '+status:''}`);
   setHud($('aimButton'),'text',`Q · 朝向辅助：${local.aimAssist===false?'关':'开'}`);
+  touchControls?.setState({item:local.item?ITEM_NAMES[local.item]:local.carrying?'投掷':'',aimOn:local.aimAssist!==false,skill:local.pendingSkill?'蓄力中':local.energy<1?'能量不足':local.skillCD>0?'冷却中':'必杀'});
   const voted=world.rematchVotes?.[localPlayerId],otherVoted=world.rematchVotes?.[1-localPlayerId];
   $('playAgain').disabled=netRole!=='solo'&&Boolean(voted);
   setHud($('playAgain'),'text',netRole==='solo'?'再战':voted?'已准备 · 等待朋友':otherVoted?'朋友已准备 · 再战':'准备再战');
