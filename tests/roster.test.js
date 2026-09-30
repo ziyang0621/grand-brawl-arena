@@ -143,3 +143,13 @@ test('hair locks taper to a point and heads narrow toward the chin',()=>{
   for(let i=0;i<q.count;i++){const y=q.getY(i),x=Math.abs(q.getX(i));if(y<-.4)chin=Math.max(chin,x);if(Math.abs(y)<.05)cheek=Math.max(cheek,x);}
   assert.ok(chin<cheek*.6,'pointed chin');
 });
+import {readFileSync} from 'node:fs';
+test('each character has its own eye, brow and nose style',()=>{
+  const src=readFileSync(new URL('../arena-models.js',import.meta.url),'utf8');
+  const calls=[...src.matchAll(/makeHead\(hd,c,\{([^}]*)\}\)/g)].map(m=>m[1]);
+  assert.equal(calls.length,6);
+  const pick=(k)=>calls.map(c=>(c.match(new RegExp(k+":'(\\w+)'"))||[])[1]);
+  assert.equal(new Set(pick('eyeStyle')).size,6,'six eye styles');
+  assert.ok(new Set(pick('browStyle')).size>=5,'brows differ');
+  assert.ok(new Set(pick('noseStyle')).size>=5,'noses differ');
+});
