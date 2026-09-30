@@ -23,31 +23,44 @@ function torso(body,c,{chest=.4,waist=.28,hip=.31,color=c.color,z=.74,skinChest=
   cylinder(.11,.13,.3,neckColor,body,0,SHOULDER_Y+.14,.01,10);
   return t;
 }
-// Limbs: capsule thighs, calves, upper arms and forearms on the same joints the animation drives.
+// Limbs with real knees and elbows. Each leg/arm group is the hip/shoulder; `userData.knee` / `userData.elbow`
+// are child groups that bend, so jumps, landings and swings can fold the limb instead of swinging it stiffly.
+function hand(parent,c,glove,armW){
+  const col=glove||c.skin,g=new THREE.Group();g.position.set(0,-.53,.03);parent.add(g);
+  const palm=sphere(.09*armW,col,g,0,0,0,10);palm.scale.set(1,1.05,.85);
+  // four curled fingers and a thumb, so the fist reads as a hand and not a ball
+  for(let i=0;i<4;i++){const f=capsule(.026*armW,.05,col,g,(i-1.5)*.038*armW,-.085,.045,6);f.rotation.x=.55;}
+  const th=capsule(.03*armW,.04,col,g,-.085*armW,-.02,.05,6);th.rotation.z=.8;th.rotation.x=.4;
+  return g;
+}
 function limbs(body,c,{sleeve=c.color,pants='#2a3144',shoes='#3b2a22',bareArms=false,glove=null,boot=null,thigh=null,legW=1.1,armW=1.14,shoulder=.5,shoulderColor=null,cuff=null}={}){
   const legs=[];
   for(const side of [-1,1]){
     const leg=new THREE.Group();leg.position.set(side*.16,HIP_Y-.02,0);body.add(leg);
     capsule(.135*legW,.44,thigh||pants,leg,0,-.33,0,12);
-    capsule(.105*legW,.44,boot||pants,leg,0,-.83,0,12);
-    if(boot)cylinder(.125*legW,.13*legW,.46,boot,leg,0,-.92,0,12);
-    if(cuff)cylinder(.14*legW,.14*legW,.06,cuff,leg,0,-.62,0,12);
-    box(.24*legW,.13,.4,shoes,leg,0,-1.21,.08);sphere(.125*legW,shoes,leg,0,-1.19,.24,8).scale.set(1,.65,.85);
-    legs.push(leg);
+    sphere(.128*legW,thigh||pants,leg,0,-.56,0,10);
+    const knee=new THREE.Group();knee.position.set(0,-.57,0);leg.add(knee);
+    capsule(.105*legW,.44,boot||pants,knee,0,-.26,0,12);
+    if(boot)cylinder(.125*legW,.13*legW,.46,boot,knee,0,-.35,0,12);
+    if(cuff)cylinder(.14*legW,.14*legW,.06,cuff,knee,0,-.05,0,12);
+    box(.24*legW,.13,.4,shoes,knee,0,-.64,.08);sphere(.125*legW,shoes,knee,0,-.62,.24,8).scale.set(1,.65,.85);
+    leg.userData.knee=knee;legs.push(leg);
   }
   const arms=[];
   for(const side of [-1,1]){
     const arm=new THREE.Group();arm.position.set(side*shoulder,SHOULDER_Y-.06,0);body.add(arm);arm.userData.side=side;
     sphere(.15*armW,shoulderColor||sleeve,arm,0,-.02,0,12);
     capsule(.088*armW,.34,sleeve,arm,0,-.29,0);
-    capsule(.075*armW,.34,bareArms?c.skin:sleeve,arm,0,-.7,0);
-    if(cuff)cylinder(.1*armW,.1*armW,.07,cuff,arm,0,-.93,0,10);
-    sphere(glove?.115*armW:.098*armW,glove||c.skin,arm,0,-1.1,.04,12);
-    arms.push(arm);
+    sphere(.084*armW,bareArms?c.skin:sleeve,arm,0,-.5,0,8);
+    const fore=new THREE.Group();fore.position.set(0,-.5,0);arm.add(fore);
+    capsule(.075*armW,.34,bareArms?c.skin:sleeve,fore,0,-.2,0);
+    if(cuff)cylinder(.1*armW,.1*armW,.07,cuff,fore,0,-.43,0,10);
+    hand(fore,c,glove,armW);
+    arm.userData.elbow=fore;arms.push(arm);
   }
   return {legs,arms};
 }
-function weaponMount(arm){const g=new THREE.Group();g.position.set(.02,-1.12,.14);g.rotation.set(.62,0,-.62);arm.add(g);return g;}
+function weaponMount(arm){const g=new THREE.Group();g.position.set(.02,-.62,.14);g.rotation.set(.62,0,-.62);(arm.userData.elbow||arm).add(g);return g;}
 
 // ---- Faces: big two-tone eyes with lids, brows, mouths and reaction marks, all driven by one expression state ----
 const noInk=m=>{m.userData.noInk=true;m.castShadow=false;return m;};
@@ -200,7 +213,7 @@ const BUILDERS={
     cylinder(HEAD_R+.07,HEAD_R+.09,.26,'#f4f6f8',hd,0,HY+.38,-.02,22).scale.z=1.02;
     cylinder(HEAD_R+.1,HEAD_R+.1,.05,'#141c2a',hd,0,HY+.27,.16,22).scale.z=.92;
     sphere(.09,c.accent,hd,0,HY+.39,HEAD_R+.07,8).scale.z=.4;
-    const buckler=new THREE.Group();buckler.position.set(0,-.82,.2);rig.arms[0].add(buckler);
+    const buckler=new THREE.Group();buckler.position.set(0,-.32,.2);rig.arms[0].userData.elbow.add(buckler);
     const rim=cylinder(.5,.5,.12,c.accent,buckler,0,0,0,22);rim.rotation.x=Math.PI/2;
     const plate=cylinder(.43,.43,.14,c.color,buckler,0,0,.02,22);plate.rotation.x=Math.PI/2;sphere(.14,'#f1e3b5',buckler,0,0,.12,10);
     const blade=weaponMount(rig.arms[1]);
@@ -216,7 +229,7 @@ const BUILDERS={
     cylinder(.4,.4,.14,'#3a2a20',body,0,HIP_Y+.1,0,16).scale.z=.7;box(.18,.14,.05,c.accent,body,0,HIP_Y+.1,.29);
     const sash=sway(box(.18,.7,.05,c.accent,body,-.3,HIP_Y-.3,.2),.14,0,1.1);sash.geometry.translate(0,-.3,0);sash.position.y=HIP_Y+.05;
     const rig=limbs(body,c,{sleeve:c.skin,bareArms:true,pants:'#4a5a78',shoes:'#2a1d18',glove:c.accent,boot:'#3a2a20',legW:1.12,armW:1.3,shoulder:.56,shoulderColor:c.skin});
-    for(const arm of rig.arms){const wrap=cylinder(.115,.115,.14,'#ffffff',arm,0,-.94,0,10);wrap.scale.set(1.05,1,1.05);}
+    for(const arm of rig.arms){const wrap=cylinder(.115,.115,.14,'#ffffff',arm.userData.elbow,0,-.44,0,10);wrap.scale.set(1.05,1,1.05);}
     const face=makeHead(hd,c,{iris:'#1f5a22',irisLow:'#78c060',eye:.8,plaster:true,eyeStyle:'fierce',browStyle:'bushy',noseStyle:'broad',teeth:'shark',square:1,jaw:.6,chin:1.12,cheek:1.08,cheekLines:true,grinW:1.5,grinH:1.3,eyeY:.02});
     hairMass(hd,c.hair,{scale:1.04});
     // wild spikes that stand straight up and flare out
@@ -288,7 +301,7 @@ const BUILDERS={
     const bow=new THREE.Group();bow.position.set(.28,HY+.42,-.1);bow.rotation.z=-.4;hd.add(bow);
     for(const sd of [-1,1])cone(.12,.28,c.accent,bow,sd*.14,0,0,4).rotation.z=sd*Math.PI/2;sphere(.06,c.accent,bow,0,0,0,8);
     for(const sd of [-1,1]){const star=cone(.06,.13,'#ffe27a',hd,sd*(HEAD_R+.02),HY-.2,-.02,5);star.rotation.z=Math.PI;}
-    for(const arm of rig.arms)cylinder(.1,.1,.08,'#ffe27a',arm,0,-.92,0,10);
+    for(const arm of rig.arms)cylinder(.1,.1,.08,'#ffe27a',arm.userData.elbow,0,-.42,0,10);
     const staff=weaponMount(rig.arms[1]);
     cylinder(.045,.045,1.25,'#6b4a2a',staff,0,.55,0,8);sphere(.15,'#fff4b0',staff,0,1.24,0,10);
     for(const a of [0,2.1,4.2])sphere(.07,'#7fd8ff',staff,Math.cos(a)*.21,1.24,Math.sin(a)*.21,6);

@@ -427,3 +427,7 @@ git status
 git log --oneline -5
 git remote -v
 ```
+
+## v36 — natural jump / landing
+- Limbs now have knee and elbow joints and fingered hands (`arena-models.js`).
+- `animateFighter`: walk/run knee and elbow bend; air poses per phase (takeoff stretch, rising knee drive, apex tuck with balancing arms, falling brace), eased so nothing snaps; double-jump front flip; landing squat that absorbs with the knees. Attack/skill/guard poses keep straight elbows.

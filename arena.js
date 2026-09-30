@@ -582,12 +582,15 @@ function animateFighter(p,i,m,dt){
   m.body.rotation.set(0,facing+spin,0);
   const walking=p.grounded&&Math.hypot(p.vx,p.vz)>1;
   m.legs.forEach((leg,j)=>leg.rotation.x=walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:0);
+  const bend=(k,e)=>{m.legs.forEach((leg,j)=>{if(leg.userData.knee)leg.userData.knee.rotation.x=k[j];});m.arms.forEach((arm,j)=>{if(arm.userData.elbow)arm.userData.elbow.rotation.x=e[j];});};
+  {const run0=p.running?1.5:.9;bend(walking?[0,1].map(j=>Math.max(0,-Math.cos(p.walk+j*Math.PI))*run0+.08):[.04,.04],walking?[0,1].map(j=>-(p.running?.95:.3)-Math.max(0,Math.sin(p.walk+j*Math.PI))*.25):[-.14,-.2]);}
   m.arms[0].rotation.set(walking?-Math.sin(p.walk)*.5:-.16,0,-.13);
   const ranged=CHARACTERS[c].moveAttack==='shot';
   m.arms[1].rotation.set(c==='brawler'?-.9:-.34,0,.14);
   if(c==='brawler'&&!walking){m.arms[0].rotation.x=-1;m.arms[0].rotation.z=.35;m.arms[1].rotation.z=-.35;}
   if(ranged&&!walking)m.arms[1].rotation.set(c==='gunner'?-1.1:-.8,0,-.1);
   if(p.running&&walking&&p.attackTime<=0){m.arms[0].rotation.set(.95,0,.25);m.arms[1].rotation.set(.95,0,-.25);m.legs.forEach((leg,j)=>leg.rotation.x=Math.sin(p.walk+j*Math.PI)*1.05);}
+  const posed=p.attackTime>0||p.skillTime>0||p.blocking;
   if(p.attackTime>0){
     const total=['heavy','slam','upper','shieldBash'].includes(p.attackType)?.5:p.attackType==='grab'?.42:p.attackType==='rush'?.4:p.attackType==='dash'?.38:p.attackType==='shot'?.32:.34,swing=clamp(1-p.attackTime/total,0,1),arc=Math.sin(swing*Math.PI);
     if(p.attackType==='grab'){m.arms[0].rotation.set(-.45-arc*1.15,0,.25);m.arms[1].rotation.set(-.45-arc*1.15,0,-.25);}
@@ -615,12 +618,34 @@ function animateFighter(p,i,m,dt){
     else{m.arms[0].rotation.set(-.6,0,1.35);m.arms[1].rotation.set(-.6,0,-1.35);}
   }
   if(p.carrying||p.grabbedTarget!==null){const lift=p.carrying?1:Math.min(1,(2.2-p.grabHoldTime)/.25);m.arms[0].rotation.set(-1.1-lift*1.55,0,.18);m.arms[1].rotation.set(-1.1-lift*1.55,0,-.18);}
+  if(posed)m.arms.forEach(a=>{if(a.userData.elbow)a.userData.elbow.rotation.x=0;});
   let bodyY=walking?Math.abs(Math.sin(p.walk))*.07:Math.sin(t*2.5+i)*.02,lean=walking?(p.running?-.4:-.12):0,roll=0,pitch=0,squash=1;
   if(p.grabbedBy!==null){const s=Math.sin(world.tick*.2)*.18;m.arms[0].rotation.x=-1.9+s;m.arms[1].rotation.x=-1.9-s;m.legs.forEach((leg,j)=>leg.rotation.x=(j===0?-.65:.65)+s);roll=1.15;}
   else{
     roll=p.knocked>0?-.9:p.hurtTime>0?-.2:p.stun>0?-.24:0;pitch=p.knocked>0?0:lean+(!p.grounded?-.08:0);
     squash=p.hurtTime>0?1.04+Math.sin(world.tick*.8)*.025:(p.landTime||0)>0?1-(p.landTime/.2)*.12:1;
-    if(!p.grounded&&!p.attackTime&&!p.skillTime){m.arms[0].rotation.x=-1.15;m.arms[1].rotation.x=-1.3;m.legs.forEach((leg,j)=>leg.rotation.x=j===0?-.7:.3);}
+    const air=(m.air??={pose:null,flip:0,jumps:0});
+    if(p.jumps===2&&air.jumps!==2&&!p.grounded)air.flip=.001;
+    air.jumps=p.jumps;
+    if(!p.grounded&&!p.attackTime&&!p.skillTime){
+      // Pose targets per phase: takeoff stretch -> rising tuck -> apex float -> falling brace. Values are eased so nothing snaps.
+      const vy=p.vy,rise=clamp(vy/9,-1,1),side=Math.sin(i*1.7)>0?1:-1;
+      let T;
+      if(vy>7)T=[-.25,.35,.15,.1,-.6*side,.3,-.6*side,-.3,-.25,-.25];             // stretch off the ground, arms swing up
+      else if(vy>1.5)T=[-.95*side,.25*side,1.25,.7,-2.1,.55,-1.5,-.5,-.55,-.7];   // knee drive, one arm reaching up
+      else if(vy>-2.5)T=[-.75,-.55,1.35,1.2,-.45,1.15,-.45,-1.15,-.7,-.7];        // apex: tucked, arms spread for balance
+      else T=[-.3*side,.2*side,.25,.45,-.3,.95+Math.min(.5,-vy*.03),-.3,-.95-Math.min(.5,-vy*.03),-.35,-.35]; // falling: legs brace for the landing
+      air.pose??=T.slice();
+      const k=1-Math.exp(-dt*(vy>7?22:12));for(let n=0;n<T.length;n++)air.pose[n]+=(T[n]-air.pose[n])*k;
+      const q=air.pose;
+      m.legs[0].rotation.x=q[0];m.legs[1].rotation.x=q[1];
+      m.arms[0].rotation.set(q[4],0,-q[5]);m.arms[1].rotation.set(q[6],0,-q[7]);
+      bend([q[2],q[3]],[q[8],q[9]]);
+      pitch+=rise*-.12;
+    }else if(p.grounded){air.pose=null;air.flip=0;}
+    if(air.flip>0&&!p.grounded&&p.knocked<=0){air.flip+=dt;const f=Math.min(1,air.flip/.42),e=f*f*(3-2*f);pitch+=e*Math.PI*2;if(!p.attackTime&&!p.skillTime){bend([1.5,1.5],[-1.4,-1.4]);m.legs.forEach(l=>l.rotation.x=-1.1);m.arms.forEach((a,j)=>a.rotation.set(-1.2,0,j?-.3:.3));}if(air.flip>.42)air.flip=0;}
+    // landing: absorb with the knees, drop the hips, arms come forward, then straighten
+    if(p.grounded&&(p.landTime||0)>0&&!p.attackTime&&!p.skillTime&&!p.blocking){const k=Math.sin(clamp(p.landTime/.2,0,1)*Math.PI*.5);bend([1.2*k,1.05*k],[-.5*k,-.5*k]);m.legs[0].rotation.x=-.65*k;m.legs[1].rotation.x=-.5*k;m.arms[0].rotation.set(-.6*k,0,-.3*k);m.arms[1].rotation.set(-.5*k,0,.3*k);bodyY-=.34*k;pitch+=.16*k;}
   }
   if(p.throwTime>0){const follow=1-p.throwTime/.3;m.arms[0].rotation.x=m.arms[1].rotation.x=-2.65+follow*(p.throwHigh?1.1:2.3);roll=-Math.sin(follow*Math.PI)*.25;}
   if(p.pendingSkill){squash=.88;bodyY=-.04;m.arms[0].rotation.set(c==='guardian'?-1.5:-.9,0,.3);m.arms[1].rotation.set(-2.5,0,-.35);if(c==='gunner'||c==='stormcaller'){m.arms[1].rotation.set(-2.9,0,-.1);}}
