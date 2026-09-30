@@ -4,12 +4,19 @@
 
 ## 当前状态
 
-- 当前版本：`v21` / 页面资源版本：`arena.js?v=53`
-- 主要玩法：四名原创角色、三个场地、选人/选场画面、三局两胜回合制、3D 高台、梯子、箱子、空投道具、战斗 AI、三命模式
+- 当前版本：v36（跳跃 / 落地动画、强化武器通用化）/ 页面资源版本：`arena.js?v=62`
+- 主要玩法：六名原创角色、三个场地、四人乱斗、2v2 组队、触屏操作、选人/选场画面、三局两胜回合制、3D 高台、梯子、箱子、空投道具、战斗 AI、三命模式
 - 联机方式：PeerJS 房间码联机，房主负责主要游戏状态同步
-- 自动化测试：137 项通过（渲染几何、AI、战斗、道具、必杀、受身与会话逻辑测试，不等于完整双端联机验收）
-- 最近已知的远程基线：`cf6e0e2 fix: improve grab movement and camera stability`；本次待推送提交包含其后的本地玩法、联机和视觉改进
+- 自动化测试：213 项通过（渲染几何、AI、战斗、道具、必杀、受身与会话逻辑测试，不等于完整双端联机验收）
+- 工作分支：`touch-controls`（已推送到 origin）；接手请先读 `README.md` 的「代码结构」和「开发约定」，再以 `git log` 为准。
 - GitHub 远程仓库：`https://github.com/ziyang0621/grand-brawl-arena.git`
+
+### v36 · 自然的跳跃 / 落地，通用强化武器（2026-09-30）
+
+- 角色四肢加入膝、肘关节和带手指的手（`arena-models.js`）；`animateFighter` 加入走跑时的膝肘弯曲，空中分相姿势（起跳拉伸、上升抬膝、最高点蜷身展臂、下落备战，指数平滑），落地屈膝缓冲。
+- 二段跳：先做过空翻，用户认为不正常，改为空中蹬一下 + 脚下两圈冲击环和烟尘（无旋转）。
+- 道具「强化木刀」改为通用的「强化武器」金色水晶，提示中显示使用者自己的武器名（长剑 / 盾牌 / 拳套 / 火枪 / 战靴 / 法杖）。
+- 验证：213 项测试通过；厨师跳跃分镜截图检查。其他角色、攻击姿势与关节手臂的兼容性、手机性能未验证。
 
 ### v35 · 脸更接近 PS2 动漫格斗（2026-09-30）
 
@@ -415,21 +422,3 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - 增加胜利慢动作、终结一击和回合倒计时表现
 - 增加移动端虚拟按键
 - 进一步优化手机屏幕上的血条、状态文字和技能按钮布局
-
-## 最近一次提交和 GitHub 状态
-
-最新已推送：`4dd6c2d feat: improve 3d brawler combat and presentation`，已更新 `origin/main`。接手时仍以 `git status`、`git log` 和远程分支实际状态为准，不要单独依赖本文件推断。
-
-不要执行 `git reset --hard` 或覆盖用户现有修改。先查看：
-
-```bash
-git status
-git log --oneline -5
-git remote -v
-```
-
-## v36 — natural jump / landing
-- Limbs now have knee and elbow joints and fingered hands (`arena-models.js`).
-- `animateFighter`: walk/run knee and elbow bend; air poses per phase (takeoff stretch, rising knee drive, apex tuck with balancing arms, falling brace), eased so nothing snaps; double jump is a mid-air push-off (no somersault); landing squat that absorbs with the knees. Attack/skill/guard poses keep straight elbows.
-
-- Item "强化木刀" is now the generic "强化武器" crystal; the announcement names the user's own weapon (长剑/盾牌/拳套/火枪/战靴/法杖).
