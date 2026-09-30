@@ -133,3 +133,13 @@ test('each character has its own guard that only shows while blocking and flashe
   }
   assert.equal(looks.size,CHARACTER_IDS.length,'no two guards share a build');
 });
+
+import {lockGeometry,headGeometry} from '../arena-face.js';
+test('hair locks taper to a point and heads narrow toward the chin',()=>{
+  const g=lockGeometry([[0,0,0],[0,.3,-.1],[0,.6,-.3]],.12,0),p=g.attributes.position;
+  const ring=i=>{let m=0;for(let j=0;j<9;j++){const k=i*9+j;m=Math.max(m,Math.hypot(p.getX(k)-p.getX(i*9),p.getZ(k)-p.getZ(i*9)));}return m;};
+  assert.ok(ring(18)<ring(3)*.3,'tip is much thinner than the root');
+  const h=headGeometry(.45),q=h.attributes.position;let chin=0,cheek=0;
+  for(let i=0;i<q.count;i++){const y=q.getY(i),x=Math.abs(q.getX(i));if(y<-.4)chin=Math.max(chin,x);if(Math.abs(y)<.05)cheek=Math.max(cheek,x);}
+  assert.ok(chin<cheek*.6,'pointed chin');
+});

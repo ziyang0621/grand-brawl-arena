@@ -4,6 +4,7 @@ import * as THREE from './vendor/three.module.js';
 import {CHARACTERS,SLOT_COLORS,SLOT_LABELS} from './arena-roster.js';
 import {box,sphere,cylinder,cone,mesh,fxMesh,label,ink} from './arena-gfx.js';
 import {buildGuard,disposeGuard} from './arena-guards.js';
+import {makeHead,lock,hairShellGeometry} from './arena-face.js';
 
 // ---- Proportions: roughly five heads tall with long legs and a small head, like a PS2 anime brawler ----
 // Head parts (face, hair, hats) are authored in "head space" (centre at HEAD_Y, radius HEAD_R) and shrunk
@@ -142,13 +143,18 @@ function makeFace(body,c,{iris='#2a2f3c',irisLow='#5a6a88',lash='thin',brow=1,ja
 const swayer=list=>(o,amp,ph=0,drag=.5,ax='x')=>{list.push({o,ax,amp,ph,drag,base:o.rotation[ax]});return o;};
 // Hair helpers so every haircut is built from the same kind of pieces.
 const HY=HEAD_Y;
+// Hair mass: a shell over the crown and back of the head; the face is left open for the painted features.
+function hairMass(hd,color,{scale=1.07,back=.08,up=.05}={}){const h=mesh(hairShellGeometry(HEAD_R*scale),color,hd,0,HY+up,-back+.02);h.scale.set(1.02,1,1.04);return h;}
+// L: one tapered lock on the head that sways a little.
+let swayList=null;
+function L(hd,color,pts,r0,amp=.05,ph=0){const g=lock(hd,color,pts,r0,0,{cy:HY});if(swayList)swayList.push({o:g,ax:'z',amp,ph,drag:.25,base:0});return g;}
 function hairCap(body,color,{scale=1,lift=.11,back=-.06}={}){const h=sphere(HEAD_R+.05,color,body,0,HY+lift,back,18);h.scale.set(1.02*scale,.8,1.04*scale);return h;}
 function spike(body,color,x,y,z,len,rx,rz,w=.12){const sp=cone(w,len,color,body,x,y,z,6);sp.rotation.set(rx,0,rz);return sp;}
 function bang(body,color,x,y,len=.36,tilt=0,w=.11,z=.36){const b=cone(w,len,color,body,x,y,z,6);b.rotation.set(Math.PI-.25,0,tilt);return b;}
 
 const BUILDERS={
   swordsman(body,c){
-    const sw=[],sway=swayer(sw),hd=headGroup(body);
+    const sw=[],sway=swayer(sw),hd=headGroup(body);swayList=sw;
     torso(body,c,{chest:.42,waist:.29,color:'#f6ecd2'});
     // red coat worn open over a white shirt, gold piping, belt with buckle, sash
     for(const s of [-1,1]){const half=box(.2,.98,.15,c.color,body,s*.27,HIP_Y+.5,.1);half.rotation.z=s*.05;box(.04,.98,.05,c.accent,body,s*.15,HIP_Y+.5,.19).rotation.z=s*.05;}
@@ -159,15 +165,16 @@ const BUILDERS={
     cylinder(.5,.54,.05,'#e9c66a',hat,0,0,0,20);cylinder(.24,.28,.22,'#e9c66a',hat,0,.12,0,16);cylinder(.28,.28,.06,c.color,hat,0,.08,0,16);sway(hat,.08,1.7,.6,'z');
     for(const sd of [-1,1])box(.02,.42,.02,'#8a6a3a',body,sd*.16,SHOULDER_Y-.02,.02).rotation.z=sd*.25;
     const rig=limbs(body,c,{sleeve:c.color,pants:'#232a3c',shoes:'#1c1614',boot:'#2a2a34',cuff:'#c9372c'});
-    const face=makeFace(hd,c,{iris:'#3a2416',irisLow:'#a4682c',brow:1.15,eye:.82});
-    hairCap(hd,c.hair);
-    for(let i=0;i<7;i++){const a=-1.1+i*.37;sway(spike(hd,c.hair,Math.sin(a)*.42,HY+.42+Math.cos(a)*.08,-.18-Math.cos(a)*.1,.55,-.9-Math.abs(a)*.2,-a*.5,.13),.08,i*.7,.35,'x');}
-    for(const [x,t] of [[-.2,.25],[0,0],[.2,-.25]])sway(bang(hd,c.hair,x,HY+.3,.34,t,.115),.05,x*9,.15,'z');
-    for(const side of [-1,1]){const lock=sway(sphere(.11,c.hair,hd,side*.42,HY-.08,.1,8),.12,side+1.2,.3,'z');lock.scale.set(.7,1.7,.7);}
-    cylinder(HEAD_R+.06,HEAD_R+.06,.11,c.color,hd,0,HY+.19,-.02,18).scale.z=1.02;
-    for(const side of [-1,1]){const t=sway(box(.09,.42,.05,c.color,hd,side*.1,HY+.1,-.55),.3,side+1.5,.6,'z');t.geometry.translate(0,-.2,0);t.position.y=HY+.28;t.rotation.z=side*.35;sw[sw.length-1].base=side*.35;}
-    const scar=noInk(box(.12,.018,.012,'#b8605a',hd,-.27,HY-.2,.4));scar.rotation.z=-.7;
-    sphere(.035,c.accent,hd,HEAD_R*.98+.02,HY-.14,-.02,6);
+    const face=makeHead(hd,c,{iris:'#4a2a16',irisLow:'#b0743a',brow:1.2,eye:.9,scar:true});
+    hairMass(hd,c.hair);
+    // messy spikes swept up and back from the crown
+    for(let i=0;i<7;i++){const a=-1.2+i*.4,x=Math.sin(a)*.3;L(hd,c.hair,[[x,HY+.36,-.02],[x*1.5,HY+.6,-.2],[x*2,HY+.64,-.46]],.14,.07,i);}
+    for(const [x,y] of [[-.42,HY+.1],[.42,HY+.1]])L(hd,c.hair,[[x*.8,y+.25,-.1],[x*1.15,y+.05,-.08],[x*1.2,y-.18,.02]],.1,.1,x*9);
+    // jagged fringe that falls out under the headband
+    for(const [x,t] of [[-.27,.9],[-.1,.3],[.07,-.2],[.24,-.8]])L(hd,c.hair,[[x,HY+.3,.3],[x+t*.04,HY+.22,.43],[x+t*.1,HY+.06,.47]],.1,.05,x*7);
+    cylinder(HEAD_R+.05,HEAD_R+.06,.1,c.color,hd,0,HY+.24,-.02,20).scale.z=1.02;
+    for(const side of [-1,1]){const t=sway(box(.09,.42,.05,c.color,hd,side*.1,HY+.1,-.55),.3,side+1.5,.6,'z');t.geometry.translate(0,-.2,0);t.position.y=HY+.3;t.rotation.z=side*.35;sw[sw.length-1].base=side*.35;}
+    sphere(.035,c.accent,hd,HEAD_R*.93,HY-.14,-.03,6);
     const weapon=weaponMount(rig.arms[1]);
     cylinder(.06,.06,.34,'#352a24',weapon,0,0,0);cylinder(.15,.15,.05,c.accent,weapon,0,.18,0);
     const blade=box(.12,1.3,.05,'#eef6f8',weapon,0,.86,0);blade.rotation.z=-.04;
@@ -175,7 +182,7 @@ const BUILDERS={
     return {...rig,face,head:hd,weapon,glowSize:[.32,1.6],glowY:.86,sway:sw,expr:{mouth:'grin'}};
   },
   guardian(body,c){
-    const sw=[],sway=swayer(sw),hd=headGroup(body);
+    const sw=[],sway=swayer(sw),hd=headGroup(body);swayList=sw;
     torso(body,c,{chest:.42,waist:.3,color:c.color});
     // buttoned navy jacket, white cross belts, epaulettes and a sash
     box(.36,.86,.05,'#f2f4f6',body,0,HIP_Y+.5,.22).userData.noInk=true;
@@ -185,22 +192,23 @@ const BUILDERS={
     const sash=sway(box(.16,.6,.05,c.accent,body,-.26,HIP_Y-.2,.2),.12,1,1);sash.geometry.translate(0,-.26,0);sash.position.y=HIP_Y+.02;
     for(const s of [-1,1]){box(.3,.07,.26,c.accent,body,s*.42,SHOULDER_Y-.02,0).rotation.z=s*-.16;}
     const rig=limbs(body,c,{sleeve:c.color,pants:'#e8edf2',shoes:'#141c2a',glove:'#f6f8fa',boot:'#1c2a3a',cuff:c.accent});
-    const face=makeFace(hd,c,{iris:'#2a5f9c',irisLow:'#78b8ee',brow:1,lash:'thin',eye:.82});
-    hairCap(hd,c.hair,{lift:.04,back:-.08});
-    for(const [x,t] of [[-.24,.18],[-.08,.05],[.08,-.05],[.24,-.18]])bang(hd,c.hair,x,HY+.26,.3,t,.1,.37);
-    for(const side of [-1,1]){const lock=sphere(.1,c.hair,hd,side*.4,HY-.02,.1,8);lock.scale.set(.7,1.5,.75);}
-    cylinder(HEAD_R+.09,HEAD_R+.11,.26,'#f4f6f8',hd,0,HY+.34,-.02,20).scale.z=1.02;
-    cylinder(HEAD_R+.12,HEAD_R+.12,.05,'#141c2a',hd,0,HY+.24,.16,20).scale.z=.92;
-    sphere(.09,c.accent,hd,0,HY+.35,HEAD_R+.09,8).scale.z=.4;
+    const face=makeHead(hd,c,{iris:'#1d3f7a',irisLow:'#6aa8e8',brow:.95,eye:.88});
+    hairMass(hd,c.hair,{back:.1});
+    // neat side-parted fringe and sideburns under the cap
+    for(const [x,t] of [[-.3,.5],[-.14,.3],[.02,.15],[.18,.1]])L(hd,c.hair,[[x,HY+.3,.3],[x+t*.06,HY+.24,.43],[x+t*.14,HY+.1,.46]],.1,.03,x*6);
+    for(const side of [-1,1])L(hd,c.hair,[[side*.4,HY+.2,.02],[side*.44,HY-.02,.08],[side*.42,HY-.2,.12]],.08,.02,side);
+    cylinder(HEAD_R+.07,HEAD_R+.09,.26,'#f4f6f8',hd,0,HY+.38,-.02,22).scale.z=1.02;
+    cylinder(HEAD_R+.1,HEAD_R+.1,.05,'#141c2a',hd,0,HY+.27,.16,22).scale.z=.92;
+    sphere(.09,c.accent,hd,0,HY+.39,HEAD_R+.07,8).scale.z=.4;
     const buckler=new THREE.Group();buckler.position.set(0,-.82,.2);rig.arms[0].add(buckler);
     const rim=cylinder(.5,.5,.12,c.accent,buckler,0,0,0,22);rim.rotation.x=Math.PI/2;
     const plate=cylinder(.43,.43,.14,c.color,buckler,0,0,.02,22);plate.rotation.x=Math.PI/2;sphere(.14,'#f1e3b5',buckler,0,0,.12,10);
     const blade=weaponMount(rig.arms[1]);
     cylinder(.07,.07,.3,'#3b3027',blade,0,0,0);box(.46,.09,.14,c.accent,blade,0,.15,0);box(.2,.9,.07,'#e3eef2',blade,0,.62,0);
-    return {...rig,face,head:hd,weapon:blade,glowSize:[.38,1.1],glowY:.62,sway:sw,expr:{mouth:'flat'}};
+    return {...rig,face,head:hd,weapon:blade,glowSize:[.38,1.1],glowY:.62,sway:sw,expr:{mouth:'smile'}};
   },
   brawler(body,c){
-    const sw=[],sway=swayer(sw),hd=headGroup(body);
+    const sw=[],sway=swayer(sw),hd=headGroup(body);swayList=sw;
     torso(body,c,{chest:.52,waist:.36,hip:.38,color:c.color,skinChest:true,z:.78});
     // open green vest over a bare chest, orange sash, big buckle, star scar
     for(const s of [-1,1]){const half=box(.22,.98,.16,c.color,body,s*.36,HIP_Y+.52,.08);half.rotation.z=s*.08;}
@@ -209,18 +217,17 @@ const BUILDERS={
     const sash=sway(box(.18,.7,.05,c.accent,body,-.3,HIP_Y-.3,.2),.14,0,1.1);sash.geometry.translate(0,-.3,0);sash.position.y=HIP_Y+.05;
     const rig=limbs(body,c,{sleeve:c.skin,bareArms:true,pants:'#4a5a78',shoes:'#2a1d18',glove:c.accent,boot:'#3a2a20',legW:1.12,armW:1.3,shoulder:.56,shoulderColor:c.skin});
     for(const arm of rig.arms){const wrap=cylinder(.115,.115,.14,'#ffffff',arm,0,-.94,0,10);wrap.scale.set(1.05,1,1.05);}
-    const face=makeFace(hd,c,{iris:'#2b6a2c',irisLow:'#7ac86a',brow:1.4,jaw:1.06,eye:.78});
-    hairCap(hd,c.hair,{scale:1.03});
-    for(let i=0;i<11;i++){const a=i/11*Math.PI*2,r=.4;sway(spike(hd,c.hair,Math.cos(a)*r,HY+.36+Math.sin(a*2)*.05,Math.sin(a)*r*.85-.05,.6+(i%3)*.12,Math.sin(a)*-.9-.25,Math.cos(a)*-.9,.16),.07,i*.8,.3,'x');}
-    for(const [x,t] of [[-.2,.3],[.02,0],[.22,-.3]])bang(hd,c.hair,x,HY+.3,.32,t,.13);
-    cylinder(HEAD_R+.06,HEAD_R+.06,.12,c.accent,hd,0,HY+.2,-.02,18).scale.z=1.02;
-    for(const s of [-1,1]){const burn=box(.07,.26,.05,c.hair,hd,s*.4,HY-.08,.16);burn.rotation.z=s*.1;}
-    const plaster=noInk(box(.14,.045,.02,'#f4e6c8',hd,.26,HY-.14,.42));plaster.rotation.z=.5;noInk(box(.14,.045,.02,'#f4e6c8',hd,.26,HY-.14,.42)).rotation.z=-.5;
+    const face=makeHead(hd,c,{iris:'#1f5a22',irisLow:'#78c060',brow:1.5,jaw:1.12,eye:.82,plaster:true});
+    hairMass(hd,c.hair,{scale:1.04});
+    // wild spikes that stand straight up and flare out
+    for(let i=0;i<9;i++){const a=i/9*Math.PI*2,x=Math.cos(a)*.26,z=Math.sin(a)*.22-.06;L(hd,c.hair,[[x,HY+.34,z],[x*1.5,HY+.62,z*1.4],[x*2,HY+.9,z*1.8]],.16,.05,i);}
+    for(const [x,t] of [[-.2,1],[.02,0],[.22,-1]])L(hd,c.hair,[[x,HY+.32,.28],[x+t*.05,HY+.24,.43],[x+t*.12,HY+.1,.47]],.13,.03,x*7);
+    cylinder(HEAD_R+.05,HEAD_R+.06,.12,c.accent,hd,0,HY+.25,-.02,20).scale.z=1.02;
     const weapon=weaponMount(rig.arms[1]);
     return {...rig,face,head:hd,weapon,glowSize:[.7,.7],glowY:-.05,sway:sw,expr:{mouth:'grin'}};
   },
   gunner(body,c){
-    const sw=[],sway=swayer(sw),hd=headGroup(body);
+    const sw=[],sway=swayer(sw),hd=headGroup(body);swayList=sw;
     torso(body,c,{chest:.4,waist:.29,color:c.color});
     // gold jacket lined in purple, cartridge bandolier, scarf
     box(.34,.9,.05,'#3a2a4a',body,0,HIP_Y+.5,.21).userData.noInk=true;
@@ -230,20 +237,20 @@ const BUILDERS={
     box(.74,.18,.42,c.accent,body,0,SHOULDER_Y+.06,.01);
     const tail=box(.18,.66,.06,c.accent,body,.24,SHOULDER_Y-.24,-.3);tail.geometry.translate(0,-.3,0);tail.position.y=SHOULDER_Y+.04;tail.rotation.z=-.3;sway(tail,.28,0,1.4,'x');sway(tail,.15,2,0,'z');
     const rig=limbs(body,c,{sleeve:c.color,pants:'#5b4636',shoes:'#2b221c',glove:'#3a2a4a',boot:'#4a3628',cuff:'#3a2a4a',armW:.95});
-    const face=makeFace(hd,c,{iris:'#7a3b14',irisLow:'#e0a04a',brow:1,eye:.84,nose:2.6});
-    hairCap(hd,c.hair,{scale:1.06});
-    for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const curl=sphere(.17,c.hair,hd,Math.cos(a)*.42,HY+.36+Math.sin(a*3)*.05,Math.sin(a)*.4-.08,8);curl.userData.noInk=true;sway(curl,.05,i,.2,'x');}
-    for(const [x,t] of [[-.22,.2],[0,0],[.22,-.2]])bang(hd,c.hair,x,HY+.3,.26,t,.12);
-    cylinder(HEAD_R+.06,HEAD_R+.06,.09,'#2b2233',hd,0,HY+.24,-.02,18).scale.z=1.02;
-    for(const side of [-1,1]){const rim=cylinder(.17,.17,.09,'#2b2233',hd,side*.19,HY+.36,.34,14);rim.rotation.x=Math.PI/2-.6;const lens=cylinder(.135,.135,.1,'#a8e8ff',hd,side*.19,HY+.36,.35,14);lens.rotation.x=Math.PI/2-.6;lens.userData.noInk=true;}
-    [-.09,0,.09].forEach(x=>noInk(sphere(.014,'#c47a52',hd,.2+x,HY-.11+Math.abs(x)*.2,.43,4)));
+    const face=makeHead(hd,c,{iris:'#5a2a10',irisLow:'#d49040',brow:1,eye:.9,freckles:[[118,.62],[132,.66],[104,.67]]});
+    hairMass(hd,c.hair,{scale:1.1});
+    // curly mop: fat curls round the crown, short curled fringe
+    for(let i=0;i<9;i++){const a=i/9*Math.PI*2;const curl=sphere(.17,c.hair,hd,Math.cos(a)*.4,HY+.34+Math.sin(a*3)*.05,Math.sin(a)*.36-.1,10);sway(curl,.05,i,.2,'x');}
+    for(const [x,t] of [[-.24,.8],[-.06,.2],[.14,-.4]])L(hd,c.hair,[[x,HY+.32,.28],[x+t*.05,HY+.26,.42],[x+t*.12,HY+.14,.44]],.11,.04,x*5);
+    cylinder(HEAD_R+.07,HEAD_R+.07,.09,'#2b2233',hd,0,HY+.3,-.02,20).scale.z=1.02;
+    for(const side of [-1,1]){const rim=cylinder(.16,.16,.09,'#2b2233',hd,side*.19,HY+.4,.34,14);rim.rotation.x=Math.PI/2-.7;const lens=cylinder(.125,.125,.1,'#a8e8ff',hd,side*.19,HY+.4,.35,14);lens.rotation.x=Math.PI/2-.7;lens.userData.noInk=true;}
     const weapon=weaponMount(rig.arms[1]);
     box(.14,.32,.16,'#5a3a22',weapon,0,0,0);const barrel=cylinder(.07,.08,.9,'#39404a',weapon,0,.46,.02,10);
     cylinder(.1,.1,.08,'#f0c040',weapon,0,.9,.02,10);box(.08,.14,.08,'#39404a',weapon,0,.2,-.08);barrel.userData.muzzle=true;
     return {...rig,face,head:hd,weapon,glowSize:[.3,1],glowY:.46,sway:sw,expr:{mouth:'grin'}};
   },
   cook(body,c){
-    const sw=[],sway=swayer(sw),hd=headGroup(body);
+    const sw=[],sway=swayer(sw),hd=headGroup(body);swayList=sw;
     torso(body,c,{chest:.4,waist:.28,hip:.3,color:c.color,z:.7});
     // black suit, white shirt, thin red tie
     box(.28,.9,.05,'#f6f6f2',body,0,HIP_Y+.5,.2).userData.noInk=true;
@@ -251,20 +258,18 @@ const BUILDERS={
     cylinder(.3,.3,.1,'#15171c',body,0,HIP_Y+.1,0,16).scale.z=.62;
     const tie=box(.09,.6,.05,'#c9372c',body,0,HIP_Y+.5,.24);tie.geometry.translate(0,-.26,0);tie.position.y=SHOULDER_Y+.04;sway(tie,.16,1,-.9,'x');
     const rig=limbs(body,c,{sleeve:c.color,pants:'#2b2f3a',shoes:'#0f1014',boot:'#2b2f3a',thigh:'#2b2f3a',legW:.92,armW:.9,shoulder:.44,cuff:'#f6f6f2'});
-    const face=makeFace(hd,c,{iris:'#3a6fa8',irisLow:'#8cc4f0',brow:.9,lash:'thin',browColor:'#c9a640',eye:.8});
-    hairCap(hd,c.hair);
-    for(let i=0;i<5;i++)sway(spike(hd,c.hair,-.25+i*.16,HY+.42,-.05,.36,-.6,(i-2)*-.25,.1),.08,i*.9,.3,'x');
-    // a long swept fringe that falls across one eye, built from tapered locks rather than a slab
-    for(const [x,y,l,t,w] of [[.1,HY+.16,.6,.42,.15],[.24,HY+.12,.52,.16,.14],[.02,HY+.2,.5,.6,.12]])sway(bang(hd,c.hair,x,y,l,t,w,.42),.06,x*8,.2,'z');
-    for(const [x,t] of [[-.22,.25],[-.08,.05]])bang(hd,c.hair,x,HY+.28,.3,t,.1,.38);
-    for(const side of [-1,1]){const lock=sphere(.1,c.hair,hd,side*.4,HY-.04,.08,8);lock.scale.set(.7,1.5,.7);}
-    const curl=noInk(new THREE.Mesh(new THREE.TorusGeometry(.04,.014,6,10,Math.PI*1.6),new THREE.MeshBasicMaterial({color:'#20232b'})));curl.position.set(-.3,HY+.2,.4);hd.add(curl);
-    cylinder(.018,.018,.3,'#f6f6f2',hd,.2,HY-.27,.5,6).rotation.set(0,0,-1.25);sphere(.08,'#ff6a9a',hd,.36,HY-.31,.5,10);
+    const face=makeHead(hd,c,{iris:'#1f4f8a',irisLow:'#7cb8ec',brow:.9,browColor:'#b8952e',eye:.86,hideSide:1});
+    hairMass(hd,c.hair,{back:.09});
+    // long swept fringe that falls across one eye, short on the other side
+    for(const [x0,x1,x2,r] of [[-.14,.1,.26,.15],[-.02,.2,.34,.14],[-.26,-.02,.12,.12]])L(hd,c.hair,[[x0,HY+.36,.22],[x1,HY+.2,.46],[x2,HY-.1,.44]],r,.03,x1*6);
+    for(const [x,t] of [[-.32,.4],[-.2,.2]])L(hd,c.hair,[[x,HY+.3,.3],[x+t*.05,HY+.22,.42],[x+t*.1,HY+.12,.45]],.09,.03,x*5);
+    for(const side of [-1,1])L(hd,c.hair,[[side*.4,HY+.18,-.02],[side*.44,HY-.02,.02],[side*.4,HY-.18,.04]],.08,.02,side);
+    cylinder(.018,.018,.3,'#f6f6f2',hd,-.2,HY-.27,.46,6).rotation.set(0,0,1.25);sphere(.08,'#ff6a9a',hd,-.36,HY-.31,.46,10);
     const weapon=weaponMount(rig.arms[1]);
-    return {...rig,face,head:hd,weapon,glowSize:[.6,.6],glowY:-.05,sway:sw,expr:{mouth:'grin',hideLeftEye:true}};
+    return {...rig,face,head:hd,weapon,glowSize:[.6,.6],glowY:-.05,sway:sw,expr:{mouth:'smirk'}};
   },
   stormcaller(body,c){
-    const sw=[],sway=swayer(sw),hd=headGroup(body);
+    const sw=[],sway=swayer(sw),hd=headGroup(body);swayList=sw;
     torso(body,c,{chest:.37,waist:.25,hip:.29,color:'#fff4e0',z:.68});
     // rose cropped jacket, white collar, belt and a short flared skirt
     for(const s of [-1,1]){const half=box(.2,.62,.14,c.color,body,s*.2,HIP_Y+.66,.08);half.rotation.z=s*.05;}
@@ -272,17 +277,14 @@ const BUILDERS={
     cylinder(.28,.28,.09,'#3a2c44',body,0,HIP_Y+.14,0,16).scale.z=.6;box(.09,.08,.05,c.accent,body,0,HIP_Y+.14,.2);
     const skirt=cylinder(.3,.56,.42,'#3a2c44',body,0,HIP_Y-.1,0,18);skirt.scale.z=.95;
     const rig=limbs(body,c,{sleeve:'#fff4e0',pants:'#4a3a5a',thigh:c.skin,shoes:'#e8d3b0',boot:'#e8d3b0',legW:.84,armW:.82,shoulder:.42,shoulderColor:c.color,cuff:c.color});
-    const face=makeFace(hd,c,{iris:'#a8561a',irisLow:'#ffcf6a',lash:'long',brow:.7,cute:true,jaw:.96,browColor:'#d9761f',eye:.92});
-    hairCap(hd,c.hair,{scale:1.05});
-    for(const [x,t,l] of [[-.26,.25,.34],[-.1,.1,.4],[.06,-.05,.38],[.22,-.2,.34]])sway(bang(hd,c.hair,x,HY+.28,l,t,.12,.37),.05,x*10,.15,'z');
-    for(const side of [-1,1]){
-      const lock=sway(sphere(.12,c.hair,hd,side*.43,HY-.06,.12,8),.14,side+1.5,.35,'z');lock.scale.set(.7,1.9,.7);
-      const tailG=new THREE.Group();tailG.position.set(side*.45,HY+.2,-.12);hd.add(tailG);
-      for(let k=0;k<4;k++){const s=sphere(.17-k*.02,c.hair,tailG,side*k*.13,-k*.24,-.02*k,8);s.scale.set(.85,1.1,.85);}
-      cone(.1,.24,c.accent,tailG,0,0,0,4).rotation.z=Math.PI/2;cone(.1,.24,c.accent,tailG,0,0,0,4).rotation.z=-Math.PI/2;
-      sway(tailG,.22,side+1,.5,'z');
-    }
-    const back=sway(sphere(.36,c.hair,hd,0,HY-.2,-.28,10),.1,0,.6,'x');back.scale.set(1.1,1.5,.55);
+    const face=makeHead(hd,c,{iris:'#7a3a10',irisLow:'#ffc860',lash:'long',brow:.7,cute:true,jaw:.94,browColor:'#d9761f',eye:1.02});
+    hairMass(hd,c.hair,{scale:1.08});
+    // soft fringe, face-framing locks and long hair flowing down the back
+    for(const [x,t] of [[-.3,.7],[-.15,.3],[0,0],[.15,-.3],[.3,-.7]])L(hd,c.hair,[[x,HY+.32,.28],[x+t*.04,HY+.24,.43],[x+t*.1,HY+.1,.47]],.1,.04,x*6);
+    for(const side of [-1,1])L(hd,c.hair,[[side*.38,HY+.24,.12],[side*.47,HY-.05,.2],[side*.46,HY-.45,.14],[side*.4,HY-.75,.06]],.12,.1,side+1.5);
+    for(let i=0;i<5;i++){const x=(i-2)*.16;L(hd,c.hair,[[x,HY+.2,-.3],[x*1.2,HY-.2,-.46],[x*1.35,HY-.8,-.42],[x*1.3,HY-1.25,-.34]],.15,.12,i);}
+    const bow=new THREE.Group();bow.position.set(.28,HY+.42,-.1);bow.rotation.z=-.4;hd.add(bow);
+    for(const sd of [-1,1])cone(.12,.28,c.accent,bow,sd*.14,0,0,4).rotation.z=sd*Math.PI/2;sphere(.06,c.accent,bow,0,0,0,8);
     for(const sd of [-1,1]){const star=cone(.06,.13,'#ffe27a',hd,sd*(HEAD_R+.02),HY-.2,-.02,5);star.rotation.z=Math.PI;}
     for(const arm of rig.arms)cylinder(.1,.1,.08,'#ffe27a',arm,0,-.92,0,10);
     const staff=weaponMount(rig.arms[1]);
