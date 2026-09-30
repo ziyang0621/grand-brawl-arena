@@ -582,9 +582,9 @@ function animateFighter(p,i,m,dt){
   m.body.rotation.set(0,facing+spin,0);
   const walking=p.grounded&&Math.hypot(p.vx,p.vz)>1;
   m.legs.forEach((leg,j)=>leg.rotation.x=walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:0);
-  m.arms[0].rotation.set(walking?-Math.sin(p.walk)*.5:-.25,0,.2);
+  m.arms[0].rotation.set(walking?-Math.sin(p.walk)*.5:-.16,0,-.13);
   const ranged=CHARACTERS[c].moveAttack==='shot';
-  m.arms[1].rotation.set(c==='brawler'?-.9:-.5,0,-.3);
+  m.arms[1].rotation.set(c==='brawler'?-.9:-.34,0,.14);
   if(c==='brawler'&&!walking){m.arms[0].rotation.x=-1;m.arms[0].rotation.z=.35;m.arms[1].rotation.z=-.35;}
   if(ranged&&!walking)m.arms[1].rotation.set(c==='gunner'?-1.1:-.8,0,-.1);
   if(p.running&&walking&&p.attackTime<=0){m.arms[0].rotation.set(.95,0,.25);m.arms[1].rotation.set(.95,0,-.25);m.legs.forEach((leg,j)=>leg.rotation.x=Math.sin(p.walk+j*Math.PI)*1.05);}
