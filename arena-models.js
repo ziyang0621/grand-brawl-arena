@@ -25,27 +25,31 @@ function limbs(body,c,{sleeve=c.color,pants='#2a3144',shoes='#3b2a22',bareArms=f
 }
 function weaponMount(arm){const g=new THREE.Group();g.position.set(0,-.57,.14);g.rotation.x=1.15;arm.add(g);return g;}
 
+// Secondary motion: parts that trail behind the body (hair, coat tails, scarves, ribbons).
+const swayer=list=>(o,amp,ph=0,drag=.5,ax='x')=>{list.push({o,ax,amp,ph,drag,base:o.rotation[ax]});return o;};
 const BUILDERS={
   swordsman(body,c){
     cylinder(.42,.5,.82,c.color,body,0,1.13,0);box(.44,.6,.1,'#f6ecd2',body,0,1.2,.42);
     cylinder(.51,.5,.16,c.accent,body,0,.78,0);
-    const tails=box(.7,.7,.08,c.color,body,0,.62,-.42);tails.rotation.x=.22;
+    const sw=[],sway=swayer(sw);const tails=sway(box(.7,.7,.08,c.color,body,0,.62,-.42),.14,0,1.1);tails.rotation.x=.22;tails.geometry.translate(0,-.3,0);tails.position.y=.92;sw[0].base=.22;
     const rig=limbs(body,c);animeFace(body,c);
     const hair=sphere(.58,c.hair,body,0,2.24,-.06,16);hair.scale.set(1,.72,.95);
-    for(let i=0;i<5;i++){const spike=cone(.14,.42,c.hair,body,-.36+i*.18,2.5,.18,6);spike.rotation.x=.9;spike.rotation.z=(i-2)*-.25;}
+    for(let i=0;i<5;i++){const spike=cone(.14,.42,c.hair,body,-.36+i*.18,2.5,.18,6);spike.rotation.x=.9;spike.rotation.z=(i-2)*-.25;sway(spike,.09,i*.7,.35,'x');}
     const band=cylinder(.6,.6,.14,c.color,body,0,2.3,0,16);band.scale.z=.97;
-    for(const side of [-1,1]){const knot=box(.08,.34,.06,c.color,body,side*.1,2.14,-.62);knot.rotation.z=side*.5;}
+    for(const side of [-1,1]){const knot=box(.08,.34,.06,c.color,body,side*.1,2.14,-.62);knot.rotation.z=side*.5;sway(knot,.22,side+1,.2,'z');}
     const sword=weaponMount(rig.arms[1]);
     cylinder(.06,.06,.34,'#352a24',sword,0,0,0);cylinder(.15,.15,.05,c.accent,sword,0,.18,0);
     const blade=box(.12,1.3,.05,'#eef6f8',sword,0,.86,0);blade.rotation.z=-.04;
     const tip=cone(.08,.22,'#eef6f8',sword,-.03,1.62,0,4);tip.rotation.y=.8;
-    return {...rig,weapon:sword,glowSize:[.32,1.6],glowY:.86};
+    return {...rig,weapon:sword,glowSize:[.32,1.6],glowY:.86,sway:sw};
   },
   guardian(body,c){
     cylinder(.44,.5,.82,c.color,body,0,1.13,0);box(.48,.64,.1,'#f2f4f6',body,0,1.16,.44);
     for(let i=0;i<3;i++)sphere(.045,c.accent,body,0,1.34-i*.18,.5,6);
     for(const side of [-1,1]){const pad=box(.34,.14,.42,c.accent,body,side*.5,1.6,0);pad.rotation.z=side*-.25;}
     cylinder(.51,.5,.16,'#1b2a3a',body,0,.78,0);
+    const sw=[],sway=swayer(sw);const sash=box(.2,.6,.05,'#f2f4f6',body,.3,.62,-.46);sash.geometry.translate(0,-.28,0);sash.position.y=.88;sway(sash,.16,1,1);
+    const sash2=box(.2,.5,.05,c.accent,body,-.3,.62,-.46);sash2.geometry.translate(0,-.23,0);sash2.position.y=.85;sway(sash2,.16,2.4,1);
     const rig=limbs(body,c,{pants:'#e8edf2',shoes:'#1c2433'});animeFace(body,c,'#1d3a5c');
     const hair=sphere(.58,c.hair,body,0,2.18,-.07,16);hair.scale.set(1,.72,.95);
     const cap=cylinder(.6,.62,.3,'#f4f6f8',body,0,2.52,0,16);const brim=cylinder(.62,.62,.06,'#1b2a3a',body,0,2.39,.18,16);brim.scale.z=.9;
@@ -55,7 +59,7 @@ const BUILDERS={
     const plate=cylinder(.5,.5,.16,c.color,buckler,0,0,.02,20);plate.rotation.x=Math.PI/2;sphere(.16,'#f1e3b5',buckler,0,0,.14,10);
     const blade=weaponMount(rig.arms[1]);
     cylinder(.07,.07,.3,'#3b3027',blade,0,0,0);box(.46,.09,.14,c.accent,blade,0,.15,0);box(.2,.9,.07,'#e3eef2',blade,0,.62,0);
-    return {...rig,weapon:blade,glowSize:[.38,1.1],glowY:.62};
+    return {...rig,weapon:blade,glowSize:[.38,1.1],glowY:.62,sway:sw};
   },
   brawler(body,c){
     const chest=cylinder(.5,.46,.86,c.color,body,0,1.15,0);chest.scale.set(1.1,1,.95);
@@ -64,19 +68,20 @@ const BUILDERS={
     const rig=limbs(body,c,{sleeve:c.color,bareArms:true,pants:'#4a5a78',shoes:'#2a1d18'});
     rig.arms.forEach(arm=>{arm.children[0].scale.setScalar(1.15);const glove=sphere(.29,c.accent,arm,0,-.66,.08,14);glove.scale.set(1,.95,1.1);cylinder(.2,.2,.12,'#ffffff',arm,0,-.47,.05);});
     animeFace(body,c,'#2b4b24');
-    for(let i=0;i<9;i++){const a=i/9*Math.PI*2,spike=cone(.17,.62,c.hair,body,Math.cos(a)*.34,2.42+Math.sin(a*2)*.05,Math.sin(a)*.3-.05,6);spike.rotation.set(Math.sin(a)*-.9-.2,0,Math.cos(a)*-.9);}
+    const sw=[],sway=swayer(sw);
+    for(let i=0;i<9;i++){const a=i/9*Math.PI*2,spike=cone(.17,.62,c.hair,body,Math.cos(a)*.34,2.42+Math.sin(a*2)*.05,Math.sin(a)*.3-.05,6);spike.rotation.set(Math.sin(a)*-.9-.2,0,Math.cos(a)*-.9);sway(spike,.07,i*.8,.3,'x');}
     sphere(.5,c.hair,body,0,2.3,-.05,14).scale.set(1,.6,.95);
     const band=cylinder(.59,.59,.13,c.accent,body,0,2.26,0,16);band.scale.z=.97;
     const fist=weaponMount(rig.arms[1]);
-    return {...rig,weapon:fist,glowSize:[.7,.7],glowY:-.05};
+    return {...rig,weapon:fist,glowSize:[.7,.7],glowY:-.05,sway:sw};
   },
   gunner(body,c){
     cylinder(.42,.48,.8,c.color,body,0,1.13,0);box(.46,.6,.1,'#3a2a4a',body,0,1.18,.42);
     const strap=box(.12,1,.06,'#5a3a22',body,0,1.16,.46);strap.rotation.z=.7;
     for(let i=0;i<4;i++)cylinder(.04,.04,.12,'#f0c040',body,-.28+i*.18,1.16-(-.28+i*.18)*.84,.5,6);
     cylinder(.49,.48,.15,'#3a2a4a',body,0,.78,0);
-    const scarf=box(.9,.18,.5,c.accent,body,0,1.6,.02);scarf.scale.z=1;
-    const tail=box(.18,.6,.06,c.accent,body,.25,1.35,-.4);tail.rotation.z=-.3;
+    const sw=[],sway=swayer(sw);const scarf=box(.9,.18,.5,c.accent,body,0,1.6,.02);scarf.scale.z=1;
+    const tail=box(.18,.6,.06,c.accent,body,.25,1.35,-.4);tail.geometry.translate(0,-.28,0);tail.position.y=1.63;tail.rotation.z=-.3;sway(tail,.28,0,1.4,'x');sway(tail,.15,2,0,'z');
     const rig=limbs(body,c,{pants:'#5b4636',shoes:'#2b221c'});animeFace(body,c,'#5a2d12');
     const hair=sphere(.6,c.hair,body,0,2.24,-.05,16);hair.scale.set(1.06,.8,1);
     for(let i=0;i<6;i++){const curl=sphere(.17,c.hair,body,Math.cos(i)*.45,2.45+Math.sin(i*3)*.08,-.1-Math.sin(i)*.3,8);curl.userData.noInk=true;}
@@ -85,31 +90,32 @@ const BUILDERS={
     const gun=weaponMount(rig.arms[1]);
     box(.14,.32,.16,'#5a3a22',gun,0,0,0);const barrel=cylinder(.07,.08,.9,'#39404a',gun,0,.46,.02,10);
     cylinder(.1,.1,.08,'#f0c040',gun,0,.9,.02,10);box(.08,.14,.08,'#39404a',gun,0,.2,-.08);barrel.userData.muzzle=true;
-    return {...rig,weapon:gun,glowSize:[.3,1],glowY:.46};
+    return {...rig,weapon:gun,glowSize:[.3,1],glowY:.46,sway:sw};
   },
   cook(body,c){
     cylinder(.44,.5,.84,c.color,body,0,1.13,0);box(.4,.62,.1,'#f6f6f2',body,0,1.18,.43);box(.1,.5,.06,'#c9372c',body,0,1.18,.49);
     cylinder(.51,.5,.16,'#20232b',body,0,.78,0);
     for(const side of [-1,1]){const lapel=box(.14,.6,.08,'#20232b',body,side*.26,1.2,.46);lapel.rotation.z=side*-.08;}
     const rig=limbs(body,c,{pants:'#2b2f3a',shoes:'#15171c',sleeve:c.color});animeFace(body,c,'#23384f');
-    const hair=sphere(.58,c.hair,body,0,2.2,-.05,16);hair.scale.set(1,.74,.95);
-    const fringe=sphere(.3,c.hair,body,-.2,2.15,.44,12);fringe.scale.set(.75,1.25,.42);fringe.rotation.z=-.18;
-    for(let i=0;i<3;i++){const spike=cone(.13,.34,c.hair,body,-.2+i*.2,2.52,.05,6);spike.rotation.z=(i-1)*-.25;}
+    const sw=[],sway=swayer(sw);const hair=sphere(.58,c.hair,body,0,2.2,-.05,16);hair.scale.set(1,.74,.95);
+    const fringe=sphere(.3,c.hair,body,-.2,2.15,.44,12);fringe.scale.set(.75,1.25,.42);fringe.rotation.z=-.18;sway(fringe,.12,0,.5,'z');
+    for(let i=0;i<3;i++){const spike=cone(.13,.34,c.hair,body,-.2+i*.2,2.52,.05,6);spike.rotation.z=(i-1)*-.25;sway(spike,.1,i*.9,.3,'x');}
+    const tie=box(.1,.5,.06,'#c9372c',body,0,1.3,.5);tie.geometry.translate(0,-.22,0);tie.position.y=1.5;sway(tie,.16,1,-.9,'x');
     const foot=weaponMount(rig.arms[1]);
-    return {...rig,weapon:foot,glowSize:[.6,.6],glowY:-.05};
+    return {...rig,weapon:foot,glowSize:[.6,.6],glowY:-.05,sway:sw};
   },
   stormcaller(body,c){
     cylinder(.4,.46,.78,c.color,body,0,1.14,0);box(.42,.5,.1,'#fff4e0',body,0,1.22,.4);
     cylinder(.48,.5,.2,'#3a2c44',body,0,.8,0);
     const skirt=cylinder(.4,.62,.34,'#3a2c44',body,0,.66,0,14);skirt.scale.z=.95;
     const rig=limbs(body,c,{pants:'#4a3a5a',shoes:'#e8d3b0',sleeve:'#fff4e0'});animeFace(body,c,'#5a3a1a');
-    const hair=sphere(.62,c.hair,body,0,2.2,-.05,16);hair.scale.set(1.05,.82,1);
-    for(const side of [-1,1]){const lock=sphere(.2,c.hair,body,side*.5,1.95,.1,10);lock.scale.set(.8,1.5,.8);}
-    const ribbon=box(.5,.14,.1,c.accent,body,0,2.5,.3);ribbon.rotation.z=.15;
+    const sw=[],sway=swayer(sw);const hair=sphere(.62,c.hair,body,0,2.2,-.05,16);hair.scale.set(1.05,.82,1);
+    for(const side of [-1,1]){const lock=sphere(.2,c.hair,body,side*.5,1.95,.1,10);lock.scale.set(.8,1.5,.8);sway(lock,.2,side+1.5,.4,'z');}
+    const ribbon=box(.5,.14,.1,c.accent,body,0,2.5,.3);ribbon.rotation.z=.15;sway(ribbon,.2,0,.3,'z');
     const staff=weaponMount(rig.arms[1]);
     cylinder(.05,.05,1.5,'#6b4a2a',staff,0,.7,0,8);sphere(.17,'#fff4b0',staff,0,1.5,0,10);
     for(const a of [0,2.1,4.2])sphere(.08,'#7fd8ff',staff,Math.cos(a)*.24,1.5,Math.sin(a)*.24,6);
-    return {...rig,weapon:staff,glowSize:[.36,1.5],glowY:.75};
+    return {...rig,weapon:staff,glowSize:[.36,1.5],glowY:.75,sway:sw};
   },
 };
 
