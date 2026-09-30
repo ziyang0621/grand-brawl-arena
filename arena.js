@@ -352,7 +352,7 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='energy'&&e.id===localPlayerId)tone(500,.05,'triangle');
   if(e.type==='break'){debris(e,e.kind==='chest'?['#9a5f2e','#e2a93c']:e.kind==='barrel'?['#a86a3c','#7a4a2a','#3d4650']:['#c08a50','#a06a36'],9,{size:.2,speed:5.5,flat:true});announce(`箱子打开：${ITEM_NAMES[e.item]||'道具'}出现`);}
   if(e.type==='pickup'){announce(`捡到 ${ITEM_NAMES[e.item]||'道具'} · 按 K 使用`);tone(620,.12,'triangle');}
-  if(e.type==='ready'){announce('金色强化刀：攻击 +35%，持续 10 秒！');tone(520,.16,'triangle');}
+  if(e.type==='ready'){announce(`${WEAPON_NAMES[world.fighters[e.id]?.char]||'强化武器'}发光：攻击 +35%，持续 10 秒！`);tone(520,.16,'triangle');}
   if(e.type==='power'){announce('啤酒增幅：攻击 +55%，持续 8 秒！');ringEffect(e,'#ffd66e',1.4,.45);tone(700,.16,'triangle');}
   if(e.type==='poison'){announce('中毒！持续掉血');particles(e,'#8dffac',12);}
   if(e.type==='slow'){announce('减速！');particles(e,'#8ab8ff',12);}
@@ -383,7 +383,8 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   }
   if(e.type==='end'){if(world.brawl)banner(e.winner===null?'DRAW':'K.O.','ko',1.6);showResult(e.winner);release();}
 }}
-const ITEM_NAMES={bomb:'炸弹',poison:'毒瓶',virus:'病毒瓶',meat:'肉块',beer:'啤酒',slow:'冰冻瓶',sword:'强化木刀'};
+const WEAPON_NAMES={swordsman:'长剑',guardian:'盾牌',brawler:'拳套',gunner:'火枪',cook:'战靴',stormcaller:'法杖'};
+const ITEM_NAMES={bomb:'炸弹',poison:'毒瓶',virus:'病毒瓶',meat:'肉块',beer:'啤酒',slow:'冰冻瓶',sword:'强化武器'};
 function showResult(winner){
   const multi=world.bestOf>1&&!world.stock&&!world.training;
   $('resultSub').textContent=world.teamMode?`${STAGES[world.stage]?.name||''} · 2v2 组队战`:world.brawl?`${STAGES[world.stage]?.name||''} · 四人乱斗`:multi?`${STAGES[world.stage]?.name||''} · 三局两胜`:STAGES[world.stage]?.name||'';
@@ -534,7 +535,7 @@ function updateHud(){
   setHud($('p1Tag'),'text',localPlayerId===0?'YOU':'HOST');setHud($('p2Tag'),'text',localPlayerId===1?'YOU':world.online?'FRIEND':world.training?'DUMMY':'CPU');
   const local=world.fighters[localPlayerId],c=characterOf(local);
   setHud($('attackLabel'),'text',`连击 / 移动+J ${c.moveAttack==='shot'?'射击':c.moveAttack==='rush'?'突进拳':c.moveAttack==='shieldBash'?'盾冲':'冲刺斩'}`);
-  setHud($('bombLabel'),'text',local.item?(local.item==='sword'?'装备强化木刀':`使用${ITEM_NAMES[local.item]}`):local.carrying?'正举着容器':'先打碎箱子');
+  setHud($('bombLabel'),'text',local.item?(local.item==='sword'?'装备强化武器':`使用${ITEM_NAMES[local.item]}`):local.carrying?'正举着容器':'先打碎箱子');
   setHud($('skillLabel'),'text',local.pendingSkill?`蓄力 ${local.skillWindup.toFixed(1)}s`:local.energy<1?'能量不足':local.skillCD>0?`${local.skillCD.toFixed(1)}s`:c.skillName);
   $('skillButton').title=`${c.skillName}：L 一级 · Shift+L 二级 · R+L 三级`;
   const status=local.grabbedBy!==null?'被擒抱 · 连按 J/U/I 挣脱':local.grabbedTarget!==null?'已抱住对手 · J 前投 / U 高投':local.carrying?'举着容器 · J前投 / U高投':local.knocked>0?'倒地中':local.blocking?'防御中':local.climbing?'爬梯中':local.poisonTime>0?'中毒 · 禁止闪避':local.virusTime>0?'病毒感染 · 禁止闪避':local.slowTime>0?'冰冻减速 · 禁止闪避':local.terrain==='quicksand'?'陷入流沙 · 减速、跳不高':local.terrain==='ice'?'冰面 · 加速但会打滑':'';
@@ -865,8 +866,9 @@ function updateVisuals(dt){
     const bubbles=sphere(.1,'#c9ffad',g,.2,.72,0);bubbles.scale.set(.8,1,.8);
     const virus=cylinder(.18,.23,.48,'#8d55bd',g,0,.42,0);virus.rotation.z=-.12;
     const virusGlow=sphere(.1,'#d19aff',g,.2,.72,0);virusGlow.scale.set(.8,1,.8);
-    const blade=box(.12,.9,.06,'#eff8eb',g,0,.65,0);blade.rotation.z=-.1;
-    const hilt=box(.5,.08,.12,'#e9bb58',g,0,.25,0);
+    // Power-up crystal: generic on purpose, every fighter's own weapon (blade, fists, buckler, gun, boot, staff) gets the boost.
+    const blade=new THREE.Mesh(new THREE.OctahedronGeometry(.34),new THREE.MeshToonMaterial({color:'#ffd84e'}));blade.scale.set(.8,1.35,.8);blade.position.y=.62;g.add(blade);
+    const hilt=new THREE.Mesh(new THREE.TorusGeometry(.32,.045,8,20),new THREE.MeshToonMaterial({color:'#fff3a0'}));hilt.rotation.x=Math.PI/2.4;hilt.position.y=.62;g.add(hilt);
     const beer=cylinder(.2,.2,.5,'#d79a3b',g,0,.43,0);const foam=sphere(.22,'#fff0bd',g,0,.72,0);
     const slow=cylinder(.2,.2,.48,'#7faee8',g,0,.42,0);slow.rotation.z=-.12;const snow=sphere(.1,'#d9f2ff',g,.18,.72,0);
     ink(g,.03);

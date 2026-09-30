@@ -431,3 +431,5 @@ git remote -v
 ## v36 — natural jump / landing
 - Limbs now have knee and elbow joints and fingered hands (`arena-models.js`).
 - `animateFighter`: walk/run knee and elbow bend; air poses per phase (takeoff stretch, rising knee drive, apex tuck with balancing arms, falling brace), eased so nothing snaps; double jump is a mid-air push-off (no somersault); landing squat that absorbs with the knees. Attack/skill/guard poses keep straight elbows.
+
+- Item "强化木刀" is now the generic "强化武器" crystal; the announcement names the user's own weapon (长剑/盾牌/拳套/火枪/战靴/法杖).
