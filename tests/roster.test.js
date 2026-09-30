@@ -89,3 +89,27 @@ test('every pairing of the six fighters finishes a match without invalid state',
     assert.ok(w.ended,`${a} vs ${b}`);for(const p of w.fighters)assert.ok(Number.isFinite(p.hp+p.x+p.z),`${a} vs ${b}`);
   }
 });
+
+// Face rig: runs in Node with a stub DOM-free three.js scene.
+import {buildFighter} from '../arena-models.js';
+test('every character has a face whose mouth is visible on the first frame',()=>{
+  globalThis.document??={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>({addColorStop(){}}),set:()=>true}),width:0,height:0,style:{}})};
+  for(const id of CHARACTER_IDS){
+    const m=buildFighter(id,0,null);
+    const visible=Object.entries(m.face.mouths).filter(([,g])=>g.visible).map(([k])=>k);
+    assert.equal(visible.length,1,`${id}: ${visible}`);
+    assert.equal(m.face.eyes.length,2);
+  }
+});
+test('expressions swap eyes and mouths and never show two mouths at once',()=>{
+  globalThis.document??={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>({addColorStop(){}}),set:()=>true}),width:0,height:0,style:{}})};
+  const m=buildFighter('swordsman',0,null);
+  for(const [eyes,mouth] of [['happy','open'],['hurt','shout'],['ko','tongue'],['daze','o'],['wide','grit'],['open','frown']]){
+    for(let i=0;i<20;i++)m.face.update({lid:0,tilt:.5,raise:0,gx:0,gy:0,eyes,mouth},1/60);
+    assert.equal(Object.values(m.face.mouths).filter(g=>g.visible).length,1);
+    assert.equal(m.face.mouths[mouth].visible,true,mouth);
+    const e=m.face.eyes[0];
+    assert.equal(e.happy.visible,eyes==='happy');assert.equal(e.hurt.visible,eyes==='hurt');assert.equal(e.ko.visible,eyes==='ko');assert.equal(e.daze.visible,eyes==='daze');
+    assert.equal(e.white.visible,eyes==='open'||eyes==='wide'||eyes==='daze');
+  }
+});

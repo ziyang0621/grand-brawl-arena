@@ -578,9 +578,9 @@ function animateFighter(p,i,m,dt){
   m.body.rotation.set(0,facing+spin,0);
   const walking=p.grounded&&Math.hypot(p.vx,p.vz)>1;
   m.legs.forEach((leg,j)=>leg.rotation.x=walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:0);
-  m.arms[0].rotation.set(walking?-Math.sin(p.walk)*.5:-.25,0,.16);
+  m.arms[0].rotation.set(walking?-Math.sin(p.walk)*.5:-.25,0,.2);
   const ranged=CHARACTERS[c].moveAttack==='shot';
-  m.arms[1].rotation.set(c==='brawler'?-.9:-.5,0,-.25);
+  m.arms[1].rotation.set(c==='brawler'?-.9:-.5,0,-.3);
   if(c==='brawler'&&!walking){m.arms[0].rotation.x=-1;m.arms[0].rotation.z=.35;m.arms[1].rotation.z=-.35;}
   if(ranged&&!walking)m.arms[1].rotation.set(c==='gunner'?-1.1:-.8,0,-.1);
   if(p.running&&walking&&p.attackTime<=0){m.arms[0].rotation.set(.95,0,.25);m.arms[1].rotation.set(.95,0,-.25);m.legs.forEach((leg,j)=>leg.rotation.x=Math.sin(p.walk+j*Math.PI)*1.05);}
@@ -657,6 +657,7 @@ function animateFighter(p,i,m,dt){
   st.ghost=(st.ghost||0)-dt;
   const rushing=(p.running&&p.grounded&&speed>6)||(p.attackTime>0&&['dash','rush','shieldBash'].includes(p.attackType)&&speed>7)||p.dodgeTime>0||p.spiked||(p.recoveryTime>0);
   if(rushing&&st.ghost<=0&&p.hp>0){st.ghost=.045;ghost(m,p);}
+  updateFace(p,i,m,dt);
   const warning=chargeModels[i];warning.root.visible=Boolean(p.pendingSkill)&&!world.ended;
   if(p.pendingSkill){const s=p.pendingSkill,progress=1-p.skillWindup/s.windup,cx=s.cx??p.x,cz=s.cz??p.z,self=s.kind==='whirlwind'||s.kind==='shieldQuake';warning.root.position.set(self?p.x:cx,p.y,self?p.z:cz);warning.edge.scale.setScalar(s.radius);warning.fill.scale.setScalar(s.radius*Math.max(.05,progress));warning.fill.material.opacity=.12+progress*.16;for(const [kind,tag] of Object.entries(warning.tags))tag.visible=kind===s.kind;}
 }
@@ -753,6 +754,40 @@ function updateLandMarks(dt){
   }
   for(const [id,g] of landMarks)if(!live.has(id)){scene.remove(g);g.traverse(o=>{if(o.isMesh)o.geometry.dispose();});g.userData.mat.dispose();landMarks.delete(id);}
 }
+// ---- Facial expressions: each state of the fight picks eyes, brows and mouth; eyes blink and follow the nearest rival ----
+const faceStates=[0,1,2,3].map(()=>({blinkT:1+Math.random()*3,blinking:0}));
+function updateFace(p,i,m,dt){
+  if(!m.face)return;const fs=faceStates[i],base=m.expr||{};
+  let eyes='open',mouth=base.mouth||'smile',lid=0,tilt=0,raise=0,sweat=false,vein=false,calm=false;
+  const sick=p.poisonTime>0||p.virusTime>0||p.slowTime>0,winner=(world.roundOver>0&&world.roundWinner===i)||(world.ended&&world.winner===i&&world.winner!==null);
+  const loser=((world.roundOver>0&&world.roundWinner!==null&&world.roundWinner!==i)||(world.ended&&world.winner!==null&&world.winner!==i))&&p.hp>0;
+  if(p.hp<=0){eyes='ko';mouth='tongue';tilt=-.6;}
+  else if(winner){eyes='happy';mouth='open';raise=1;}
+  else if(p.grabbedBy!==null){eyes='hurt';mouth='shout';tilt=-.8;sweat=true;}
+  else if(p.knocked>0&&!p.grounded){eyes='hurt';mouth='shout';tilt=-.7;}
+  else if(p.knocked>0){eyes='daze';mouth='o';tilt=-.4;sweat=true;}
+  else if(p.hurtTime>0||p.stun>.1){eyes='hurt';mouth=p.hurtKind==='bomb'||p.burnTime>0?'o':'shout';tilt=-.5;}
+  else if(p.pendingSkill||p.skillTime>0){eyes='wide';mouth='grit';tilt=1;vein=true;}
+  else if(p.blocking){lid=.28;mouth='grit';tilt=1;}
+  else if(p.attackTime>0){lid=.3;tilt=1;mouth=p.attackTime<.2?'shout':'grit';}
+  else if(p.dodgeTime>0||p.running){lid=.22;tilt=.5;mouth='flat';}
+  else if(p.carrying||p.grabbedTarget!==null){lid=.2;tilt=.9;mouth='grit';}
+  else if(sick){lid=.45;tilt=-.6;mouth='frown';sweat=true;}
+  else if(loser){lid=.35;tilt=-.8;mouth='frown';sweat=true;}
+  else if(p.hp<=30){tilt=-.5;mouth='frown';sweat=true;lid=.1;}
+  else if(p.attackBoostTime>0&&p.weapon!=='sword'){lid=.4;mouth='open';raise=.4;}
+  else{calm=true;raise=.15*Math.sin(world.tick*STEP*.6+i);}
+  // blink now and then while the eyes are open
+  fs.blinkT-=dt;if(fs.blinkT<=0&&fs.blinking<=0&&eyes==='open'){fs.blinking=.15;fs.blinkT=2+Math.random()*3.2;}
+  if(fs.blinking>0){fs.blinking=Math.max(0,fs.blinking-dt);if(eyes==='open')lid=Math.max(lid,Math.sin(Math.PI*(1-fs.blinking/.15)));}
+  // eyes follow the closest rival
+  let gx=0,gy=0;
+  if(calm||lid<.5){
+    let foe=null,bd=1e9;for(const q of world.fighters){if(q===p||q.hp<=0||(world.teamMode&&q.team===p.team))continue;const d=Math.hypot(q.x-p.x,q.z-p.z);if(d<bd){bd=d;foe=q;}}
+    if(foe&&bd>.01){const th=Math.atan2(p.fx,p.fz),dx=foe.x-p.x,dz=foe.z-p.z,rx=dx*Math.cos(th)-dz*Math.sin(th);gx=clamp(rx/Math.max(1.5,bd)*1.6,-1,1);gy=clamp((foe.y-p.y)/Math.max(1.5,bd)*2,-1,1);}
+  }
+  m.face.update({lid,tilt,raise,gx,gy,eyes,mouth,sweat,vein},dt);
+}
 // ---- Afterimage silhouettes ----
 const ghosts=[];
 function ghost(m,p){
@@ -836,5 +871,5 @@ function frame(now){
 refreshSelect();reset();
 $('loading').remove();requestAnimationFrame(frame);
 // Headless verification hook (?debug): drive frames without requestAnimationFrame.
-if(new URLSearchParams(location.search).has('debug'))window.__brawl={get world(){return world;},get ghostCount(){return ghosts.length;},get cam(){return [tmpFocus.toArray(),camDist,focusShot];},camera,scene,renderer,selection,startMatch,action,keys,
+if(new URLSearchParams(location.search).has('debug'))window.__brawl={get world(){return world;},get ghostCount(){return ghosts.length;},get models(){return models;},get cam(){return [tmpFocus.toArray(),camDist,focusShot];},camera,scene,renderer,selection,startMatch,action,keys,
   run(seconds,fps=60,draw=true){for(let t=0;t<seconds;t+=1/fps){simulate(1/fps);events();updateVisuals(1/fps);}if(draw)renderer.render(scene,camera);}};
