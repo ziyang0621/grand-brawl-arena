@@ -625,7 +625,7 @@ function animateFighter(p,i,m,dt){
     roll=p.knocked>0?-.9:p.hurtTime>0?-.2:p.stun>0?-.24:0;pitch=p.knocked>0?0:lean+(!p.grounded?-.08:0);
     squash=p.hurtTime>0?1.04+Math.sin(world.tick*.8)*.025:(p.landTime||0)>0?1-(p.landTime/.2)*.12:1;
     const air=(m.air??={pose:null,flip:0,jumps:0});
-    if(p.jumps===2&&air.jumps!==2&&!p.grounded)air.flip=.001;
+    if(p.jumps===2&&air.jumps!==2&&!p.grounded){air.flip=.001;ringEffect({x:p.x,y:p.y+.08,z:p.z},'#ffffff',1.15,.3);ringEffect({x:p.x,y:p.y+.14,z:p.z},'#bfe8ff',.7,.22);dust(p.x,p.y-.15,p.z,6,.9);}
     air.jumps=p.jumps;
     if(!p.grounded&&!p.attackTime&&!p.skillTime){
       // Pose targets per phase: takeoff stretch -> rising tuck -> apex float -> falling brace. Values are eased so nothing snaps.
