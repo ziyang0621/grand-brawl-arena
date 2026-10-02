@@ -13,7 +13,7 @@ import {tailoredTorso,skinnedLimb,syncCostume,clothPanel,costumeMaterial,openCoa
 const HEAD_Y=2.28,HEAD_R=.45,HEAD_K=.86,HEAD_WORLD_Y=2.9,SHOULDER_Y=2.3,HIP_Y=1.3;
 // Authored proportions live below the animated squash/lean group. Keep the
 // skeleton, costume and held equipment together; never stretch only the mesh.
-const STATURE={swordsman:[1,1,1],guardian:[1.12,1.04,1.08],brawler:[1.22,1.06,1.14],gunner:[1,.94,1],cook:[.94,1.08,.96],stormcaller:[.96,.98,.96]};
+export const STATURE={swordsman:[1,1,1],guardian:[1.12,1.04,1.08],brawler:[1.22,1.06,1.14],gunner:[1,.94,1],cook:[.94,1.08,.96],stormcaller:[.96,.98,.96]};
 const dk=(hex,k)=>{const c=new THREE.Color(hex);c.multiplyScalar(k);return '#'+c.getHexString();};
 function headGroup(body){const g=new THREE.Group();g.position.y=HEAD_WORLD_Y-HEAD_Y*HEAD_K;g.scale.setScalar(HEAD_K);body.add(g);return g;}
 const capsule=(r,len,color,parent,x,y,z,seg=10)=>mesh(new THREE.CapsuleGeometry(r,len,4,seg),color,parent,x,y,z);

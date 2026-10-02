@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Blender 角色检视</title>
 <style>body{margin:0;background:#b9c1c7;color:#17232c;font:14px system-ui}header{position:absolute;top:14px;left:18px;right:18px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}button{padding:6px 10px;border:1px solid #65717a;background:#f3f1ea;border-radius:6px;cursor:pointer}button.on{background:#ffd24a}#info{position:absolute;left:18px;bottom:12px}</style>
-<header><b>Blender 角色检视</b><span id="clips"></span><label>角度 <select id="angle"><option value="0">正面</option><option value="0.65" selected>四分之三</option><option value="1.57">侧面</option><option value="3.14">背面</option></select></label><button id="auto">自动轮播</button></header><div id="info"></div>
+<header><b>Blender 角色检视</b><span id="clips"></span><label>角色 <select id="who"></select></label><label>角度 <select id="angle"><option value="0">正面</option><option value="0.65" selected>四分之三</option><option value="1.57">侧面</option><option value="3.14">背面</option></select></label><button id="auto">自动轮播</button></header><div id="info"></div>
 <script type="module">
 import * as THREE from './vendor/three.module.js';
 import {loadGlbModel,instantiate} from './arena-glb.js';
@@ -10,19 +10,21 @@ scene.add(new THREE.HemisphereLight('#fff6e5','#687784',2));const sun=new THREE.
 const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));document.body.append(renderer.domElement);
 const camera=new THREE.PerspectiveCamera(30,1,.1,80);
 const params=new URLSearchParams(location.search);
-const model=await loadGlbModel('models/'+(params.get('m')||'hongfan')+'.glb');
+const model=await loadGlbModel('models/'+(params.get('m')||'swordsman')+'.glb');
 const ch=instantiate(model,{});scene.add(ch.root);
+const who=document.querySelector('#who');for(const [id,n] of [['swordsman','红帆'],['guardian','蓝潮'],['brawler','铁拳'],['gunner','火哨'],['cook','灶火'],['stormcaller','云雀']]){const o=document.createElement('option');o.value=id;o.textContent=n;who.append(o);}
+who.value=params.get('m')||'swordsman';who.onchange=()=>{const u=new URL(location.href);u.searchParams.set('m',who.value);location.href=u.toString();};
 const holder=document.querySelector('#clips');
-for(const name of Object.keys(ch.actions)){const b=document.createElement('button');b.textContent=name;b.onclick=()=>{auto=false;ch.play(name,{loop:!['jump','land','slash_a','slash_b','hurt'].includes(name)});mark(name);};holder.append(b);}
+for(const name of Object.keys(ch.actions)){const b=document.createElement('button');b.textContent=name;b.onclick=()=>{auto=false;ch.play(name,{loop:!['jump','land','attack_a','attack_b','heavy','dash','shoot','grab','hurt'].includes(name)});mark(name);};holder.append(b);}
 const mark=n=>[...holder.children].forEach(b=>b.classList.toggle('on',b.textContent===n));
 let auto=false;document.querySelector('#auto').onclick=()=>auto=!auto;
 const angle=document.querySelector('#angle');
-const sequence=['idle','walk','run','jump','fall','land','slash_a','slash_b','guard','hurt'];let si=0,sTime=0;
+const sequence=['idle','walk','run','jump','fall','land','attack_a','attack_b','heavy','dash','shoot','skill','guard','hurt','carry','grab'];let si=0,sTime=0;
 ch.play(params.get('clip')||'idle');mark(params.get('clip')||'idle');
-window.__glb={ch,THREE,seek(name,t){ch.mixer.stopAllAction();const a=ch.actions[name];a.reset().play();a.time=t;ch.mixer.update(0);},snap(){return renderer.domElement.toDataURL('image/png');},render};
+window.__glb={ch,THREE,camera,seek(name,t){ch.mixer.stopAllAction();const a=ch.actions[name];a.reset().play();a.time=t;ch.mixer.update(0);},snap(){return renderer.domElement.toDataURL('image/png');},render};
 function render(){
   const a=Number(angle.value);ch.root.rotation.y=a;
-  camera.aspect=innerWidth/innerHeight;camera.position.set(0,2.9,11.5);camera.lookAt(0,1.85,0);
+  camera.aspect=innerWidth/innerHeight;const zoom=params.get('zoom');if(zoom){camera.position.set(0,3.4,4.2);camera.lookAt(0,3.1,0);}else{camera.position.set(0,2.9,11.5);camera.lookAt(0,1.85,0);}
   renderer.setSize(innerWidth,innerHeight);camera.updateProjectionMatrix();renderer.render(scene,camera);
   document.querySelector('#info').textContent=`${renderer.info.render.triangles.toLocaleString()} 三角形 · ${renderer.info.render.calls} 次绘制 · 动作：${ch.current?._clip?.name||''}`;
 }

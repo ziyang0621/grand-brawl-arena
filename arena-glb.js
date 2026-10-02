@@ -38,7 +38,14 @@ export function instantiate(model,{ink=.022,inkColor='#101216',hide=[]}={}){
     o.material=mat(c);o.castShadow=o.receiveShadow=true;o.frustumCulled=false;
     if(o.isSkinnedMesh&&ink>0)outlines.push(o);
   });
-  for(const m of outlines){const o=new THREE.SkinnedMesh(m.geometry,outlineMaterial(ink,inkColor));o.bind(m.skeleton,m.bindMatrix);o.frustumCulled=false;o.userData.ink=true;m.parent.add(o);}
+  for(const m of outlines){
+    const o=new THREE.SkinnedMesh(m.geometry,outlineMaterial(ink,inkColor));o.bind(m.skeleton,m.bindMatrix);o.frustumCulled=false;o.userData.ink=true;
+    if(m.morphTargetInfluences){o.morphTargetInfluences=m.morphTargetInfluences;o.morphTargetDictionary=m.morphTargetDictionary;}   // the outline blinks and talks with the face
+    m.parent.add(o);
+  }
+  const morphMeshes=[];root.traverse(o=>{if(o.isMesh&&!o.userData.ink&&o.morphTargetDictionary)morphMeshes.push(o);});
+  const face={};   // smoothed expression state: key -> value
+
   const mixer=new THREE.AnimationMixer(root),actions={};
   for(const clip of model.clips)actions[clip.name]=mixer.clipAction(clip);
   let current=null;
@@ -56,5 +63,22 @@ export function instantiate(model,{ink=.022,inkColor='#101216',hide=[]}={}){
       if(next!==current){next.reset();next.play();next.paused=true;if(current)next.crossFadeFrom(current,fade,false);current=next;}
       next.paused=true;next.time=Math.max(0,Math.min(time,next.getClip().duration));
     },
+    // Expression keys: blink squint open shut wide angry sad up (0..1). Values ease towards their targets.
+    setFace(target,dt){
+      for(const key of ['blink','squint','open','shut','wide','angry','sad','up']){
+        const goal=target[key]||0,cur=face[key]??0,k=1-Math.exp(-dt*(key==='blink'?40:16));face[key]=cur+(goal-cur)*k;
+        for(const m of morphMeshes){const i=m.morphTargetDictionary[key];if(i!==undefined)m.morphTargetInfluences[i]=face[key];}
+      }
+    },
     update(dt){mixer.update(dt);}};
+}
+
+// Long axis of a mesh's rest-pose vertices (power iteration on the covariance), used to line weapon effects up with the blade / barrel / staff.
+export function principalAxis(mesh){
+  const pos=mesh.geometry.attributes.position,n=pos.count,c=new THREE.Vector3(),v=new THREE.Vector3();
+  for(let i=0;i<n;i++)c.add(v.fromBufferAttribute(pos,i));c.multiplyScalar(1/n);
+  let axis=new THREE.Vector3(.3,.5,.8).normalize();
+  for(let it=0;it<8;it++){const next=new THREE.Vector3();for(let i=0;i<n;i++){v.fromBufferAttribute(pos,i).sub(c);next.addScaledVector(v,v.dot(axis));}axis=next.normalize();}
+  let min=Infinity,max=-Infinity;for(let i=0;i<n;i++){v.fromBufferAttribute(pos,i).sub(c);const t=v.dot(axis);min=Math.min(min,t);max=Math.max(max,t);}
+  return {center:c,axis,min,max,length:max-min};
 }

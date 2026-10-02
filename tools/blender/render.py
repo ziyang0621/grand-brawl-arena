@@ -10,7 +10,7 @@ sc.view_settings.view_transform = 'Standard'
 w = bpy.data.worlds.new('w'); w.use_nodes = True; w.node_tree.nodes['Background'].inputs[0].default_value = (.72,.76,.8,1); w.node_tree.nodes['Background'].inputs[1].default_value = 1.1; sc.world = w
 sun = bpy.data.lights.new('sun','SUN'); sun.energy = 3.2; so = bpy.data.objects.new('sun', sun); so.rotation_euler = (math.radians(50), 0, math.radians(-35)); bpy.context.collection.objects.link(so)
 fill = bpy.data.lights.new('fill','SUN'); fill.energy = 1.0; fo = bpy.data.objects.new('fill', fill); fo.rotation_euler = (math.radians(70), 0, math.radians(140)); bpy.context.collection.objects.link(fo)
-arm = bpy.data.objects['Hongfan']
+arm = [o for o in bpy.data.objects if o.type=='ARMATURE'][0]
 if action:
     arm.animation_data_create(); arm.animation_data.action = bpy.data.actions[action]
 if frame is not None: sc.frame_set(frame)

@@ -5,12 +5,12 @@ import {CHARACTERS,CHARACTER_IDS,STAGES,STAGE_IDS,SLOT_COLORS,SLOT_LABELS,charac
 import {createTouchControls,isTouchDevice} from './arena-touch.js';
 import {ConnectionAttempt,InputLease,cleanInput,neutralInput,sameRound,voteRematch} from './arena-session.js';
 import {mesh,box,sphere,cylinder,cone,fxMesh,label,ink,starSprite,sfxSprite,isSharedMaterial} from './arena-gfx.js';
-import {buildFighter,disposeFighter,renderPortraits} from './arena-models.js';
+import {buildFighter,disposeFighter,renderPortraits,STATURE} from './arena-models.js';
 import {createAudio} from './arena-audio.js';
 import {crewMate,poseCannonCrew,poseSnowCrew} from './arena-crew.js';
 import {freezeSkinnedGeometry} from './arena-tailoring.js';
 import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
-import {loadGlbModel,instantiate} from './arena-glb.js';
+import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -59,33 +59,49 @@ function syncPieces(){
 const TEAM_COLORS=['#ff6a4a','#4aa8ff'],TEAM_NAMES=['红队','蓝队'];
 const teamColorOf=p=>world.teamMode?TEAM_COLORS[p.team]||null:null;
 const models=[null,null,null,null];
-// Characters authored in Blender (models/*.glb) replace the procedural body when the page is opened with ?glb=1.
-const GLB_CHARS={swordsman:'models/hongfan.glb'},useGlb=new URLSearchParams(location.search).has('glb')||(()=>{try{return localStorage.getItem('gb-glb')==='1';}catch{return false;}})();
+// Characters authored in Blender (models/<id>.glb, see tools/blender/) replace the procedural bodies. The header button (or ?glb=0 / ?glb=1) switches back.
+const GLB_CHARS=Object.fromEntries(['swordsman','guardian','brawler','gunner','cook','stormcaller'].map(id=>[id,`models/${id}.glb`]));
+const useGlb=(()=>{const q=new URLSearchParams(location.search).get('glb');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-glb')!=='0';}catch{return true;}})();
 function attachGlb(m,charId){
   const url=GLB_CHARS[charId];if(!useGlb||!url)return;
   loadGlbModel(url).then(model=>{
-    if(m.root.parent===null)return;
-    const g=instantiate(model,{ink:.022});m.body.add(g.root);g.state='';g.t=0;
+    if(m.root.parent===null||m.glb)return;
+    const g=instantiate(model,{ink:.022}),st=STATURE[charId]||[1,1,1];g.root.scale.set(...st);m.body.add(g.root);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
     for(const child of m.silhouette.children)if(child!==m.guard.root)child.visible=false;
+    // weapon effects ride on the new weapon: glow, trail and sparks are re-created in a frame aligned with its long axis
+    const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&o.name==='Weapon')weapon.push(o);});
+    for(const old of [m.weaponGlow,m.swordTrail,...m.swordSparks])old.visible=false;
+    if(weapon[0]){
+      const w=weapon[0],pa=principalAxis(w),bone=g.bones['handR']||g.bones['hand.R'];g.root.updateMatrixWorld(true);
+      const up=pa.axis.clone();if(up.y<0&&Math.abs(up.y)>Math.abs(up.x))up.negate();
+      const base=pa.center.clone().addScaledVector(pa.axis,pa.min),holder=new THREE.Group();
+      const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),pa.axis);holder.quaternion.copy(q);holder.position.copy(base);holder.scale.setScalar(pa.length/1.45);
+      const inv=new THREE.Matrix4().copy(bone.matrixWorld).invert(),hm=new THREE.Matrix4().compose(holder.position,holder.quaternion,holder.scale);hm.premultiply(inv);
+      hm.decompose(holder.position,holder.quaternion,holder.scale);bone.add(holder);
+      const glow=fxMesh(new THREE.BoxGeometry(.32,1.6,.16),'#ffd84e',holder,0,.86,.01,0),trail=fxMesh(new THREE.PlaneGeometry(.7,1.9),'#ffbf28',holder,-.1,.86,-.08,0);
+      const sparks=[];for(let i=0;i<5;i++){const s=fxMesh(new THREE.SphereGeometry(.055+(i%2)*.025,8,6),i%2?'#fff3a0':'#ffbe2e',holder,0,.25+i*.25,.12,0);s.userData={phase:i*.23};sparks.push(s);}
+      m.weaponGlow=glow;m.swordTrail=trail;m.swordSparks=sparks;
+    }
     m.glb=g;
   }).catch(err=>console.warn('glb load failed',err));
 }
 const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;
+const ATTACK_CLIP=a=>['heavy','upper','slam'].includes(a)?'heavy':['dash','rush','shieldBash'].includes(a)?'dash':a==='shot'?'shoot':a==='grab'?'grab':null;
 function driveGlb(m,p,dt,walking){
   const g=m.glb;if(!g)return;
   let name='idle',time=0;
   const enter=n=>{if(g.state!==n){g.state=n;g.t=0;}g.t+=dt;return g.t;};
+  const hurtish=p.grabbedBy!==null||p.knocked>0||p.stun>0||p.hurtTime>0;
   if(p.hp<=0){name='hurt';enter(name);time=10*FR24;}
-  else if(p.grabbedBy!==null||p.knocked>0||p.stun>0||p.hurtTime>0){name='hurt';time=Math.min(enter(name)*2,10*FR24);}
-  else if(p.pendingSkill){name='slash_a';enter(name);time=5*FR24;}
-  else if(p.skillTime>0){name='slash_b';time=(enter(name)*30*FR24)%(22*FR24);}
-  else if(p.attackTime>0&&['shot','grab'].includes(p.attackType)){name='guard';time=Math.min(enter(name),12*FR24);}
+  else if(hurtish){name='hurt';time=Math.min(enter(name)*2,10*FR24);}
+  else if(p.pendingSkill){name='skill';enter(name);time=0;}
+  else if(p.skillTime>0){name='skill';time=(enter(name)*30*FR24)%(g.actions.skill.getClip().duration||.33);}
   else if(p.attackTime>0){
-    name=p.combo===1&&p.attackType==='light'?'slash_b':'slash_a';enter(name);
+    name=ATTACK_CLIP(p.attackType)||(p.combo%2===1?'attack_b':'attack_a');enter(name);
     const {phase,contact}=attackPhase(p);time=(phase<contact?9*phase/contact:9+13*(phase-contact)/(1-contact))*FR24;
   }
   else if(p.blocking){name='guard';time=Math.min(enter(name),12*FR24);}
-  else if(p.carrying||p.grabbedTarget!==null){name='jump';enter(name);time=7*FR24;}
+  else if(p.carrying||p.grabbedTarget!==null){name='carry';time=Math.min(enter(name)*1.5,12*FR24);}
   else if(!p.grounded){
     if(p.jumps!==g.lastJumps&&p.jumps>=2){g.state='';}
     if(p.vy>2||g.state==='jump'&&g.t<.3){name='jump';time=Math.min((6+enter(name)*28)*FR24,18*FR24);}
@@ -95,7 +111,18 @@ function driveGlb(m,p,dt,walking){
   else if(walking){name=p.running?'run':'walk';enter(name);const dur=p.running?RUN_DUR:WALK_DUR;time=(((p.walk/(Math.PI*2))%1)+1)%1*dur;}
   else{enter(name);time=g.t%(96*FR24);}
   g.lastJumps=p.jumps;
-  g.set(name,time);g.update(dt);
+  g.set(name,time);
+  // face: blink now and then; shout when striking, grit when guarding, wince when hit, grin when the round is won
+  g.blinkAt-=dt;if(g.blinkAt<=0){g.blink=.14;g.blinkAt=2.4+Math.random()*3.2;}g.blink=Math.max(0,g.blink-dt);
+  const f={blink:g.blink>0?1:0},won=world.roundOver>0&&world.roundWinner===p.id&&p.hp>0;
+  if(p.hp<=0){f.blink=1;f.sad=.6;f.open=.3;}
+  else if(hurtish){f.sad=1;f.squint=.8;f.open=1;f.blink=0;}
+  else if(p.attackTime>0||p.skillTime>0||p.pendingSkill){f.angry=1;f.open=.8;f.wide=.5;}
+  else if(p.blocking){f.angry=.7;f.shut=.9;}
+  else if(won){f.squint=.85;f.open=.7;f.up=1;f.blink=0;}
+  else if(p.hp<25){f.sad=.5;}
+  g.setFace(f,dt);
+  g.update(dt);
 }
 function ensureModels(){
   world.fighters.forEach((p,i)=>{
@@ -579,7 +606,7 @@ function selectKey(e){
 buildSelect();
 $('startMatch').onclick=startMatch;
 $('randomRival').onclick=()=>{selection.p2=CHARACTER_IDS[Math.floor(Math.random()*CHARACTER_IDS.length)];previewSelection();};
-$('glbButton').textContent=useGlb?'红帆新模型：开':'红帆新模型：关';
+$('glbButton').textContent=useGlb?'角色模型：Blender':'角色模型：程序生成';
 $('glbButton').onclick=()=>{try{localStorage.setItem('gb-glb',useGlb?'0':'1');}catch{}const u=new URL(location.href);u.searchParams.delete('glb');location.href=u.toString();};
 const muteLabel=()=>{$('muteButton').textContent=audio.muted?'声音：关':'声音：开';};
 $('muteButton').onclick=()=>{audio.unlock();audio.setMuted(!audio.muted);muteLabel();$('muteButton').blur();};muteLabel();
