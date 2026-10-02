@@ -359,6 +359,34 @@ function ai(w,p,q){
   const sand=p.terrain==='quicksand'?zoneAt(stageOf(w.stage),p.x,p.z):null;
   if(sand&&d>2.4){const dx=p.x-sand.x,dz=p.z-sand.z,l=Math.hypot(dx,dz)||1;return {x:dx/l,z:dz/l};}
   const stageDef=stageOf(w.stage);
+  // Stage knowledge a human would use. Hot spring: retreat there to heal when hurt and nobody is on top of us.
+  const spa=stageDef.zones.find(z=>z.kind==='hotspring');
+  if(spa&&p.y<.5&&p.grounded&&p.attackTime<=0&&!p.blocking){
+    const inSpa=p.terrain==='hotspring',dx=spa.x-p.x,dz=spa.z-p.z,sd=Math.hypot(dx,dz)||1;
+    const beatingHim=q.hp<30&&q.hp<p.hp;
+    if(p.hp<(inSpa?82:42)&&d>(inSpa?1.8:2.6)&&!beatingHim&&!(q.pendingSkill)){
+      if(sd>spa.r*.45)return {x:dx/sd,z:dz/sd,running:p.hp<30&&sd>5};
+      return {x:0,z:0};
+    }
+  }
+  // Flame vents: keep clear while they glow, and do not chase a rival into one.
+  const vents=(stageDef.vents||[]).filter(v=>ventState(v,w.tick).phase!=='idle');
+  for(const v of vents){
+    const dv=Math.hypot(p.x-v.x,p.z-v.z);
+    if(p.y<1.4&&dv<v.r+.35){const l=dv||1;return {x:(p.x-v.x)/l||1,z:(p.z-v.z)/l};}
+    if(q.y<1.4&&Math.hypot(q.x-v.x,q.z-v.z)<v.r+.4&&d>2.4&&d<7)return {x:0,z:0};
+  }
+  // Powder kegs: shoot or bomb one when the rival stands next to it and we are clear of the blast; never melee beside one.
+  const kegs=w.crates.filter(k=>k.kind==='keg'&&k.hp>0&&!k.falling&&k.heldBy===null&&k.y<1);
+  for(const k of kegs){
+    const ownD=distance(p,k),foeD=distance(q,k);
+    if(foeD<2.8&&ownD>3.5&&ownD<10&&Math.abs(p.y-k.y)<1.4&&Math.abs(q.y-k.y)<1.4){
+      faceTarget(p,k);
+      if(isRanged&&p.grounded&&due(w,p,40)){attack(w,p,{x:p.fx,z:p.fz});}
+      else if(p.item&&p.item!=='meat'&&p.item!=='beer'&&p.item!=='sword'&&due(w,p,40))bomb(w,p);
+    }
+    if(ownD<2.2&&foeD>=2.8&&p.grounded&&d>1.8){const l=ownD||1;return {x:(p.x-k.x)/l,z:(p.z-k.z)/l};}
+  }
   // A wound-up cannon or snowball has told us its lane: step out of it (after a human-like beat) or hop the snowball as it arrives.
   const lane=w.cannonballs.find(c=>(c.kind==='cannon'||c.kind==='snowball')&&Math.abs(c.z-p.z)<1.5&&p.y<1.5&&(c.delay>0?c.delay<(c.kind==='cannon'?CANNON_WARN:SNOWBALL_WARN)-.4:false));
   if(lane&&!p.blocking){const away=p.z>=lane.z?1:-1,tz=clamp(lane.z+away*2.4,-8.2,8.2);if(Math.abs(tz-p.z)>.3&&Math.abs(tz)<8.3)return {x:0,z:Math.sign(tz-p.z)};}

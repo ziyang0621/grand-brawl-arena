@@ -338,10 +338,10 @@ export function buildStage(stageId){
   arenaFloor(g,t,layout,anim);
   const springs=terrain(g,layout,anim);
   (DRESSING[stageId]||DRESSING.port)(g,t,anim);
-  addCrowd(g,stageId,anim);
+  const crowd=addCrowd(g,stageId,anim);
   const ventFx=buildVents(g,layout);
   ink(g,.07,'#1a1d24',.25);
-  return {group:g,theme:t,ventFx,update(time,dt){for(const f of anim)f(time,dt);},bounce(x,z){const s=springs.find(s=>Math.hypot(s.x-x,s.z-z)<1.6);if(s)s.squash=1;}};
+  return {group:g,theme:t,ventFx,crowd,update(time,dt){for(const f of anim)f(time,dt);},bounce(x,z){const s=springs.find(s=>Math.hypot(s.x-x,s.z-z)<1.6);if(s)s.squash=1;}};
 }
 export function disposeStage(stage){
   stage.group.parent?.remove(stage.group);

@@ -76,13 +76,17 @@ export function addCrowd(group,stageId,anim){
     const m=crewMate(i%2?cfg.kind:(cfg.kind==='sailor'?'sailor':'islander'));m.position.set(x,y,z);m.rotation.y=Math.sign(-x)*.35;m.scale.setScalar(1.2);
     group.add(m);mates.push({m,ph:i*1.7});
   });
-  anim.push(time=>{
+  // React to the fight: cheer(1) is a roar (K.O., finisher), smaller values are a ripple for a good hit.
+  const crowd={level:0,hold:0,cheer(power=.6,seconds=1.2){if(power>=crowd.level){crowd.level=power;crowd.hold=seconds;}}};
+  anim.push((time,dt=.016)=>{
+    crowd.hold-=dt;if(crowd.hold<=0)crowd.level=Math.max(0,crowd.level-dt*1.5);
     for(const {m,ph} of mates){
-      const {body,head,arms,legs}=m.userData,t=time+ph,cycle=(t*.45)%1,cheer=cycle>.7?Math.sin((cycle-.7)/.3*Math.PI):0;
+      const {body,head,arms,legs}=m.userData,t=time+ph,cycle=(t*.45)%1,idle=cycle>.7?Math.sin((cycle-.7)/.3*Math.PI):0,cheer=Math.max(idle,crowd.level*(.75+.25*Math.sin(t*9)));
       m.position.y=(m.userData.baseY??=m.position.y)+Math.abs(Math.sin(t*(2.4+cheer*5)))*(.06+cheer*.35);
       body.rotation.x=.04+Math.sin(t*1.6)*.03;head.rotation.z=Math.sin(t*1.3)*.08;head.rotation.x=-.1*cheer;
-      arms[0].rotation.set(-.3-cheer*2.6,0,.3+cheer*.2+Math.sin(t*2)*.05);arms[1].rotation.set(-.3-cheer*2.6+Math.sin(t*9)*.15*cheer,0,-.3-cheer*.2-Math.sin(t*2.2)*.05);
+      arms[0].rotation.set(-.3-cheer*2.8,0,-(.15+cheer*.45)-Math.sin(t*2)*.05);arms[1].rotation.set(-.3-cheer*2.8+Math.sin(t*9)*.15*cheer,0,.15+cheer*.45+Math.sin(t*2.2)*.05);
       legs[0].rotation.x=legs[1].rotation.x=0;
     }
   });
+  return crowd;
 }

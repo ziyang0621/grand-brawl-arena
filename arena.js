@@ -209,7 +209,20 @@ const audio=createAudio();
 function tone(){}
 function unlockAudio(){audio.unlock();}
 const SOUND_ZOOM=new Set(['skillCharge']);
+function crowdReact(e){
+  const c=stage?.crowd;if(!c)return;
+  switch(e.type){
+    case 'hit':if(!e.guarded){if(e.damage>=18)c.cheer(.7,1.2);else if((e.id===0||e.id===1)&&comboState[1-e.id].count>=3)c.cheer(.5+Math.min(.3,comboState[1-e.id].count*.04),1.4);}break;
+    case 'parry':c.cheer(.6,1);break;
+    case 'skill':c.cheer(e.level>=3?1:.8,e.level>=3?2.4:1.6);break;
+    case 'spike':case 'launch':c.cheer(.55,1);break;
+    case 'explosion':case 'pieceCrash':c.cheer(.65,1.2);break;
+    case 'lifeLost':case 'eliminated':c.cheer(.9,2);break;
+    case 'ko':c.cheer(1,3.2);break;
+  }
+}
 function eventSound(e){
+  crowdReact(e);
   const P=(n,o)=>audio.play(n,{x:e.x,...o});
   switch(e.type){
     case 'hit':{if(e.guarded)break;const lv=e.damage>=18?2:e.damage>=10?1:0,a=(e.id===0||e.id===1)?comboState[1-e.id]:null;P('hit',{level:lv,combo:a?.count||0});break;}
@@ -957,5 +970,5 @@ function frame(now){
 refreshSelect();reset();
 $('loading').remove();requestAnimationFrame(frame);
 // Headless verification hook (?debug): drive frames without requestAnimationFrame.
-if(new URLSearchParams(location.search).has('debug'))window.__brawl={audio,get world(){return world;},get ghostCount(){return ghosts.length;},get models(){return models;},get cam(){return [tmpFocus.toArray(),camDist,focusShot];},camera,scene,renderer,selection,startMatch,action,keys,
+if(new URLSearchParams(location.search).has('debug'))window.__brawl={audio,get stage(){return stage;},get world(){return world;},get ghostCount(){return ghosts.length;},get models(){return models;},get cam(){return [tmpFocus.toArray(),camDist,focusShot];},camera,scene,renderer,selection,startMatch,action,keys,
   run(seconds,fps=60,draw=true){for(let t=0;t<seconds;t+=1/fps){simulate(1/fps);events();updateVisuals(1/fps);}if(draw)renderer.render(scene,camera);}};
