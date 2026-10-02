@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>人物造型检视</title>
+<style>body{margin:0;background:#b9c1c7;color:#17232c;font:14px system-ui}header{position:absolute;top:20px;left:24px;right:24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}button,select,a{padding:8px 12px;border:1px solid #60717d;border-radius:4px;color:inherit;background:#eef0e9}canvas{display:block}p{position:absolute;bottom:12px;left:24px}h1{font-size:18px;margin:0 14px 0 0}</style>
+<header><h1>人物造型检视</h1><label>角色 <select id="character"><option value="all">全部角色</option></select></label><label>角度 <select id="angle"><option value="0">正面</option><option value="0.65">四分之三</option><option value="1.57">侧面</option><option value="3.14">背面</option></select></label><label>姿势 <select id="pose"><option value="idle">站立</option><option value="bend">屈肘 / 屈膝</option><option value="reach">举臂</option></select></label><label>表情 <select id="expression"><option value="neutral">默认</option><option value="attack">出招</option><option value="shout">大喊</option><option value="hurt">受击</option><option value="happy">胜利</option><option value="closed">闭眼</option></select></label><label>取景 <select id="framing"><option value="body">全身</option><option value="head">脸部</option></select></label><a href="three-preview.html">进入游戏</a></header><p id="info">加载中</p>
+<canvas id="atlas" width="512" height="384" style="position:absolute;right:14px;bottom:44px;width:256px;height:192px;border:1px solid #65717a;background:#edc393;display:none"></canvas>
+<script type="module">
+import * as THREE from './vendor/three.module.js';
+import {buildFighter,disposeFighter} from './arena-models.js';
+import {CHARACTERS} from './arena-roster.js';
+import {poseCombat,poseStance,attackDuration,attackPhase} from './arena-posing.js';
+import {updateGuard} from './arena-guards.js';
+const scene=new THREE.Scene();scene.background=new THREE.Color('#b9c1c7');
+scene.add(new THREE.HemisphereLight('#fff6e5','#687784',2));
+const light=new THREE.DirectionalLight('#fff4df',2.4);light.position.set(-3,7,5);scene.add(light);
+const fill=new THREE.DirectionalLight('#d6e6ff',.7);fill.position.set(4,2,-3);scene.add(fill);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));document.body.append(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(30,1,.1,80),select=document.querySelector('#character'),angle=document.querySelector('#angle'),pose=document.querySelector('#pose');
+const expression=document.querySelector('#expression'),framing=document.querySelector('#framing');
+for(const [value,label] of [['hand','手部'],['shoe','鞋部']]){const option=document.createElement('option');option.value=value;option.textContent=label;framing.append(option);}
+for(const [value,label] of [['ready','待战站姿'],['attack','普通攻击'],['move','移动攻击'],['heavy','重击'],['guard','格挡'],['carry','举起'],['skill','必杀姿势']]){const option=document.createElement('option');option.value=value;option.textContent=label;pose.append(option);}
+const phaseLabel=document.createElement('label');phaseLabel.textContent='动作阶段 ';
+const moment=document.createElement('select');moment.id='moment';
+for(const [value,label] of [['wind','蓄力'],['hit','命中'],['recover','收招']]){const option=document.createElement('option');option.value=value;option.textContent=label;moment.append(option);}
+phaseLabel.append(moment);document.querySelector('header').append(phaseLabel);
+const atlas=document.querySelector('#atlas'),toggle=document.createElement('button');toggle.textContent='面部贴图';document.querySelector('header').append(toggle);toggle.onclick=()=>atlas.style.display=atlas.style.display==='none'?'block':'none';
+for(const [id,c] of Object.entries(CHARACTERS)){const o=document.createElement('option');o.value=id;o.textContent=c.name;select.append(o);}
+let models=[];
+function draw(){
+  for(const m of models)disposeFighter(m);models=[];
+  const ids=select.value==='all'?Object.keys(CHARACTERS):[select.value];
+  ids.forEach((id,i)=>{const m=buildFighter(id,0,scene);models.push(m);m.root.position.x=(i-(ids.length-1)/2)*2.05;m.body.rotation.y=Number(angle.value);m.ring.visible=m.tag.visible=false;
+    if(framing.value==='head')m.root.position.x=(i-(ids.length-1)/2)*1.1;
+    m.arms.forEach((arm,j)=>{arm.rotation.z=j?.12:-.12;arm.rotation.x=-.15;arm.userData.elbow.rotation.x=-.18;});
+    if(pose.value==='bend'){m.arms.forEach(a=>{a.rotation.x=-.6;a.userData.elbow.rotation.x=-1.6;});m.legs[0].rotation.x=-1.0;m.legs[0].userData.knee.rotation.x=1.55;}
+    if(pose.value==='reach')m.arms.forEach((a,j)=>a.rotation.set(-2.7,0,j?.25:-.25));
+    const state={char:id,attackType:pose.value==='heavy'?'heavy':pose.value==='move'?CHARACTERS[id].moveAttack:'light',attackTime:0,combo:1,skillTime:pose.value==='skill'?.4:0,blocking:pose.value==='guard',carrying:pose.value==='carry'?{kind:'crate'}:null,grabbedTarget:null};
+    if(['attack','heavy','move'].includes(pose.value)){
+      const total=attackDuration(state.attackType),contact=attackPhase(state).contact;
+      const phase=moment.value==='wind'?contact*.55:moment.value==='hit'?contact:.8;
+      state.attackTime=total*(1-phase);
+    }
+    if(!['idle','bend','reach'].includes(pose.value))poseStance(m,id);
+    poseCombat(m,state,moment.value==='wind'?0:moment.value==='hit'?4:7);
+    updateGuard(m.guard,state.blocking,0,1,false);
+    m.syncSurface?.();
+    const target={lid:0,tilt:0,raise:0,gx:0,gy:0,eyes:'open',mouth:m.expr?.mouth||'smile'};
+    if(expression.value==='attack')Object.assign(target,{lid:.15,tilt:.9,mouth:'grit',vein:true});
+    if(expression.value==='shout')Object.assign(target,{eyes:'wide',tilt:1,raise:.15,mouth:'shout'});
+    if(expression.value==='hurt')Object.assign(target,{eyes:'hurt',mouth:'shout',sweat:true});
+    if(expression.value==='happy')Object.assign(target,{eyes:'happy',mouth:'grin'});
+    if(expression.value==='closed')Object.assign(target,{lid:1,mouth:'flat'});
+    m.face.update(target,1);
+    if(i===0){const context=atlas.getContext('2d');context.clearRect(0,0,512,384);context.drawImage(m.face.plate.material.map.image,0,0);}
+  });
+  camera.aspect=innerWidth/innerHeight;
+  const head=framing.value==='head',distance=select.value==='all'?Math.max(head?4:9,(head?7.4:15.4)/(2*Math.tan(Math.PI/12)*camera.aspect)):head?3.1:9.6;
+  camera.position.set(0,head?3.02:select.value==='all'?3.5:2.7,distance);camera.lookAt(0,head?2.9:1.65,0);
+  if(select.value!=='all'&&['hand','shoe'].includes(framing.value)){
+    const m=models[0],focus=new THREE.Vector3();m.root.updateMatrixWorld(true);
+    if(framing.value==='hand')m.arms[0].userData.elbow.hand.getWorldPosition(focus);
+    else{focus.set(0,-.61,.08);m.legs[0].userData.knee.localToWorld(focus);}
+    camera.position.set(focus.x,focus.y+.10,focus.z+(framing.value==='hand'?.95:1.65));camera.lookAt(focus);
+  }
+  renderer.setSize(innerWidth,innerHeight);camera.updateProjectionMatrix();renderer.render(scene,camera);
+  document.querySelector('#info').textContent=`${ids.length} 名角色 · ${renderer.info.render.triangles.toLocaleString()} 三角形 · ${renderer.info.render.calls} 次绘制`;
+}
+select.onchange=angle.onchange=pose.onchange=expression.onchange=framing.onchange=moment.onchange=draw;addEventListener('resize',draw);draw();
+</script></html>

@@ -93,6 +93,39 @@ test('every pairing of the six fighters finishes a match without invalid state',
 
 // Face rig: runs in Node with a stub DOM-free three.js scene.
 import {buildFighter} from '../arena-models.js';
+import * as THREE from '../vendor/three.module.js';
+test('roster stature survives animated squash and keeps costume and equipment in one space',()=>{
+  globalThis.document??={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>({addColorStop(){}}),set:()=>true}),width:0,height:0,style:{}})};
+  const models=Object.fromEntries(CHARACTER_IDS.map(id=>[id,buildFighter(id,0,null)]));
+  assert.ok(models.brawler.silhouette.scale.x>models.cook.silhouette.scale.x*1.25);
+  assert.ok(models.cook.silhouette.scale.y>models.gunner.silhouette.scale.y*1.12);
+  for(const m of Object.values(models)){
+    const original=m.silhouette.scale.clone();m.body.scale.set(1.03,.96,1.03);m.syncSurface();m.root.updateMatrixWorld(true);
+    assert.ok(m.silhouette.scale.equals(original),'animation does not overwrite authored stature');
+    assert.deepEqual(m.root.scale.toArray(),[1,1,1],'gameplay root stays unchanged');
+    for(const part of [m.head,m.weapon,...m.arms,...m.legs]){
+      let ancestor=part;while(ancestor&&ancestor!==m.silhouette)ancestor=ancestor.parent;
+      assert.equal(ancestor,m.silhouette,'head, held gear and bones share the same proportions');
+    }
+    m.root.traverse(o=>{if(o.isSkinnedMesh){o.skeleton.update();const vertex=new THREE.Vector3().fromBufferAttribute(o.geometry.attributes.position,0);o.applyBoneTransform(0,vertex);assert.ok(vertex.toArray().every(Number.isFinite));}});
+    assert.ok(m.tag.position.y>=3.85*original.y-.0001,'player label clears the scaled head');
+  }
+});
+test('guardian shoulder caps follow the arms and clear the sleeve crowns',()=>{
+  globalThis.document??={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>({addColorStop(){}}),set:()=>true}),width:0,height:0,style:{}})};
+  const m=buildFighter('guardian',0,null);
+  for(const arm of m.arms){
+    const pad=arm.children.find(o=>o.userData.epaulette);assert.ok(pad,'shoulder armor follows its joint');
+    const shell=new THREE.Mesh(pad.geometry,new THREE.MeshBasicMaterial()),sleeve=new THREE.Mesh(arm.costumeSurface.surface.geometry,new THREE.MeshBasicMaterial());
+    shell.updateMatrixWorld();sleeve.updateMatrixWorld();
+    for(const [x,z] of [[.10,0],[-.10,0],[0,.10],[0,-.10]]){
+      const ray=new THREE.Raycaster(new THREE.Vector3(x,1,z),new THREE.Vector3(0,-1,0));
+      const a=ray.intersectObject(shell)[0],b=ray.intersectObject(sleeve)[0];assert.ok(a&&b);
+      assert.ok(a.point.y>b.point.y+.01,'gold crown remains above blue sleeve');
+    }
+    shell.material.dispose();sleeve.material.dispose();
+  }
+});
 test('every character has a face whose mouth is visible on the first frame',()=>{
   globalThis.document??={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>({addColorStop(){}}),set:()=>true}),width:0,height:0,style:{}})};
   for(const id of CHARACTER_IDS){

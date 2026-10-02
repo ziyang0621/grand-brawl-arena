@@ -6,6 +6,8 @@ import {createTouchControls,isTouchDevice} from './arena-touch.js';
 import {ConnectionAttempt,InputLease,cleanInput,neutralInput,sameRound,voteRematch} from './arena-session.js';
 import {mesh,box,sphere,cylinder,cone,fxMesh,label,ink,starSprite,sfxSprite,isSharedMaterial} from './arena-gfx.js';
 import {buildFighter,disposeFighter,renderPortraits} from './arena-models.js';
+import {freezeSkinnedGeometry} from './arena-tailoring.js';
+import {poseCombat,poseStance} from './arena-posing.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -582,44 +584,17 @@ function animateFighter(p,i,m,dt){
   const spin=p.skillTime>0&&!p.pendingSkill&&c==='swordsman'?(1-p.skillTime/.4)*Math.PI*4:0;
   m.body.rotation.set(0,facing+spin,0);
   const walking=p.grounded&&Math.hypot(p.vx,p.vz)>1;
-  m.legs.forEach((leg,j)=>leg.rotation.x=walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:0);
+  m.legs.forEach((leg,j)=>leg.rotation.set(walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:-.045,0,p.grounded?(j?1:-1)*(walking?.025:c==='brawler'?.105:.065):0));
   const bend=(k,e)=>{m.legs.forEach((leg,j)=>{if(leg.userData.knee)leg.userData.knee.rotation.x=k[j];});m.arms.forEach((arm,j)=>{if(arm.userData.elbow)arm.userData.elbow.rotation.x=e[j];});};
-  {const run0=p.running?1.5:.9;bend(walking?[0,1].map(j=>Math.max(0,-Math.cos(p.walk+j*Math.PI))*run0+.08):[.04,.04],walking?[0,1].map(j=>-(p.running?.95:.3)-Math.max(0,Math.sin(p.walk+j*Math.PI))*.25):[-.14,-.2]);}
+  {const run0=p.running?1.5:.9;bend(walking?[0,1].map(j=>Math.max(0,-Math.cos(p.walk+j*Math.PI))*run0+.08):[.085,.085],walking?[0,1].map(j=>-(p.running?.95:.3)-Math.max(0,Math.sin(p.walk+j*Math.PI))*.25):[-.3,-.38]);}
   m.arms[0].rotation.set(walking?-Math.sin(p.walk)*.5:-.16,0,-.13);
   const ranged=CHARACTERS[c].moveAttack==='shot';
   m.arms[1].rotation.set(c==='brawler'?-.9:-.34,0,.14);
   if(c==='brawler'&&!walking){m.arms[0].rotation.x=-1;m.arms[0].rotation.z=.35;m.arms[1].rotation.z=-.35;}
   if(ranged&&!walking)m.arms[1].rotation.set(c==='gunner'?-1.1:-.8,0,-.1);
   if(p.running&&walking&&p.attackTime<=0){m.arms[0].rotation.set(.95,0,.25);m.arms[1].rotation.set(.95,0,-.25);m.legs.forEach((leg,j)=>leg.rotation.x=Math.sin(p.walk+j*Math.PI)*1.05);}
-  const posed=p.attackTime>0||p.skillTime>0||p.blocking;
-  if(p.attackTime>0){
-    const total=['heavy','slam','upper','shieldBash'].includes(p.attackType)?.5:p.attackType==='grab'?.42:p.attackType==='rush'?.4:p.attackType==='dash'?.38:p.attackType==='shot'?.32:.34,swing=clamp(1-p.attackTime/total,0,1),arc=Math.sin(swing*Math.PI);
-    if(p.attackType==='grab'){m.arms[0].rotation.set(-.45-arc*1.15,0,.25);m.arms[1].rotation.set(-.45-arc*1.15,0,-.25);}
-    else if(p.attackType==='shot'){m.arms[1].rotation.set(-1.55+arc*.35,0,0);m.arms[0].rotation.set(-1.2,0,.4);}
-    else if(c==='cook'&&['light','dash','air','rush','heavy','upper'].includes(p.attackType)){const kick=p.combo===1?0:1,big=p.attackType==='heavy'||p.attackType==='upper';m.legs[kick].rotation.x=-(big?2:1.55)*arc-.1;m.arms[0].rotation.set(-.6,0,.5);m.arms[1].rotation.set(-.6,0,-.5);m.legs[1-kick].rotation.x=.25;}
-    else if(c==='brawler'&&['light','rush','air'].includes(p.attackType)){const punch=p.combo===1||p.attackType==='rush'?0:1;m.arms[punch].rotation.set(-1.55,0,punch?-.1:.1);m.arms[punch].position.z=arc*.45;m.arms[1-punch].rotation.set(-.9,0,punch?.35:-.35);}
-    else if(p.attackType==='slam'){m.arms[1].rotation.set(-2.3+arc*3.4,0,-.6+arc*1.4);}
-    else if(p.attackType==='shieldBash'){m.arms[0].rotation.set(-1.3+arc*.7,0,.35);m.arms[1].rotation.set(-1.3+arc*.7,0,-.35);}
-    else{const big=['heavy','upper'].includes(p.attackType),comboSwing=p.attackType==='light'?(p.combo===1?2.8:2.6):2.6;m.arms[1].rotation.set(-1.5+arc*(big?3.1:comboSwing),0,-.8+arc*(big?2.15:1.8));}
-  }else m.arms.forEach(arm=>arm.position.z=0);
-  if(p.skillTime>0&&!p.pendingSkill){
-    if(c==='guardian'){m.arms[0].rotation.set(-1.7,0,.3);m.arms[1].rotation.set(-.8,0,-.4);}
-    else if(c==='brawler'){const k=Math.floor(world.tick/4)%2;m.arms[k].rotation.set(-1.6,0,0);m.arms[k].position.z=.4;m.arms[1-k].rotation.set(-.8,0,0);m.arms[1-k].position.z=0;}
-    else if(c==='gunner'||c==='stormcaller'){m.arms[0].rotation.set(-2.6,0,.2);m.arms[1].rotation.set(-2.7,0,-.2);}
-    else if(c==='cook'){const k=Math.floor(world.tick/3)%2;m.legs[k].rotation.x=-1.7;m.legs[1-k].rotation.x=.4;m.arms[0].rotation.set(-.5,0,.6);m.arms[1].rotation.set(-.5,0,-.6);}
-    else{m.arms[0].rotation.z=1.2;m.arms[1].rotation.z=-1.3;}
-  }else if(p.blocking){
-    // Each guard has its own stance: swords crossed, shield up, fists crossed, gun held flat, a raised leg, arms spread to the wind.
-    const g=m.guard.pose;
-    if(g==='swordsman'){m.arms[0].rotation.set(-1.7,0,.5);m.arms[1].rotation.set(-1.9,0,-.5);}
-    else if(g==='guardian'){m.arms[0].rotation.set(-1.5,0,.25);m.arms[1].rotation.set(-1.2,0,-.5);}
-    else if(g==='brawler'){m.arms[0].rotation.set(-1.9,0,1.05);m.arms[1].rotation.set(-1.9,0,-1.05);}
-    else if(g==='gunner'){m.arms[0].rotation.set(-1.4,0,.5);m.arms[1].rotation.set(-1.3,0,-.4);}
-    else if(g==='cook'){m.arms[0].rotation.set(-.5,0,.7);m.arms[1].rotation.set(-.5,0,-.7);m.legs[1].rotation.x=-1.5;}
-    else{m.arms[0].rotation.set(-.6,0,1.35);m.arms[1].rotation.set(-.6,0,-1.35);}
-  }
-  if(p.carrying||p.grabbedTarget!==null){const lift=p.carrying?1:Math.min(1,(2.2-p.grabHoldTime)/.25);m.arms[0].rotation.set(-1.1-lift*1.55,0,.18);m.arms[1].rotation.set(-1.1-lift*1.55,0,-.18);}
-  if(posed)m.arms.forEach(a=>{if(a.userData.elbow)a.userData.elbow.rotation.x=0;});
+  if(!walking&&p.grounded&&p.knocked<=0&&p.hp>0)poseStance(m,c);
+  poseCombat(m,p,world.tick);
   let bodyY=walking?Math.abs(Math.sin(p.walk))*.07:Math.sin(t*2.5+i)*.02,lean=walking?(p.running?-.4:-.12):0,roll=0,pitch=0,squash=1;
   if(p.grabbedBy!==null){const s=Math.sin(world.tick*.2)*.18;m.arms[0].rotation.x=-1.9+s;m.arms[1].rotation.x=-1.9-s;m.legs.forEach((leg,j)=>leg.rotation.x=(j===0?-.65:.65)+s);roll=1.15;}
   else{
@@ -667,9 +642,12 @@ function animateFighter(p,i,m,dt){
   if(p.attackTime>0&&['light','dash','air','rush','heavy','upper','slam','shieldBash'].includes(p.attackType)){
     const total=['heavy','slam','upper','shieldBash'].includes(p.attackType)?.5:p.attackType==='rush'?.4:p.attackType==='dash'?.38:.34,sw2=clamp(1-p.attackTime/total,0,1);
     // wind up (crouch back), snap forward, then hold the recovery a beat
-    if(sw2<.3){const k=sw2/.3;pitch-=k*.16;leanZ=-k*.16;squash*=1-k*.05;}
-    else if(sw2<.62){const k=(sw2-.3)/.32;pitch+=Math.sin(k*Math.PI)*.3;leanZ=-.16+k*.42;squash*=.95+k*.08;}
-    else{const k=(sw2-.62)/.38;pitch+=(1-k)*.12;leanZ=(1-k)*.26;}
+    // The articulated waist supplies most of the strike motion. Keep grounded
+    // feet steady instead of tipping the whole rig around its floor origin.
+    const whole=p.grounded?.18:1;
+    if(sw2<.3){const k=sw2/.3;pitch-=k*.16*whole;leanZ=-k*.16;squash*=1-k*.015;}
+    else if(sw2<.62){const k=(sw2-.3)/.32;pitch+=Math.sin(k*Math.PI)*.3*whole;leanZ=-.16+k*.42;squash*=.985+k*.025;}
+    else{const k=(sw2-.62)/.38;pitch+=(1-k)*.12*whole;leanZ=(1-k)*.26;}
   }
   if(!p.grounded&&p.knocked<=0&&p.grabbedBy===null){const st2=clamp(Math.abs(p.vy)*.0075,0,.09);squash*=p.vy>0?1+st2:1-st2*.4;}
   const xz=1/Math.sqrt(Math.max(.5,squash));
@@ -680,6 +658,7 @@ function animateFighter(p,i,m,dt){
     for(const w of m.sway||[])w.o.rotation[w.ax]=w.base+Math.sin(t*(3+w.ph)+w.ph*2)*w.amp*(.55+Math.min(1,speedNow/6))+(w.ax==='x'?back*w.drag:0);
   }
   if(p.recoveryTime>0){const a=(1-p.recoveryTime/.22)*Math.PI*2;m.body.rotation.x=a;m.body.rotation.z=0;m.body.position.set(0,1.3*(1-Math.cos(a)),-1.3*Math.sin(a));}else m.body.position.set(0,bodyY-(p.sink||0)*.45,0);
+  m.syncSurface();
   updateGuard(m.guard,p.blocking&&p.hp>0,t,dt,guardHits.delete(p.id));
   m.body.visible=!(p.invuln>0&&p.hp>0&&Math.floor(world.tick/6)%2===0);
   m.poisonFx.visible=p.poisonTime>0;m.poisonBubbles.forEach((b,j)=>{b.position.x=Math.cos(b.userData.a+t*(1.5+j*.08))*b.userData.r;b.position.z=Math.sin(b.userData.a+t*(1.5+j*.08))*b.userData.r;b.position.y=.35+((b.userData.y+t*(.55+j*.04))%2.25);b.scale.setScalar(.8+Math.sin(t*7+j)*.25);});
@@ -836,13 +815,22 @@ function ghost(m,p){
   wrap.position.copy(m.root.position);
   const body=m.body.clone(true);
   const material=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.5,depthWrite:false});
+  // A silhouette must keep the captured pose instead of sharing live limb bones.
+  m.body.updateWorldMatrix(true,true);
+  const sources=[],copies=[],baked=[];
+  m.body.traverse(o=>{if(o.isSkinnedMesh&&!o.userData.ink)sources.push(o);});
+  body.traverse(o=>{if(o.isSkinnedMesh&&!o.userData.ink)copies.push(o);});
+  for(let i=0;i<sources.length;i++){
+    const source=sources[i],copy=copies[i],geometry=freezeSkinnedGeometry(source);
+    const fixed=new THREE.Mesh(geometry,material);fixed.position.copy(copy.position);fixed.quaternion.copy(copy.quaternion);fixed.scale.copy(copy.scale);copy.parent.add(fixed);copy.parent.remove(copy);baked.push(geometry);
+  }
   body.traverse(o=>{if(o.isMesh){if(o.userData.ink||(o.material&&o.material.side===THREE.BackSide)){o.visible=false;return;}o.material=material;o.castShadow=false;}});
-  body.visible=true;wrap.add(body);scene.add(wrap);ghosts.push({wrap,material,life:.28,max:.28});
+  body.visible=true;wrap.add(body);scene.add(wrap);ghosts.push({wrap,material,baked,life:.28,max:.28});
 }
 function updateGhosts(dt){
-  for(let i=ghosts.length-1;i>=0;i--){const g=ghosts[i];g.life-=dt;if(g.life<=0){scene.remove(g.wrap);g.material.dispose();ghosts.splice(i,1);continue;}g.material.opacity=.42*g.life/g.max;g.wrap.scale.setScalar(1+(1-g.life/g.max)*.05);}
+  for(let i=ghosts.length-1;i>=0;i--){const g=ghosts[i];g.life-=dt;if(g.life<=0){scene.remove(g.wrap);g.material.dispose();g.baked.forEach(x=>x.dispose());ghosts.splice(i,1);continue;}g.material.opacity=.42*g.life/g.max;g.wrap.scale.setScalar(1+(1-g.life/g.max)*.05);}
 }
-function clearGhosts(){for(const g of ghosts){scene.remove(g.wrap);g.material.dispose();}ghosts.length=0;}
+function clearGhosts(){for(const g of ghosts){scene.remove(g.wrap);g.material.dispose();g.baked.forEach(x=>x.dispose());}ghosts.length=0;}
 function updateVisuals(dt){
   ensureStage();ensureModels();syncPieces();updateGhosts(dt);updateWarnings(dt);updateLandMarks(dt);
   world.fighters.forEach((p,i)=>animateFighter(p,i,models[i],dt));

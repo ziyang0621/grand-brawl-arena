@@ -10,7 +10,7 @@ Three.js 网页 3D 乱斗游戏，向 PS2《One Piece Grand Battle》的玩法�
 
 ```sh
 npm start          # 本地服务器，默认 http://127.0.0.1:4173/three-preview.html （端口用 PORT=4180 修改）
-npm test           # node --test tests/*.test.js ，目前 213 项全部通过
+npm test           # node --test tests/*.test.js ，241 项；最近验证与偶发失败见 PROGRESS.md
 ```
 
 Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模块必须加进 `serve.js` 的白名单，否则浏览器会 404。
@@ -48,7 +48,10 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 | `arena-core.js` | **独立、确定性的战斗模拟**（固定步长 `STEP=1/120`）：世界 / 角色状态、伤害、必杀、道具、机关、AI（`due()` 带抖动的计时器、`aiTarget`）、回合流程、四人乱斗与队伍。不依赖 DOM / Three.js，测试直接跑它 |
 | `arena-roster.js` | 角色数据 `CHARACTERS`、场地数据 `STAGES`（平台、梯子、地形区、箱子、布景、机关）——模拟与渲染共用 |
 | `arena.js` | 渲染循环、输入、HUD、选人、特效（effects 列表）、预警、镜头；`animateFighter` 负责所有角色动画 |
-| `arena-models.js` | 每个角色的模型（`BUILDERS`）：躯干、带**膝 / 肘关节**的四肢（`leg.userData.knee`、`arm.userData.elbow`）、带手指的手、`weaponMount`、状态特效、头像渲染 |
+| `arena-models.js` | 每个角色的模型（`BUILDERS`）：躯干、带**膝 / 肘关节**的四肢（`leg.userData.knee`、`arm.userData.elbow`）、手和握持物；`STATURE` 与 `silhouette` 层负责角色整体身材差异；状态特效、头像渲染 |
+| `arena-tailoring.js` | 连续蒙皮四肢、躯干/裙装曲面与贴体衣片；用程序生成的低分辨率纹理和 toon 渐变表现布料、皮革、金属、木头与肤色；冻结姿势的残影几何；`syncCostume` 在动画结束后同步骨骼 |
+| `arena-posing.js` | 游戏与检视页共用的待战/战斗姿势：蓄力/命中/收招、腰肩发力、肘膝弯曲、持枪/盾牌方向；只改渲染骨骼，不写战斗状态 |
+| `character-study.html` | 本机人物检视页：正侧背面、表情/脸部贴图；普攻/移动攻击/重击的三个动作阶段，以及格挡/举起/必杀姿势 |
 | `arena-face.js` | 头部与脸：雕刻头形、Canvas 画的表情贴图（只在状态变化时重画）、一缕缕头发、每人眼型 / 眉 / 鼻 / 标志 |
 | `arena-guards.js` | 每个角色独有的防御造型 |
 | `arena-stage.js` | 场地的三维布景构建 |
@@ -58,13 +61,23 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 | `arena-touch.js` | 触屏虚拟按键 |
 | `arena-session.js` | 联机输入有效期与再战规则 |
 | `arena.css` | 界面样式 |
-| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存 |
+| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存（当前 `arena.js?v=72`） |
+
+### 人物美术实现与接手步骤
+
+- 目标是 PS2 时代的低多边形动漫格斗人物：大而清楚的角色剪影、分层服饰、少量手绘式明暗与硬朗轮廓。模型由 Three.js 几何和运行时生成的纹理构成，不依赖外部角色模型或贴图，也不使用原作角色素材。
+- 场景层级为 `root → body → silhouette`。游戏位置、碰撞与动作倾斜作用于 `root/body`；`silhouette` 统一缩放头、衣服、蒙皮骨骼、武器、盾和状态效果。各人比例在 `arena-models.js` 的 `STATURE` 设置为 `[x, y, z]`。不要单独拉伸头、手臂或武器，否则关节和握持会分离。修改后同步检查头顶标签与 `renderPortraits()` 的头像取景。
+- 角色部件由 `BUILDERS[角色ID]` 组合。改造/新增角色时复用 `torso()`、`limbs()`、`headGroup()` 与服装几何；将 `CHARACTERS` 中现有的原创角色数据作为配色/身材输入。肩肘和膝盖分别是分组关节；手持武器挂在肘下的 `weaponMount`。
+- `articulateWaist()` 会把躯干、头、衣服和手臂放到骨盆以上的 `upper` 组，腿仍留在骨盆层。`arena-posing.js` 负责腰肩和关节姿势；`arena.js` 完成每帧姿势后调用 `syncSurface()`，令衣袖/裤腿蒙皮跟随骨骼。若改变父子层级，要检查绑定矩阵、装备方向和 `syncSurface()` 时机。
+- `arena-tailoring.js` 的 `profileGeometry()` 用截面环生成连续曲面，支持封口、UV 和蒙皮权重；`tailoredTorso()`、`clothPanel()`、`skirtGeometry()`、`bladeGeometry()` 分别用于躯干、裁片、裙装和刀刃。`costumeMaterial(color, kind)` 按 kind 共享程序纹理/材质；增加材质类型时更新 `paintedMap()`，避免给每个网格另建高分辨率贴图或无必要的绘制调用。
+- 面部画布、发帽与发束集中在 `arena-face.js`；眼、眉、鼻、嘴随表情状态更新。脸部编辑需用人物检视页核对正面和四分之三角度、默认/出招/大喊表情，并确认游戏第一帧的脸没有缺失。
+- 先读 `PROGRESS.md` 顶部的最新版本记录与已知限制，再浏览 `tests/face-surface.test.js`、`tests/tailoring.test.js`、`tests/posing.test.js` 和 `tests/roster.test.js`。检视页是 `character-study.html`，可比较六人正侧背面、待战、各攻击阶段、格挡、举起、手/鞋近景；游戏入口是 `three-preview.html`。每次加模块也要更新 `serve.js` 白名单和 HTML 资源版本号。
 
 ## 开发约定（其他 AI / 开发者请先看）
 
 1. 规则写在 `arena-core.js`，不要写进渲染循环；改战斗规则要同时改 / 加 `tests/` 里的测试。
 2. 模拟必须确定性（联机靠房主权威 + 快照）：新增角色字段要考虑快照同步和 `nextRound` 重置（曾因 `nextRound` 丢掉 `team` 导致第二回合 CPU 站着不动，已有回归测试）。
-3. 改角色骨架（`limbs()`、`weaponMount()`）后，攻击 / 必杀 / 防御姿势都要目检：这些姿势直接设置 `arm.rotation`，手肘关节由 `animateFighter` 在攻击 / 必杀 / 防御时归零。
+3. 改角色骨架（`limbs()`、`weaponMount()`）后，攻击 / 必杀 / 防御姿势都要目检：`arena-posing.js` 设置肩肘/膝关节，`animateFighter` 完成状态动画后调用 `syncSurface` 同步蒙皮；不要把出招时的肘膝统一归零。
 4. 动画：走路 / 奔跑的膝肘弯曲、空中分相姿势（起跳拉伸 → 上升抬膝 → 最高点蜷身展臂 → 下落备战）、二段跳蹬空、落地屈膝，都在 `animateFighter` 中，用指数平滑（`m.air`）避免突变。
 5. 平衡测试（`tests/balance.test.js`）：6 角色单挑胜率约 41–61%，乱斗约 19–32%；改数值后要重跑。
 6. 视觉验证靠 Playwright + `?debug=1`（Chromium 已预装，不要运行 `playwright install`）；截图脚本不在仓库里。
@@ -72,7 +85,7 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 
 ## 已知问题与待办
 
-- 攻击 / 必杀姿势是按旧的整根手臂写的，换成关节手臂后个别动作可能穿模，需逐角色目检；衣服的花纹、褶皱和肩部造型还没重做。
+- 连续关节、衣片剪裁、手鞋、材质、表情、腰肩体态、帽裙和武器造型持续更新（资源 v72）；攻击 / 必杀等姿势仍需逐角色完整目检，脸部与服装的手绘细节还要继续对照参考图打磨。
 - 强化武器期间所有角色的近战距离统一加长到 3.25，对拳套 / 火枪等可能不合适，可按角色调整。
 - 手机端性能未实测；联机仍只有 1v1，没有断线重连。
 - 抓投、受击动画仍是程序化旋转，可以更自然。
