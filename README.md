@@ -50,6 +50,7 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 | `arena.js` | 渲染循环、输入、HUD、选人、特效（effects 列表）、预警、镜头；`animateFighter` 负责所有角色动画 |
 | `arena-models.js` | 每个角色的模型（`BUILDERS`）：躯干、带**膝 / 肘关节**的四肢（`leg.userData.knee`、`arm.userData.elbow`）、手和握持物；`STATURE` 与 `silhouette` 层负责角色整体身材差异；状态特效、头像渲染 |
 | `arena-tailoring.js` | 连续蒙皮四肢、躯干/裙装曲面与贴体衣片；用程序生成的低分辨率纹理和 toon 渐变表现布料、皮革、金属、木头与肤色；冻结姿势的残影几何；`syncCostume` 在动画结束后同步骨骼 |
+| `arena-crew.js` | 场外背景船员（水手点炮、岛民扔雪球）的模型与动作，只做画面表现，不影响模拟 |
 | `arena-posing.js` | 游戏与检视页共用的待战/战斗姿势：蓄力/命中/收招、腰肩发力、肘膝弯曲、持枪/盾牌方向；只改渲染骨骼，不写战斗状态 |
 | `character-study.html` | 本机人物检视页：正侧背面、表情/脸部贴图；普攻/移动攻击/重击的三个动作阶段，以及格挡/举起/必杀姿势 |
 | `arena-face.js` | 头部与脸：雕刻头形、Canvas 画的表情贴图（只在状态变化时重画）、一缕缕头发、每人眼型 / 眉 / 鼻 / 标志 |
@@ -61,7 +62,7 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 | `arena-touch.js` | 触屏虚拟按键 |
 | `arena-session.js` | 联机输入有效期与再战规则 |
 | `arena.css` | 界面样式 |
-| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存（当前 `arena.js?v=73`） |
+| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存（当前 `arena.js?v=74`） |
 
 ### 人物美术实现与接手步骤
 

@@ -6,6 +6,7 @@ import {createTouchControls,isTouchDevice} from './arena-touch.js';
 import {ConnectionAttempt,InputLease,cleanInput,neutralInput,sameRound,voteRematch} from './arena-session.js';
 import {mesh,box,sphere,cylinder,cone,fxMesh,label,ink,starSprite,sfxSprite,isSharedMaterial} from './arena-gfx.js';
 import {buildFighter,disposeFighter,renderPortraits} from './arena-models.js';
+import {crewMate,poseCannonCrew,poseSnowCrew} from './arena-crew.js';
 import {freezeSkinnedGeometry} from './arena-tailoring.js';
 import {poseCombat,poseStance} from './arena-posing.js';
 import {updateGuard} from './arena-guards.js';
@@ -696,18 +697,18 @@ function cannonLauncher(side,z){
   for(const wx of [-.6,.6]){const wheel=cylinder(.55,.55,.18,'#6b4128',g,wx,-.35,0,14);wheel.rotation.z=Math.PI/2;}
   box(1.1,.3,1.6,'#5a3622',g,0,-.4,0);
   const glow=new THREE.Mesh(new THREE.SphereGeometry(.42,12,10),new THREE.MeshBasicMaterial({color:'#ff7a2a',transparent:true,opacity:0,depthWrite:false}));glow.position.set(0,.1,1.6);g.add(glow);
-  ink(g,.05);scene.add(g);return {g,glow,barrel};
+  ink(g,.05);scene.add(g);
+  const crew=crewMate('sailor');crew.position.set(side*14.9,.15,z+2);crew.rotation.y=g.rotation.y;scene.add(crew);
+  return {g,glow,barrel,crew};
 }
 function snowmanLauncher(side,z){
-  const g=new THREE.Group();g.position.set(side*16.4,0,z);g.rotation.y=side>0?-Math.PI/2:Math.PI/2;
-  const lean=new THREE.Group();g.add(lean);
-  sphere(.95,'#ffffff',lean,0,.95,0);sphere(.7,'#f4f9ff',lean,0,2.05,0);sphere(.5,'#ffffff',lean,0,2.85,0);
-  cone(.1,.6,'#ff8a2a',lean,0,2.85,.55).rotation.x=Math.PI/2;
-  for(const x of [-.17,.17])sphere(.07,'#1d1f26',lean,x,2.98,.44,6);
-  cylinder(.42,.5,.55,'#2f3542',lean,0,3.45,0);cylinder(.58,.58,.08,'#2f3542',lean,0,3.2,0);
-  for(const s of [-1,1]){const arm=cylinder(.05,.06,1.4,'#6a4a2a',lean,s*1.05,2.15,0,6);arm.rotation.z=s*-.9;}
-  const ball=sphere(1,'#ffffff',g,0,.75,1.9,14);
-  ink(g,.05);scene.add(g);return {g,lean,ball};
+  const g=new THREE.Group();g.position.set(side*15.1,0,z);g.rotation.y=side>0?-Math.PI/2:Math.PI/2;
+  const crew=crewMate('islander');crew.position.set(0,0,0);g.add(crew);
+  const ball=sphere(1,'#ffffff',g,0,.75,1.5,14);
+  ink(g,.05);scene.add(g);return {g,crew,lean:crew,ball};
+}
+function removeLauncher(l){
+  for(const root of [l.g,l.crew])if(root&&root.parent===scene){scene.remove(root);root.traverse(o=>{if(!o.userData.ink){o.geometry?.dispose();}if(o.material&&!isSharedMaterial(o.material)&&o.material.side!==THREE.BackSide)o.material.dispose();});}
 }
 function startHazardWarning(e){
   const cannon=e.kind==='cannon',side=e.side,dir=-side;
@@ -720,7 +721,7 @@ function startHazardWarning(e){
   const launcher=cannon?cannonLauncher(side,e.z):snowmanLauncher(side,e.z);
   const el=document.createElement('div');el.className='alert '+(cannon?'':'snow ')+(side>0?'right':'left');el.innerHTML=`<b>!</b><span class="arrow">${side>0?'◀':'▶'}</span><span class="bar"><i></i></span>`;alertsEl().append(el);
   warnings.push({id:e.id,kind:e.kind,side,z:e.z,delay:e.delay,t:0,lane,base,chev,tex,launcher,el,beeps:0,fired:false,after:0,spark:0});
-  announce(cannon?'炮口对准了这一条线！横向躲开或跳起来':'雪人在推雪球！横向躲开或跳起来');tone(760,.12,'square',.05);
+  announce(cannon?'船员点燃了大炮！这一条线要中弹，横向躲开或跳起来':'岛民在搓雪球要扔了！横向躲开或跳起来');tone(760,.12,'square',.05);
 }
 function updateWarnings(dt){
   for(let i=warnings.length-1;i>=0;i--){
@@ -731,17 +732,18 @@ function updateWarnings(dt){
       else{dust(w.side*14.6,0,w.z,8,1.6);particles({x:w.side*14.6,y:.8,z:w.z},'#ffffff',10);}}
     if(w.fired){
       w.after+=dt;const r=Math.min(1,w.after/.5);
-      if(cannon)w.launcher.g.position.x=w.side*(15.7+Math.sin(r*Math.PI)*.7);else w.launcher.lean.rotation.x=-.5+r*.9;
-      if(w.after>.9){scene.remove(w.launcher.g);w.launcher.g.traverse(o=>{if(!o.userData.ink){o.geometry?.dispose();}if(o.material&&!isSharedMaterial(o.material)&&o.material.side!==THREE.BackSide)o.material.dispose();});scene.remove(w.lane);w.lane.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});w.tex.dispose();warnings.splice(i,1);}
+      if(cannon){w.launcher.g.position.x=w.side*(15.7+Math.sin(r*Math.PI)*.7);poseCannonCrew(w.launcher.crew,1,world.tick*STEP,true,w.after);}
+      else{w.launcher.ball.visible=false;poseSnowCrew(w.launcher.crew,1,world.tick*STEP,true,w.after);}
+      if(w.after>1.5){removeLauncher(w.launcher);scene.remove(w.lane);w.lane.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});w.tex.dispose();warnings.splice(i,1);}
       continue;
     }
     // Lane: pulses faster as the shot gets close, chevrons run the way the shot will travel.
     w.tex.offset.x+=dt*(.8+k*2.2);
     w.base.material.opacity=.16+.16*Math.abs(Math.sin(w.t*(4+k*10)));w.chev.material.opacity=.45+.4*k;
     // Launcher winds up: cannon glows and trembles, the snowman leans back and rocks the ball.
-    if(cannon){const shake=Math.sin(w.t*40)*.03*k;w.launcher.g.position.z=w.z+shake;w.launcher.glow.material.opacity=.25+.7*k*Math.abs(Math.sin(w.t*(6+k*14)));w.launcher.glow.scale.setScalar(.6+k*.7);
+    if(cannon){poseCannonCrew(w.launcher.crew,k,w.t,false,0);const shake=Math.sin(w.t*40)*.03*k;w.launcher.g.position.z=w.z+shake;w.launcher.glow.material.opacity=.25+.7*k*Math.abs(Math.sin(w.t*(6+k*14)));w.launcher.glow.scale.setScalar(.6+k*.7);
       w.spark-=dt;if(w.spark<=0){w.spark=.07;const m=fxMesh(shardGeo,'#ffd066',scene,w.side*16.4,1.4,w.z+(Math.random()-.5)*.3,1,true);m.scale.setScalar(.09);effects.push({m,life:.35,max:.35,chunk:true,keepGeo:true,v:new THREE.Vector3(-w.side*.6,1.6+Math.random(),(Math.random()-.5)),spin:new THREE.Vector3(4,6,2),floor:-5});}}
-    else{w.launcher.lean.rotation.x=.55*k+Math.sin(w.t*(10+k*12))*.07*k;w.launcher.ball.scale.setScalar(.35+.45*k);w.launcher.ball.rotation.z-=dt*6*(1+k*3);w.launcher.ball.position.y=.35+.4*k;}
+    else{poseSnowCrew(w.launcher.crew,k,w.t,false,0);w.launcher.ball.scale.setScalar(.3+.5*k);w.launcher.ball.rotation.z-=dt*6*(1+k*3);const lift=Math.max(0,(k-.7)/.3);w.launcher.ball.position.set(0,.3+.4*k+lift*1.9,1.5-lift*.9);}
     // Beeps quicken toward the launch.
     const marks=[.35,.6,.78,.9];while(w.beeps<marks.length&&k>=marks[w.beeps]){tone(760+w.beeps*140,.09,'square',.05);w.beeps++;}
     // Edge alert follows the launcher on screen.
@@ -752,7 +754,7 @@ function updateWarnings(dt){
     w.el.classList.toggle('soon',left<.6);w.el.querySelector('.bar i').style.setProperty('--w',(100*(1-k)).toFixed(0)+'%');
   }
 }
-function clearWarnings(){for(const w of warnings){w.el.remove();scene.remove(w.launcher.g);scene.remove(w.lane);}warnings.length=0;}
+function clearWarnings(){for(const w of warnings){w.el.remove();removeLauncher(w.launcher);scene.remove(w.lane);}warnings.length=0;}
 // ---- Where a thrown bomb or bottle is going to land: corner brackets shrink onto the spot ----
 const landMarks=new Map();
 function landMarker(kind){

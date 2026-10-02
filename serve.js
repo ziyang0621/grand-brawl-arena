@@ -6,7 +6,7 @@ const files=new Map([
   ['/arena-tailoring.js','arena-tailoring.js'],
   ['/arena-posing.js','arena-posing.js'],
   ['/arena.js','arena.js'],['/arena-core.js','arena-core.js'],['/arena.css','arena.css'],
-  ['/arena-session.js','arena-session.js'],['/arena-touch.js','arena-touch.js'],['/arena-guards.js','arena-guards.js'],['/arena-face.js','arena-face.js'],['/arena-pieces.js','arena-pieces.js'],
+  ['/arena-session.js','arena-session.js'],['/arena-touch.js','arena-touch.js'],['/arena-guards.js','arena-guards.js'],['/arena-crew.js','arena-crew.js'],['/arena-face.js','arena-face.js'],['/arena-pieces.js','arena-pieces.js'],
   ['/arena-clouds.js','arena-clouds.js'],['/arena-roster.js','arena-roster.js'],['/arena-gfx.js','arena-gfx.js'],
   ['/arena-models.js','arena-models.js'],['/arena-stage.js','arena-stage.js'],
   ['/vendor/three.module.js','vendor/three.module.js'],['/vendor/three.core.js','vendor/three.core.js'],
