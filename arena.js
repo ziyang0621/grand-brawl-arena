@@ -9,7 +9,8 @@ import {buildFighter,disposeFighter,renderPortraits} from './arena-models.js';
 import {createAudio} from './arena-audio.js';
 import {crewMate,poseCannonCrew,poseSnowCrew} from './arena-crew.js';
 import {freezeSkinnedGeometry} from './arena-tailoring.js';
-import {poseCombat,poseStance} from './arena-posing.js';
+import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
+import {loadGlbModel,instantiate} from './arena-glb.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -58,11 +59,49 @@ function syncPieces(){
 const TEAM_COLORS=['#ff6a4a','#4aa8ff'],TEAM_NAMES=['红队','蓝队'];
 const teamColorOf=p=>world.teamMode?TEAM_COLORS[p.team]||null:null;
 const models=[null,null,null,null];
+// Characters authored in Blender (models/*.glb) replace the procedural body when the page is opened with ?glb=1.
+const GLB_CHARS={swordsman:'models/hongfan.glb'},useGlb=new URLSearchParams(location.search).has('glb')||(()=>{try{return localStorage.getItem('gb-glb')==='1';}catch{return false;}})();
+function attachGlb(m,charId){
+  const url=GLB_CHARS[charId];if(!useGlb||!url)return;
+  loadGlbModel(url).then(model=>{
+    if(m.root.parent===null)return;
+    const g=instantiate(model,{ink:.022});m.body.add(g.root);g.state='';g.t=0;
+    for(const child of m.silhouette.children)if(child!==m.guard.root)child.visible=false;
+    m.glb=g;
+  }).catch(err=>console.warn('glb load failed',err));
+}
+const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;
+function driveGlb(m,p,dt,walking){
+  const g=m.glb;if(!g)return;
+  let name='idle',time=0;
+  const enter=n=>{if(g.state!==n){g.state=n;g.t=0;}g.t+=dt;return g.t;};
+  if(p.hp<=0){name='hurt';enter(name);time=10*FR24;}
+  else if(p.grabbedBy!==null||p.knocked>0||p.stun>0||p.hurtTime>0){name='hurt';time=Math.min(enter(name)*2,10*FR24);}
+  else if(p.pendingSkill){name='slash_a';enter(name);time=5*FR24;}
+  else if(p.skillTime>0){name='slash_b';time=(enter(name)*30*FR24)%(22*FR24);}
+  else if(p.attackTime>0&&['shot','grab'].includes(p.attackType)){name='guard';time=Math.min(enter(name),12*FR24);}
+  else if(p.attackTime>0){
+    name=p.combo===1&&p.attackType==='light'?'slash_b':'slash_a';enter(name);
+    const {phase,contact}=attackPhase(p);time=(phase<contact?9*phase/contact:9+13*(phase-contact)/(1-contact))*FR24;
+  }
+  else if(p.blocking){name='guard';time=Math.min(enter(name),12*FR24);}
+  else if(p.carrying||p.grabbedTarget!==null){name='jump';enter(name);time=7*FR24;}
+  else if(!p.grounded){
+    if(p.jumps!==g.lastJumps&&p.jumps>=2){g.state='';}
+    if(p.vy>2||g.state==='jump'&&g.t<.3){name='jump';time=Math.min((6+enter(name)*28)*FR24,18*FR24);}
+    else{name='fall';time=enter(name)%(22*FR24);}
+  }
+  else if((p.landTime||0)>0){name='land';enter(name);time=Math.min((.2-p.landTime)*80,16)*FR24;}
+  else if(walking){name=p.running?'run':'walk';enter(name);const dur=p.running?RUN_DUR:WALK_DUR;time=(((p.walk/(Math.PI*2))%1)+1)%1*dur;}
+  else{enter(name);time=g.t%(96*FR24);}
+  g.lastJumps=p.jumps;
+  g.set(name,time);g.update(dt);
+}
 function ensureModels(){
   world.fighters.forEach((p,i)=>{
     const key=p.char+'|'+(teamColorOf(p)||'');
     if(models[i]?.key===key)return;
-    if(models[i])disposeFighter(models[i]);models[i]=buildFighter(p.char,i,scene,teamColorOf(p));models[i].key=key;models[i].body.rotation.order='YXZ';
+    if(models[i])disposeFighter(models[i]);models[i]=buildFighter(p.char,i,scene,teamColorOf(p));models[i].key=key;models[i].body.rotation.order='YXZ';attachGlb(models[i],p.char);
     const c=CHARACTERS[p.char];
     if(i<2){const k=i?'p2':'p1';$(k+'Name').textContent=c.name;$(k+'Portrait').src=portraits[p.char]||'';}
   });
@@ -540,6 +579,8 @@ function selectKey(e){
 buildSelect();
 $('startMatch').onclick=startMatch;
 $('randomRival').onclick=()=>{selection.p2=CHARACTER_IDS[Math.floor(Math.random()*CHARACTER_IDS.length)];previewSelection();};
+$('glbButton').textContent=useGlb?'红帆新模型：开':'红帆新模型：关';
+$('glbButton').onclick=()=>{try{localStorage.setItem('gb-glb',useGlb?'0':'1');}catch{}const u=new URL(location.href);u.searchParams.delete('glb');location.href=u.toString();};
 const muteLabel=()=>{$('muteButton').textContent=audio.muted?'声音：关':'声音：开';};
 $('muteButton').onclick=()=>{audio.unlock();audio.setMuted(!audio.muted);muteLabel();$('muteButton').blur();};muteLabel();
 addEventListener('keydown',e=>{if(e.code==='KeyM'&&!e.repeat){audio.unlock();audio.setMuted(!audio.muted);muteLabel();}});
@@ -724,6 +765,7 @@ function animateFighter(p,i,m,dt){
     for(const w of m.sway||[])w.o.rotation[w.ax]=w.base+Math.sin(t*(3+w.ph)+w.ph*2)*w.amp*(.55+Math.min(1,speedNow/6))+(w.ax==='x'?back*w.drag:0);
   }
   if(p.recoveryTime>0){const a=(1-p.recoveryTime/.22)*Math.PI*2;m.body.rotation.x=a;m.body.rotation.z=0;m.body.position.set(0,1.3*(1-Math.cos(a)),-1.3*Math.sin(a));}else m.body.position.set(tremble?(Math.random()-.5)*tremble*2:0,bodyY-(p.sink||0)*.45,tremble?(Math.random()-.5)*tremble*2:0);
+  driveGlb(m,p,dt,walking);
   m.syncSurface();
   updateGuard(m.guard,p.blocking&&p.hp>0,t,dt,guardHits.delete(p.id));
   m.body.visible=!(p.invuln>0&&p.hp>0&&Math.floor(world.tick/6)%2===0);

@@ -51,6 +51,7 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 | `arena-models.js` | 每个角色的模型（`BUILDERS`）：躯干、带**膝 / 肘关节**的四肢（`leg.userData.knee`、`arm.userData.elbow`）、手和握持物；`STATURE` 与 `silhouette` 层负责角色整体身材差异；状态特效、头像渲染 |
 | `arena-tailoring.js` | 连续蒙皮四肢、躯干/裙装曲面与贴体衣片；用程序生成的低分辨率纹理和 toon 渐变表现布料、皮革、金属、木头与肤色；冻结姿势的残影几何；`syncCostume` 在动画结束后同步骨骼 |
 | `arena-audio.js` | 合成音效与各场地循环音乐（Web Audio，无音频文件）；`arena.js` 的 `eventSound()` 把模拟事件映射到音效 |
+| `arena-glb.js` + `tools/blender/` | Blender 脚本生成的蒙皮动画角色（目前只有红帆，可选开启）；加载、材质、描边和动作混合 |
 | `arena-crew.js` | 场外背景船员（水手点炮、岛民扔雪球）的模型与动作，只做画面表现，不影响模拟 |
 | `arena-posing.js` | 游戏与检视页共用的待战/战斗姿势：蓄力/命中/收招、腰肩发力、肘膝弯曲、持枪/盾牌方向；只改渲染骨骼，不写战斗状态 |
 | `character-study.html` | 本机人物检视页：正侧背面、表情/脸部贴图；普攻/移动攻击/重击的三个动作阶段，以及格挡/举起/必杀姿势 |

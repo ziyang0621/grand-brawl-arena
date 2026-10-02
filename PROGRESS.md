@@ -4,12 +4,19 @@
 
 ## 当前状态
 
-- 当前版本：v51（电脑利用场地 + 围观船员联动）/ 页面资源版本：`arena.js?v=78`
+- 当前版本：v52（试做：Blender 红帆，可选）/ 页面资源版本：`arena.js?v=78`
 - 主要玩法：六名原创角色、三个场地、四人乱斗、2v2 组队、触屏操作、选人/选场画面、三局两胜回合制、3D 高台、梯子、箱子、空投道具、战斗 AI、三命模式
 - 联机方式：PeerJS 房间码联机，房主负责主要游戏状态同步
 - 自动化测试：v46 全量 241 项通过。旧 AI 回合结束测试的历史偶发失败记录保留在 v38（自动化测试不等于美术目标达成或双端联机验收）。
 - 工作分支：`touch-controls`（已推送到 origin）；接手请先读 `README.md` 的「代码结构」和「开发约定」，再以 `git log` 为准。
 - GitHub 远程仓库：`https://github.com/ziyang0621/grand-brawl-arena.git`
+
+### v52 · 试做：Blender 建模的红帆（2026-10-03，可选，默认关）
+
+- **做法**：新增 `tools/blender/`（`lib.py`、`hongfan.py`、`animate.py`、`render.py`、说明 README）。用脚本在无界面 Blender（pip 的 `bpy==4.2.0`）里生成红帆：躯干 / 夹克 / 袖子 / 裤子 / 靴子 / 手（握拳）/ 头（大眼睛、粗眉、咧嘴）/ 黑色尖发 / 红头巾 / 长剑，17 根骨骼，肩 / 肘 / 髋 / 膝按高度做平滑蒙皮；10 个动作 `idle walk run jump fall land slash_a slash_b guard hurt`。导出 `models/hongfan.glb`（约 750 KB）。
+- **游戏里**：`arena-glb.js` 加载 glTF（`vendor/addons/` 是从 three r180 拷来的 GLTFLoader / SkeletonUtils / BufferGeometryUtils，import 路径改成相对路径），换成游戏的卡通材质，加一层跟着蒙皮的描边；`arena.js` 的 `driveGlb()` 按战斗状态选动作并**直接设定动作时间**（攻击按 `attackPhase` 的蓄力→命中→收招、走路 / 奔跑按 `p.walk`、落地按 `landTime`、二段跳重新起跳），再用混合器做过渡。右上角「红帆新模型」按钮（localStorage `gb-glb`）或 `?glb=1` 开启，**默认关闭**，关闭时一切和 v51 一样。开启后原来的程序化身体会被隐藏，但防御造型（`m.guard`）和状态特效保留。
+- **新增 `glb-study.html`**：模型检视页（动作按钮、角度、自动轮播）。`tests/glb.test.js`：glb 文件头、17 根骨骼、10 个动作都在、体积小于 1.5 MB、`GLB_CHARS` 里的文件都存在。全量 255 项通过。
+- **已知不足（试做阶段）**：脸是几何拼的（没有原来 Canvas 脸的眨眼 / 大喊等表情变化）；强化武器的剑光特效、必杀蓄力的剑姿、抓投举起没有专门动作（暂用别的动作凑）；其它 5 个角色还是程序化模型；`?glb=1` 下攻击姿势按状态近似，手感没有逐个招式细调；手机性能没测。要不要继续做下去，取决于你对比后觉得值不值得。
 
 ### v51 · 电脑更会利用场地，围观船员随战况欢呼（2026-10-02）
 
