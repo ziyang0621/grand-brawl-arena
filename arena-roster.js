@@ -23,7 +23,7 @@ export const SLOT_COLORS=['#ffd24a','#5fd8ff','#ff7ac8','#8dff7a'],SLOT_LABELS=[
 // front edge of every deck, so they are derived rather than listed.
 export const STAGES={
   // Each stage is its own structure: a ship's deck with a raised stern, a stepped desert ziggurat, a lopsided snow hill.
-  port:{look:'ship',name:'风车港',sub:'船尾高台 · 炮击 · 巨浪',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
+  port:{look:'ship',name:'风车港',sub:'船尾高台 · 炮击 · 巨浪 · 火药桶',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
     platforms:[
       {id:'quarterdeck',x:0,z:-6.2,w:24,d:3.2,top:1.5,style:'ship',ladders:[{side:'front',at:-8},{side:'front',at:8}]},
       {id:'crows-nest',x:0,z:-6.2,w:3.6,d:2.6,top:3.5,style:'nest',ladder:false},
@@ -31,9 +31,10 @@ export const STAGES={
       {id:'cargo-right',x:11.5,z:1.6,w:2.8,d:2.6,top:1.2,style:'crates',ladder:'left'}],
     zones:[{kind:'spring',x:-7.5,z:5.6,r:.95},{kind:'spring',x:7.5,z:5.6,r:.95}],
     crates:[[-6,3],[6,3],[0,-2.4]],
+    kegs:[[-2.8,4.4],[2.8,4.4]],
     topLoot:[{deck:'crows-nest',kind:'chest'},{deck:'cargo-left',kind:'barrel'}],
     pieces:[{kind:'mast',x:-10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5},{kind:'mast',x:10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5}]},
-  desert:{look:'stone',name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
+  desert:{look:'stone',name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴 · 喷火口',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
     platforms:[
       {id:'tier-1',x:0,z:-3.6,w:7.6,d:4.4,top:1.1,style:'stone',ladders:[{side:'front',at:-2.6},{side:'front',at:2.6}]},
       {id:'tier-2',x:0,z:-4.1,w:4.8,d:3,top:2.2,style:'stone',ladder:false},
@@ -41,16 +42,17 @@ export const STAGES={
       {id:'ruin-tall',x:-10.8,z:-3.5,w:3.2,d:3.2,top:2.6,style:'ruin',ladder:'right'},
       {id:'ruin-low',x:10.2,z:-.5,w:3.4,d:2,top:1.3,style:'ruin',ladder:'left'}],
     zones:[{kind:'quicksand',x:-8.5,z:4,r:2.2},{kind:'quicksand',x:8,z:4.6,r:2},{kind:'quicksand',x:0,z:2.4,r:1.4}],
+    vents:[{x:-5.2,z:.8,r:1.25,offset:0},{x:5.2,z:.8,r:1.25,offset:3.25}],
     crates:[[-3.5,5.5],[3.5,5.5],[-12,-.5]],
     topLoot:[{deck:'tier-3',kind:'chest'},{deck:'ruin-low',kind:'barrel'}],
     pieces:[{kind:'pillar',x:-3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5},{kind:'pillar',x:3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5}]},
-  snow:{look:'snow',name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
+  snow:{look:'snow',name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩 · 温泉',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
     platforms:[
       {id:'snow-hill',x:-9.5,z:-3.6,w:7,d:5,top:2.8,style:'hill',ladder:'front',ladderAt:-1.5},
       {id:'igloo',x:8.2,z:-4.8,w:4,d:3,top:1.4,style:'igloo',ladder:'front'},
       {id:'ice-ledge',x:11.8,z:1.2,w:2.6,d:4,top:2.1,style:'ice',ladder:'left'},
       {id:'ice-step',x:2.4,z:-6.6,w:3,d:2,top:.9,style:'ice',ladder:false}],
-    zones:[{kind:'ice',x:0,z:4.6,w:10,d:4},{kind:'ice',x:-8.5,z:5,w:4,d:3.4}],
+    zones:[{kind:'ice',x:0,z:4.6,w:10,d:4},{kind:'ice',x:-8.5,z:5,w:4,d:3.4},{kind:'hotspring',x:0,z:-2.4,r:1.6}],
     crates:[[-3,-.5],[3,-.5],[0,6.8]],
     topLoot:[{deck:'snow-hill',kind:'chest',dx:-1.5},{deck:'ice-ledge',kind:'barrel'}],
     pieces:[{kind:'ice',x:-3.8,z:-.6,r:.8,h:4,hp:60,fall:'burst',length:3.3},{kind:'ice',x:3.8,z:-.6,r:.8,h:4,hp:60,fall:'burst',length:3.3}]},
@@ -60,6 +62,15 @@ export const STAGES={
     crates:[[-6,3],[6,3],[0,-5]],
     pieces:[{kind:'mast',x:-9.2,z:-5.6,r:.6,h:7,hp:70,fall:'topple',length:6.5},{kind:'mast',x:9.2,z:-5.6,r:.6,h:7,hp:70,fall:'topple',length:6.5}]},
 };
+// Desert flame vents run on a fixed clock (a pure function of the tick), so every client agrees and nothing extra needs syncing:
+// idle -> warn (glow + embers) -> erupt (flame column that burns and launches).
+export const VENT_PERIOD=6.5,VENT_WARN=1.5,VENT_BURST=.9;
+export function ventState(vent,tick,step=1/120){
+  const clock=tick*step+(vent.offset||0),t=clock%VENT_PERIOD,cycle=Math.floor(clock/VENT_PERIOD);
+  if(t<VENT_BURST)return {phase:'erupt',k:t/VENT_BURST,cycle};
+  if(t>VENT_PERIOD-VENT_WARN)return {phase:'warn',k:(t-(VENT_PERIOD-VENT_WARN))/VENT_WARN,cycle};
+  return {phase:'idle',k:0,cycle};
+}
 export function stageOf(id){return STAGES[id]||STAGES.port;}
 // Each deck gets a ladder on its front by default; `ladder` picks another side or none, `ladders` lists several.
 // dx/dz point from the ladder into the deck, so pushing that way climbs.

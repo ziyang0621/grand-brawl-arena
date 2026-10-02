@@ -2,7 +2,7 @@
 // data the simulation collides with, so what you see is what you stand on.
 import {addCrowd} from './arena-crew.js';
 import * as THREE from './vendor/three.module.js';
-import {stageOf,laddersOf} from './arena-roster.js';
+import {stageOf,laddersOf,ventState} from './arena-roster.js';
 import {box,sphere,cylinder,cone,mesh,label,ink,isSharedMaterial} from './arena-gfx.js';
 
 export const THEMES={
@@ -220,6 +220,30 @@ function arenaFloor(g,t,layout,anim){
 }
 
 // Terrain: quicksand swirls, glossy ice sheets and springboard nets.
+// Flame vents: a stone grate that glows and spits embers during the warning, then a column of fire. Driven by the sim tick.
+function buildVents(g,layout){
+  const vents=(layout.vents||[]).map(v=>{
+    const grp=new THREE.Group();grp.position.set(v.x,.1,v.z);g.add(grp);
+    cylinder(v.r+.25,v.r+.3,.16,'#6f6a63',grp,0,.04,0,24);
+    const plate=cylinder(v.r,v.r,.06,'#2a2523',grp,0,.12,0,24);plate.userData.noInk=true;
+    for(let i=0;i<4;i++){const bar=box(v.r*2,.05,.1,'#3d3632',grp,0,.17,0);bar.rotation.y=i*Math.PI/4;bar.userData.noInk=true;}
+    const glow=new THREE.Mesh(new THREE.CircleGeometry(v.r*.95,24),new THREE.MeshBasicMaterial({color:'#ff7a1c',transparent:true,opacity:0,depthWrite:false}));glow.rotation.x=-Math.PI/2;glow.position.y=.2;glow.userData.noInk=true;grp.add(glow);
+    const flame=new THREE.Group();grp.add(flame);
+    for(const [r,h,c,o] of [[.9,3.6,'#ff5a1a',.85],[.62,3.1,'#ffa526',.9],[.34,2.4,'#fff1a0',.95]]){const m=new THREE.Mesh(new THREE.ConeGeometry(v.r*r,h,10,1,true),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,depthWrite:false,side:THREE.DoubleSide}));m.position.y=h/2;m.userData.noInk=true;flame.add(m);}
+    flame.visible=false;
+    const embers=[];for(let i=0;i<8;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.07,6,5),new THREE.MeshBasicMaterial({color:'#ffb347',transparent:true,opacity:0,depthWrite:false}));m.userData.noInk=true;grp.add(m);embers.push({m,a:i*.8,ph:i/8});}
+    return {v,glow,flame,embers};
+  });
+  return (tick,time)=>{
+    for(const {v,glow,flame,embers} of vents){
+      const s=ventState(v,tick);
+      glow.material.opacity=s.phase==='warn'?.25+.5*s.k*Math.abs(Math.sin(time*(6+s.k*16))):s.phase==='erupt'?.9:0;
+      flame.visible=s.phase==='erupt';
+      if(flame.visible){const k=s.k,rise=Math.min(1,k*5),fade=1-Math.max(0,(k-.7)/.3);flame.scale.set(.8+.25*Math.sin(time*40),rise*fade,.8+.25*Math.cos(time*37));}
+      for(const e of embers){const on=s.phase!=='idle',c=(time*.9+e.ph)%1;e.m.material.opacity=on?(1-c)*.9:0;e.m.position.set(Math.cos(e.a+time)*v.r*.6*c,.25+c*(s.phase==='erupt'?3:1.1),Math.sin(e.a+time)*v.r*.6*c);}
+    }
+  };
+}
 function terrain(g,layout,anim){
   const springs=[];
   for(const z of layout.zones){
@@ -235,6 +259,14 @@ function terrain(g,layout,anim){
       const sheet=box(z.w,.05,z.d,'#b4e4ff',g,z.x,.1,z.z);sheet.userData.noInk=true;sheet.castShadow=false;
       const edge=box(z.w+.14,.03,z.d+.14,'#f4fbff',g,z.x,.085,z.z);edge.userData.noInk=true;edge.castShadow=false;
       for(let i=0;i<4;i++){const shine=box(z.w*.35,.01,.07,'#ffffff',g,z.x-z.w*.25+i*z.w*.17,.13,z.z-z.d*.3+i*z.d*.2);shine.rotation.y=.6;shine.userData.noInk=true;shine.castShadow=false;}
+    }else if(z.kind==='hotspring'){
+      const pool=new THREE.Group();pool.position.set(z.x,0,z.z);g.add(pool);
+      cylinder(z.r+.35,z.r+.45,.28,'#8d96a6',pool,0,.14,0,24);
+      const water=cylinder(z.r,z.r,.05,'#62dccb',pool,0,.29,0,28);water.userData.noInk=true;water.castShadow=false;
+      const glow=cylinder(z.r*.62,z.r*.62,.05,'#b8fff0',pool,0,.31,0,24);glow.userData.noInk=true;glow.castShadow=false;
+      for(let i=0;i<7;i++){const a=i/7*Math.PI*2;sphere(.22+(i%3)*.06,i%2?'#a8b0bd':'#9aa3b2',pool,Math.cos(a)*(z.r+.55),.2,Math.sin(a)*(z.r+.55),8);}
+      const steam=[];for(let i=0;i<9;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.4,depthWrite:false}));m.userData.noInk=true;m.castShadow=false;pool.add(m);steam.push({m,ph:i/9,a:i*2.4});}
+      anim.push(time=>{glow.scale.setScalar(.92+.08*Math.sin(time*2));for(const {m,ph,a} of steam){const c=(time*.28+ph)%1;m.position.set(Math.cos(a)*z.r*.5*(1-c*.3)+Math.sin(time+a)*.12,.4+c*2.4,Math.sin(a)*z.r*.5*(1-c*.3));m.scale.setScalar(.2+c*.55);m.material.opacity=.38*Math.sin(c*Math.PI);}});
     }else if(z.kind==='spring'){
       const net=new THREE.Group();net.position.set(z.x,0,z.z);g.add(net);
       for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;cylinder(.06,.06,.4,'#5a3a26',net,Math.cos(a)*z.r*.85,.2,Math.sin(a)*z.r*.85,6);}
@@ -307,8 +339,9 @@ export function buildStage(stageId){
   const springs=terrain(g,layout,anim);
   (DRESSING[stageId]||DRESSING.port)(g,t,anim);
   addCrowd(g,stageId,anim);
+  const ventFx=buildVents(g,layout);
   ink(g,.07,'#1a1d24',.25);
-  return {group:g,theme:t,update(time,dt){for(const f of anim)f(time,dt);},bounce(x,z){const s=springs.find(s=>Math.hypot(s.x-x,s.z-z)<1.6);if(s)s.squash=1;}};
+  return {group:g,theme:t,ventFx,update(time,dt){for(const f of anim)f(time,dt);},bounce(x,z){const s=springs.find(s=>Math.hypot(s.x-x,s.z-z)<1.6);if(s)s.squash=1;}};
 }
 export function disposeStage(stage){
   stage.group.parent?.remove(stage.group);

@@ -1,5 +1,5 @@
 // Deterministic gameplay shared by the browser and headless regression tests.
-import {CHARACTERS,DEFAULT_CHARS,characterOf,STAGES,stageOf,laddersOf,zoneAt} from './arena-roster.js';
+import {ventState,CHARACTERS,DEFAULT_CHARS,characterOf,STAGES,stageOf,laddersOf,zoneAt} from './arena-roster.js';
 export const STEP = 1 / 120;
 export const GRAVITY = 22;
 export const JUMP_SPEED = 12.5;
@@ -21,7 +21,8 @@ const PIECE_FALL=.7,PIECE_DAMAGE={light:6,dash:9,air:7,heavy:14,slam:16,upper:10
 export function makeCrates(stage){
   const ground=stage.crates.map(([x,z],id)=>({id,kind:['barrel','crate','chest'][id%3],x,z,y:0,hp:1,falling:false,heldBy:null,respawnTick:0}));
   const high=(stage.topLoot||[]).map((t,i)=>{const d=stage.platforms.find(p=>p.id===t.deck);return {id:ground.length+i,kind:t.kind||'chest',x:d.x+(t.dx||0),z:d.z+(t.dz||0),y:d.top+.48,floor:d.top+.48,home:{x:d.x+(t.dx||0),z:d.z+(t.dz||0)},deck:d.id,hp:1,falling:false,heldBy:null,respawnTick:0};});
-  return [...ground,...high];
+  const kegs=(stage.kegs||[]).map(([x,z],i)=>({id:ground.length+high.length+i,kind:'keg',x,z,y:0,hp:1,home:{x,z},falling:false,heldBy:null,respawnTick:0}));
+  return [...ground,...high,...kegs];
 }
 export function makePieces(stage){return (stage.pieces||[]).map((d,id)=>({id,...d,maxHp:d.hp,state:'standing',hurt:0,dir:{x:1,z:0},fallT:0,owner:-1}));}
 const ownerOf=src=>src?(src.owner!==undefined?src.owner:src.id):-1;
@@ -259,7 +260,16 @@ export function dodge(p){if(p.dodgeCD>0||p.knocked>0||p.stun>0||p.hp<=0||p.grabb
 const LOOT={barrel:['bomb','bomb','poison','virus','slow'],crate:['meat','meat','beer','bomb'],chest:['sword','beer','meat','sword']};
 // Loot lands on whatever floor is under the break: a deck top if the container was up there.
 function floorAt(stage,x,z,y){let top=0;for(const d of stage.platforms)if(supported(x,z,d,-.1)&&d.top<=y+.5&&d.top>top)top=d.top;return top;}
-function dropLoot(w,kind,x,z,fromY=0){const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)],y=floorAt(stageOf(w.stage),x,z,fromY);emit(w,'break',{x,y:y+.7,z,item,kind});w.pickups.push({type:item,x,y,z,life:24});return item;}
+// Powder keg: no loot, it just goes off. Neighbouring crates and kegs are caught in the blast, so they chain.
+function kegBlast(w,x,y,z){
+  const src={owner:-1,x,y,z,kind:'bomb'};emit(w,'explosion',{x,y:y+.4,z,kind:'keg'});
+  for(const p of w.fighters)if(p.hp>0&&distance(p,src)<3&&Math.abs(p.y+1-y)<2.8)hit(w,src,p,18,10,{kind:'bomb'});
+  for(const c of w.crates)if(c.hp>0&&!c.falling&&c.heldBy===null&&distance(c,src)<3.2)breakCrate(w,c,2);
+  for(const pc of w.pieces)if(pc.state==='standing'&&distance(pc,src)<3+pc.r)hurtPiece(w,pc,40,{owner:-1,x,z});
+}
+function dropLoot(w,kind,x,z,fromY=0){
+  if(kind==='keg'){kegBlast(w,x,fromY,z);return null;}
+const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)],y=floorAt(stageOf(w.stage),x,z,fromY);emit(w,'break',{x,y:y+.7,z,item,kind});w.pickups.push({type:item,x,y,z,life:24});return item;}
 function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z,c.y);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
 function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=c.home?[c.home.x,c.home.z]:(open[Math.floor(Math.random()*open.length)]||[0,5]);c.x=x;c.z=z;c.y=(c.floor??.48)+8.5;if(!c.home)c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=(c.floor??.48)){c.y=c.floor??.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
 // CPU decisions fire on their own jittered timers (from a seeded stream) rather than a shared global beat,
@@ -326,6 +336,7 @@ function ai(w,p,q){
   const hazards=[...w.clouds.filter(c=>c.life>0&&Math.abs(p.y+1-c.y)<2.8),
     ...w.bombs.filter(b=>b.kind==='bomb'&&b.life<.65&&Math.abs(p.y+1-b.y)<2.8).map(b=>({...b,radius:3})),
     ...w.cannonballs.filter(c=>c.kind==='rock').map(c=>({x:c.x,z:c.z,radius:1.8})),
+    ...(stageOf(w.stage).vents||[]).filter(v=>ventState(v,w.tick).phase!=='idle'&&p.y<1.4).map(v=>({x:v.x,z:v.z,radius:v.r})),
     ...w.pieces.filter(pc=>pc.state==='falling').flatMap(pc=>pc.fall==='burst'?[{x:pc.x,z:pc.z,radius:pc.length}]:[.25,.55,.85].map(k=>({x:pc.x+pc.dir.x*pc.length*k,z:pc.z+pc.dir.z*pc.length*k,radius:1.9})))];
   const danger=hazards.some(h=>distance(p,h)<h.radius+.6);
   if(!danger)p.aiDangerSince=null;
@@ -377,9 +388,9 @@ function ai(w,p,q){
       .sort((a,b)=>(distance(p,a)-(a.type==='meat'&&p.hp<45?3:0))-(distance(p,b)-(b.type==='meat'&&p.hp<45?3:0)))[0];
     if(loot&&Math.abs(p.y-(loot.y||0))<1.2){faceTarget(p,loot);return {x:p.fx,z:p.fz};}
     // Loot or a chest sitting on a deck: climb for it when nobody is on top of us.
-    const highLoot=!isRanged&&!p.item&&d>6&&(loot&&(loot.y||0)>1?loot:w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&c.floor&&c.y>p.y+1&&distance(p,c)<9));
+    const highLoot=!isRanged&&!p.item&&d>6&&(loot&&(loot.y||0)>1?loot:w.crates.find(c=>c.kind!=='keg'&&c.hp>0&&!c.falling&&c.heldBy===null&&c.floor&&c.y>p.y+1&&distance(p,c)<9));
     if(highLoot){const D=deckUnder(stageDef,highLoot.x,highLoot.z,(highLoot.y||0)+.6);if(D){const mv=climbTo(w,p,D);if(mv)return mv;}}
-    const crate=!p.item&&d>4&&w.crates.filter(c=>c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(p.y-c.y)<1.4&&distance(p,c)<5)
+    const crate=!p.item&&d>4&&w.crates.filter(c=>c.kind!=='keg'&&c.hp>0&&!c.falling&&c.heldBy===null&&Math.abs(p.y-c.y)<1.4&&distance(p,c)<5)
       .sort((a,b)=>distance(p,a)-distance(p,b))[0];
     if(crate){faceTarget(p,crate);if(distance(p,crate)<2&&due(w,p,36))attack(w,p);return distance(p,crate)>1.2?{x:p.fx,z:p.fz}:{x:0,z:0};}
   }
@@ -415,6 +426,7 @@ function ai(w,p,q){
 export function stepFighter(p,input,dt,stage=STAGES.classic){
   // Terrain only applies on the ground floor: quicksand slows and drags, ice speeds up and slides.
   const zone=p.y<.05&&p.support==='ground'?zoneAt(stage,p.x,p.z):null,terrain=zone?.kind||null;p.terrain=terrain;
+  if(terrain==='hotspring'&&p.hp>0){p.hp=Math.min(100,p.hp+dt*3.5);p.slowTime=Math.max(0,(p.slowTime||0)-dt*3);}
   p.sink=terrain==='quicksand'?Math.min(1,(p.sink||0)+dt*.8):Math.max(0,(p.sink||0)-dt*3);
   for(const key of ['attackCD','comboWindow','bombCD','skillCD','skillTime','dodgeCD','dodgeTime','stun','invuln','parryWindow'])p[key]=Math.max(0,p[key]-dt);
   p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);p.coyote=p.grounded?.09:Math.max(0,p.coyote-dt);
@@ -471,7 +483,7 @@ function settle(w,dt){
 function nextRound(w){
   w.roundNo++;w.time=w.roundTime;w.roundWinner=null;w.hitStop=0;
   w.fighters=w.fighters.map(p=>{const n=createFighter(p.id,p.id===0?-3.4:3.4,2,p.char);n.team=p.team;n.energy=Math.max(1,p.energy);n.aimAssist=p.aimAssist;return n;});
-  w.bombs=[];w.shots=[];w.clouds=[];w.props=[];w.cannonballs=[];w.pickups=[];w.pieces=makePieces(stageOf(w.stage));
+  w.bombs=[];w.shots=[];w.clouds=[];w.props=[];w.cannonballs=[];w.ventCycle={};w.ventWarned={};w.pickups=[];w.pieces=makePieces(stageOf(w.stage));
   for(const c of w.crates)if(c.heldBy!==null){c.heldBy=null;c.falling=true;c.dropSpeed=0;}
   Object.assign(w,{nextCannonTick:w.tick+900,nextWaveTick:w.tick+2400,waveWarning:0,waveTime:0,wavePending:false,intro:1.8});
   emit(w,'roundStart',{roundNo:w.roundNo});
@@ -533,6 +545,17 @@ function updateStageHazards(w,dt){
     }
     if(c.kind==='snowball'){c.x+=c.vx*dt;const rolled=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,c)<pc.r+.7);if(rolled){hurtPiece(w,rolled,20,{owner:-1,x:c.x,z:c.z});emit(w,'snowBurst',{x:c.x,y:c.y,z:c.z});w.cannonballs.splice(i,1);continue;}const target=w.fighters.find(p=>p.hp>0&&distance(p,c)<.95&&p.y<1.2);if(target){const blocked=target.blocking;if(hit(w,c,target,12,8,{kind:'snowball'})&&!blocked){target.slowTime=2.5;emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'snowBurst',{x:c.x,y:c.y,z:c.z});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17)w.cannonballs.splice(i,1);continue;}
     c.vy-=5*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;const balled=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,c)<pc.r+.5&&c.y<pc.h);if(balled){hurtPiece(w,balled,30,{owner:-1,x:c.x,z:c.z});emit(w,'explosion',{x:c.x,y:c.y,z:c.z,kind:'cannon'});w.cannonballs.splice(i,1);continue;}const target=w.fighters.find(p=>p.hp>0&&distance(p,c)<.75&&Math.abs(p.y+1-c.y)<1.2);if(target){hit(w,c,target,14,9,{kind:'cannon'});emit(w,'explosion',{x:c.x,y:c.y,z:c.z,kind:'cannon'});w.cannonballs.splice(i,1);}else if(c.life<=0||Math.abs(c.x)>17||c.y<0){w.cannonballs.splice(i,1);}
+  }
+  if(!w.training&&stage.vents){
+    for(const [i,v] of stage.vents.entries()){
+      const s=ventState(v,w.tick);w.ventCycle??={};w.ventWarned??={};
+      if(s.phase==='warn'&&w.ventWarned[i]!==s.cycle){w.ventWarned[i]=s.cycle;emit(w,'ventWarn',{x:v.x,y:.1,z:v.z,r:v.r});}
+      if(s.phase==='erupt'&&w.ventCycle[i]!==s.cycle){
+        w.ventCycle[i]=s.cycle;emit(w,'ventBurst',{x:v.x,y:0,z:v.z,r:v.r});
+        for(const p of w.fighters)if(p.hp>0&&p.y<1.4&&distance(p,v)<v.r+.3)hit(w,{owner:-1,x:v.x,y:0,z:v.z+.001},p,12,8,{kind:'vent'});
+        for(const cr of w.crates)if(cr.hp>0&&!cr.falling&&cr.heldBy===null&&cr.y<1&&distance(cr,v)<v.r+.4)breakCrate(w,cr,2);
+      }
+    }
   }
   const wave=stage.waveKind;
   if(!w.training&&w.tick>=w.nextWaveTick&&!w.wavePending&&w.waveTime<=0){w.waveWarning=2;w.wavePending=true;w.waveDir=Math.random()<.5?-1:1;w.nextWaveTick=w.tick+(wave==='sandstorm'?3000:3600);emit(w,'waveWarning',{dir:w.waveDir,kind:wave});}
