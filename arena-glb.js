@@ -6,8 +6,15 @@ import * as SkeletonUtils from './vendor/addons/SkeletonUtils.js';
 import {mat} from './arena-gfx.js';
 
 const loader=new GLTFLoader(),cache=new Map();
+// Some hosts only serve web file types, so a base64 module (`<file>.js`, default export = base64 text) is the fallback for a .glb.
+async function fetchBuffer(url){
+  try{const r=await fetch(url);if(r.ok)return await r.arrayBuffer();}catch{}
+  const mod=await import(new URL(url+'.js',import.meta.url).href),bin=atob(mod.default),bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  return bytes.buffer;
+}
 export function loadGlbModel(url){
-  if(!cache.has(url))cache.set(url,new Promise((resolve,reject)=>loader.load(url,gltf=>resolve({scene:gltf.scene,clips:gltf.animations}),undefined,reject)));
+  if(!cache.has(url))cache.set(url,fetchBuffer(url).then(buf=>new Promise((resolve,reject)=>loader.parse(buf,new URL('.',import.meta.url).href,gltf=>resolve({scene:gltf.scene,clips:gltf.animations}),reject))));
   return cache.get(url);
 }
 // Outline: the skinned mesh drawn again, back faces only, pushed out along its (skinned) normals.
