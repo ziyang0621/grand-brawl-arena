@@ -1,5 +1,6 @@
 // Themed arenas. Decks and terrain zones come from STAGES in arena-roster.js, the same
 // data the simulation collides with, so what you see is what you stand on.
+import {addCrowd} from './arena-crew.js';
 import * as THREE from './vendor/three.module.js';
 import {stageOf,laddersOf} from './arena-roster.js';
 import {box,sphere,cylinder,cone,mesh,label,ink,isSharedMaterial} from './arena-gfx.js';
@@ -305,6 +306,7 @@ export function buildStage(stageId){
   arenaFloor(g,t,layout,anim);
   const springs=terrain(g,layout,anim);
   (DRESSING[stageId]||DRESSING.port)(g,t,anim);
+  addCrowd(g,stageId,anim);
   ink(g,.07,'#1a1d24',.25);
   return {group:g,theme:t,update(time,dt){for(const f of anim)f(time,dt);},bounce(x,z){const s=springs.find(s=>Math.hypot(s.x-x,s.z-z)<1.6);if(s)s.squash=1;}};
 }

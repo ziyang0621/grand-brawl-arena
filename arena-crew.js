@@ -62,3 +62,27 @@ export function poseSnowCrew(c,k,t,fired,after){
     if(after>.6){const cheer=Math.abs(Math.sin(after*8));arms[0].rotation.set(-2.9,0,.3);arms[1].rotation.set(-2.9,0,-.3);c.position.y=cheer*.18;}
   }
 }
+
+// Cheering onlookers at the back edge of each stage: idle sway, now and then a jump with both arms up.
+// [x, z, y, look, facing offset]; kept outside the playable z range (|z| <= 8).
+const CROWD={
+  port:{kind:'sailor',spots:[[-7.5,-8.6,.7],[-5,-8.7,.7],[5,-8.7,.7],[7.5,-8.6,.7]]},
+  desert:{kind:'sailor',spots:[[-12.5,-9.6,0],[-10.5,-10.4,0],[10.5,-10.4,0],[12.5,-9.6,0]]},
+  snow:{kind:'islander',spots:[[-12.5,-9.6,0],[-10.5,-10.4,0],[10.5,-10.4,0],[12.5,-9.6,0]]}
+};
+export function addCrowd(group,stageId,anim){
+  const cfg=CROWD[stageId]||CROWD.port,mates=[];
+  cfg.spots.forEach(([x,z,y],i)=>{
+    const m=crewMate(i%2?cfg.kind:(cfg.kind==='sailor'?'sailor':'islander'));m.position.set(x,y,z);m.rotation.y=Math.sign(-x)*.35;m.scale.setScalar(1.2);
+    group.add(m);mates.push({m,ph:i*1.7});
+  });
+  anim.push(time=>{
+    for(const {m,ph} of mates){
+      const {body,head,arms,legs}=m.userData,t=time+ph,cycle=(t*.45)%1,cheer=cycle>.7?Math.sin((cycle-.7)/.3*Math.PI):0;
+      m.position.y=(m.userData.baseY??=m.position.y)+Math.abs(Math.sin(t*(2.4+cheer*5)))*(.06+cheer*.35);
+      body.rotation.x=.04+Math.sin(t*1.6)*.03;head.rotation.z=Math.sin(t*1.3)*.08;head.rotation.x=-.1*cheer;
+      arms[0].rotation.set(-.3-cheer*2.6,0,.3+cheer*.2+Math.sin(t*2)*.05);arms[1].rotation.set(-.3-cheer*2.6+Math.sin(t*9)*.15*cheer,0,-.3-cheer*.2-Math.sin(t*2.2)*.05);
+      legs[0].rotation.x=legs[1].rotation.x=0;
+    }
+  });
+}
