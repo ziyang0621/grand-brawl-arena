@@ -100,7 +100,7 @@ const LINE='#1a1414';
 //  top: how flat the upper lid is, lash: lash-line weight, flick: lash sweep past the corner, shine: highlights
 const EYES={
   sharp:{w:88,h:.72,iris:.40,pupil:.90,slant:.16,lid:0,top:.3,lash:6,flick:.08,shine:0},     // broad sclera with small ink pupils, not vertical doll eyes
-  stern:{w:76,h:.60,iris:.49,pupil:.78,slant:.08,lid:.14,top:.85,lash:8,flick:.04,shine:1},
+  stern:{w:76,h:.66,iris:.54,pupil:.78,slant:.08,lid:.14,top:.85,lash:8,flick:.04,shine:1},
   fierce:{w:78,h:.64,iris:.38,pupil:.95,slant:.24,lid:0,top:.65,lash:9,flick:.06,shine:0},
   round:{w:74,h:1.0,iris:.52,pupil:.82,slant:-.04,lid:0,top:.1,lash:6,flick:0,shine:1},
   cool:{w:80,h:.62,iris:.44,pupil:.85,slant:.15,lid:.15,top:.88,lash:7,flick:.15,shine:1},

@@ -213,7 +213,7 @@ const BUILDERS={
       const pad=mesh(profileGeometry([[.145,.05,.05],[.13,.12,.105],[.095,.16,.145],[.06,.17,.15]],{segments:16,caps:true}),c.accent,arm);
       pad.material=costumeMaterial(c.accent,'brass');pad.userData.epaulette=true;
     }
-    const face=makeHead(hd,c,{iris:'#1d3f7a',irisLow:'#6aa8e8',eye:.86,eyeStyle:'stern',browStyle:'straight',noseStyle:'line',square:.7,chin:1.08,stubble:true,mole:true,mouthW:.85});
+    const face=makeHead(hd,c,{iris:'#1d3f7a',irisLow:'#6aa8e8',eye:1.04,eyeStyle:'stern',browStyle:'straight',noseStyle:'line',square:.7,chin:1.08,stubble:true,mole:true,mouthW:.85});
     hairMass(hd,c.hair,{back:.1});
     // neat side-parted fringe and sideburns under the cap
     for(const [x,t] of [[-.3,.5],[-.14,.3],[.02,.15],[.18,.1]])L(hd,c.hair,[[x,HY+.24,.40],[x+t*.06,HY+.17,.46],[x+t*.14,HY+.06,.47]],.1,.03,x*6);
@@ -242,7 +242,7 @@ const BUILDERS={
     const sash=sway(box(.18,.7,.05,c.accent,body,-.3,HIP_Y-.3,.2),.14,0,1.1);sash.geometry.translate(0,-.3,0);sash.position.y=HIP_Y+.05;
     const rig=limbs(body,c,{sleeve:c.skin,bareArms:true,pants:'#4a5a78',shoes:'#2a1d18',glove:c.accent,boot:'#3a2a20',legW:1.12,armW:1.3,shoulder:.56,shoulderColor:c.skin});
     for(const arm of rig.arms){const wrap=cylinder(.115,.115,.14,'#ffffff',arm.userData.elbow,0,-.44,0,10);wrap.scale.set(1.05,1,1.05);}
-    const face=makeHead(hd,c,{iris:'#1f5a22',irisLow:'#78c060',eye:.8,plaster:true,eyeStyle:'fierce',browStyle:'bushy',noseStyle:'broad',teeth:'shark',square:1,jaw:.6,chin:1.12,cheek:1.08,cheekLines:true,grinW:1.5,grinH:1.3,eyeY:.02});
+    const face=makeHead(hd,c,{iris:'#1f5a22',irisLow:'#78c060',eye:.98,plaster:true,eyeStyle:'fierce',browStyle:'bushy',noseStyle:'broad',teeth:'shark',square:1,jaw:.6,chin:1.12,cheek:1.08,cheekLines:true,grinW:1.5,grinH:1.3,eyeY:.02});
     hairMass(hd,c.hair,{scale:1.04});
     // wild spikes that stand straight up and flare out
     for(let i=0;i<9;i++){const a=i/9*Math.PI*2,x=Math.cos(a)*.26,z=Math.sin(a)*.22-.06;L(hd,c.hair,[[x,HY+.34,z],[x*1.35,HY+.43,z*1.4],[x*1.85,HY+.72+Math.cos(i*2.2)*.14,z*1.8]],.12,.05,i);}
@@ -263,7 +263,7 @@ const BUILDERS={
     const scarf=tailoredTorso(body,c.accent,[[2.52,.14,.13],[2.45,.20,.17],[2.35,.24,.19],[2.28,.20,.17]]);
     const tail=box(.18,.66,.06,c.accent,body,.24,SHOULDER_Y-.24,-.3);tail.geometry.translate(0,-.3,0);tail.position.y=SHOULDER_Y+.04;tail.rotation.z=-.3;sway(tail,.28,0,1.4,'x');sway(tail,.15,2,0,'z');
     const rig=limbs(body,c,{sleeve:c.color,pants:'#5b4636',shoes:'#2b221c',glove:'#3a2a4a',boot:'#4a3628',cuff:'#3a2a4a',armW:.95});
-    const face=makeHead(hd,c,{iris:'#5a2a10',irisLow:'#d49040',eye:.86,freckles:[[118,.7],[134,.74],[104,.75]],eyeStyle:'round',browStyle:'thin',noseStyle:'none',teeth:'buck',jaw:.7,chin:.92,cheek:1.06,spread:.9,eyeY:-.02,grinW:1.1});
+    const face=makeHead(hd,c,{iris:'#5a2a10',irisLow:'#d49040',eye:.94,freckles:[[118,.7],[134,.74],[104,.75]],eyeStyle:'round',browStyle:'thin',noseStyle:'none',teeth:'buck',jaw:.7,chin:.92,cheek:1.06,spread:.9,eyeY:-.02,grinW:1.1});
     hairMass(hd,c.hair,{scale:1.1});
     // a long comic nose that sticks straight out
     {const n=cylinder(.035,.075,.4,c.skin,hd,0,HY-.17,.59,12);n.rotation.x=Math.PI/2;const tip=sphere(.052,'#f2b9a0',hd,0,HY-.17,.79,12);tip.scale.set(1,.9,1.1);}

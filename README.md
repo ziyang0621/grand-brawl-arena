@@ -61,7 +61,7 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 | `arena-touch.js` | 触屏虚拟按键 |
 | `arena-session.js` | 联机输入有效期与再战规则 |
 | `arena.css` | 界面样式 |
-| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存（当前 `arena.js?v=72`） |
+| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存（当前 `arena.js?v=73`） |
 
 ### 人物美术实现与接手步骤
 
