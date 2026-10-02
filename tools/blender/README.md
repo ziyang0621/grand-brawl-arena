@@ -12,6 +12,7 @@ python3.11 -m venv venv && ./venv/bin/pip install bpy==4.2.0 numpy            # 
 ```
 
 - `rig.py` — the ONE skeleton (17 bones, same rest pose for everybody), weight helpers. Because the rest pose is shared, clips are shared; a character is its meshes + a stature scale the game applies (`STATURE` in `arena-models.js`).
+- `face_builder.py` — the face: eyes (sclera / iris / pupil / catch-lights / upper lid), tapered brows, nose, and a mouth ray-cast onto the real head surface (cavity, tongue, teeth, lips) with shape keys `blink squint open shut wide grit angry sad up`.
 - `char_builder.py` — `build(spec)`: lofted torso, jacket / vest / suit / bolero, skirt, sleeves, hands, trousers, boots, head, face, hair styles (`spiky tall_spiky neat curly swept long`), headwear (`band sailor_cap goggles bow`), weapons (`sword gun staff`, buckler). The face parts carry **shape keys** `blink squint open shut wide angry sad up`.
 - `specs.py` — one dict per character: colours, proportions, face, hair, weapon, and `style` (which clip set).
 - `animate_char.py` — clips for every style (`sword swordshield fist gun kick staff`): `idle walk run jump fall land attack_a attack_b heavy dash shoot skill guard hurt carry grab`. Attack clips share one timeline (0 idle, 5 wind-up, 9 contact, 15 follow-through, 22 idle) so the game can scrub them by attack phase. Poses are written in armature space: `f` forward, `o` outward, `t` twist, in degrees.

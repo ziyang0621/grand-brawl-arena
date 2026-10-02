@@ -63,9 +63,9 @@ export function instantiate(model,{ink=.022,inkColor='#101216',hide=[]}={}){
       if(next!==current){next.reset();next.play();next.paused=true;if(current)next.crossFadeFrom(current,fade,false);current=next;}
       next.paused=true;next.time=Math.max(0,Math.min(time,next.getClip().duration));
     },
-    // Expression keys: blink squint open shut wide angry sad up (0..1). Values ease towards their targets.
+    // Expression keys: blink squint open shut wide grit angry sad up (0..1). Values ease towards their targets.
     setFace(target,dt){
-      for(const key of ['blink','squint','open','shut','wide','angry','sad','up']){
+      for(const key of ['blink','squint','open','shut','wide','grit','angry','sad','up']){
         const goal=target[key]||0,cur=face[key]??0,k=1-Math.exp(-dt*(key==='blink'?40:16));face[key]=cur+(goal-cur)*k;
         for(const m of morphMeshes){const i=m.morphTargetDictionary[key];if(i!==undefined)m.morphTargetInfluences[i]=face[key];}
       }

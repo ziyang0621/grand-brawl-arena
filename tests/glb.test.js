@@ -22,7 +22,7 @@ test('every Blender-authored character is a skinned glTF with the shared rig, ev
     for(const c of CLIPS)assert.ok(clips.includes(c),`${id} clip ${c}`);
     assert.ok(json.meshes.length>=30,`${id} is built from separate coloured parts`);
     const morphs=new Set(json.meshes.flatMap(m=>m.extras?.targetNames||[]));
-    for(const k of ['blink','open','shut','angry','sad'])assert.ok(morphs.has(k),`${id} face key ${k}`);
+    for(const k of ['blink','squint','open','shut','wide','grit','angry','sad','up'])assert.ok(morphs.has(k),`${id} face key ${k}`);
   }
 });
 test('every glb the game can load exists and matches the character table',()=>{

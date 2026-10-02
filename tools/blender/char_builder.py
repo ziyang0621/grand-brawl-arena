@@ -4,6 +4,7 @@ import sys, math, random, os
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 from lib import *
 from rig import *
+from face_builder import build_face
 
 def shape(o, name, pivot=(0,0,0), scale=(1,1,1), move=(0,0,0), rot_y=0.0):
     """Add a shape key that scales / rotates (about Y) / moves the vertices around `pivot`."""
@@ -17,7 +18,7 @@ def shape(o, name, pivot=(0,0,0), scale=(1,1,1), move=(0,0,0), rot_y=0.0):
 
 def palette(spec):
     base = {'skin': ('#f2c08f', .7), 'white': ('#ffffff', .4), 'black': ('#111118', .4), 'mouth': ('#6b1d22', .6), 'sole': ('#2a1a14', .9),
-            'steel': ('#dfe6ee', .3), 'brow': ('#15151d', .7), 'gold': ('#ffd24a', .4)}
+            'steel': ('#dfe6ee', .3), 'brow': ('#15151d', .7), 'gold': ('#ffd24a', .4), 'lip': ('#a8434a', .6), 'tongue': ('#e8707a', .6), 'blush': ('#f2a090', .8), 'iris': ('#2b1d16', .5)}
     for k, v in spec['colors'].items(): base[k] = (v, .75)
     return {k: mat(k, c, r) for k, (c, r) in base.items()}
 
@@ -131,55 +132,7 @@ def build(spec):
             v.co.x *= 1 - jaw*t; v.co.y = HC.y + (v.co.y-HC.y)*(1 - .1*t) - .05*t*(1 if v.co.y < HC.y else 0)
     o = obj_from_bm('head', hd, M['skin'], subsurf=1); sk.rigid(o, 'head')
     neck = tube([((0,0,2.42),.17*(1.4 if spec.get('muscle') else 1)),((0,0,2.8),.16*(1.35 if spec.get('muscle') else 1))], 12); o = obj_from_bm('neck', neck, M['skin'], subsurf=1); sk.rigid(o, 'neck')
-    face = spec.get('face', {})
-    eh, ew, pup = face.get('eye_h', 1.0), face.get('eye_w', 1.0), face.get('pupil', 1.0)
-    brow_t, brow_w, tilt = face.get('brow_t', 1.0), face.get('brow_w', 1.0), face.get('brow_tilt', .34)
-    for s in (1, -1):
-        hidden = face.get('hide_eye') == s
-        o = obj_from_bm('ear', sphere_bm(.09, (.55,.8,1), (s*.49,0,3.2), 8, 6), M['skin'], subsurf=0); sk.rigid(o, 'head')
-        ex, ez = s*.2, 3.24
-        parts = []
-        if not hidden:
-            wh = obj_from_bm('eyewhite', sphere_bm(.15*ew, (1,.3,1.2*eh), (ex,-.425,ez), 14, 10), M['white'], subsurf=0); sk.rigid(wh, 'head'); parts.append(wh)
-            pu = obj_from_bm('pupil', sphere_bm(.078*pup, (1,.35,1.4*eh), (ex+(-s)*.012,-.455,ez-.005), 10, 8), M['iris'] if 'iris' in M else M['black'], subsurf=0); sk.rigid(pu, 'head'); parts.append(pu)
-            sh = obj_from_bm('shine', sphere_bm(.03*pup, (1,.5,1), (ex+s*.025,-.49,ez+.05*eh), 6, 5), M['white'], subsurf=0); sk.rigid(sh, 'head'); parts.append(sh)
-            if face.get('lash'):
-                la = obj_from_bm('lash', box_bm((.2*ew,.03,.035), (ex,-.45,ez+.17*eh), (0,s*.2,0)), M['brow'], subsurf=0); sk.rigid(la, 'head'); parts.append(la)
-            for p_ in parts:
-                shape(p_, 'blink', (ex,-.44,ez), scale=(1,1,.1), move=(0,0,-.02*eh))
-                shape(p_, 'squint', (ex,-.44,ez), scale=(1.05,1,.45), move=(0,0,-.03*eh))
-        brow = obj_from_bm('brow', box_bm((.27*brow_w,.045,.07*brow_t), (ex,-.4,3.2+.23*eh+.03), (0,s*tilt,0)), M['brow'], subsurf=1); sk.rigid(brow, 'head')
-        shape(brow, 'angry', (ex,-.4,3.5), rot_y=s*.3, move=(-s*.01,0,-.05))
-        shape(brow, 'sad', (ex,-.4,3.5), rot_y=-s*.75, move=(0,0,.03))
-        shape(brow, 'up', (ex,-.4,3.5), move=(0,0,.07))
-    nose = face.get('nose', 'dot')
-    if nose == 'dot': o = obj_from_bm('nose', sphere_bm(.05, (1,.9,1.2), (0,-.49,3.08), 8, 6), M['skin'], subsurf=0)
-    elif nose == 'long': o = obj_from_bm('nose', cone_bm((0,-.4,3.1), (0,-.95,3.0), .09, 8), M['skin'], subsurf=0)
-    elif nose == 'hook': o = obj_from_bm('nose', merge([sphere_bm(.055, (1,1,1.3), (0,-.49,3.1), 8, 6), cone_bm((0,-.47,3.12), (0,-.58,2.98), .05, 6)]), M['skin'], subsurf=0)
-    else: o = None
-    if o: sk.rigid(o, 'head')
-    if face.get('plaster'): o = obj_from_bm('plaster', box_bm((.22,.02,.07), (0,-.5,3.1), (0,0,.4)), M['white'], smooth=False, subsurf=0); sk.rigid(o, 'head')
-    if face.get('scar'): o = obj_from_bm('scar', box_bm((.03,.02,.2), (.2,-.5,3.12), (0,0,.4)), M['scar'] if 'scar' in M else M['mouth'], smooth=False, subsurf=0); sk.rigid(o, 'head')
-    for (fx, fz) in face.get('freckles', []):
-        o = obj_from_bm('freckle', sphere_bm(.016, (1,.6,1), (fx,-.47,fz), 5, 4), M['mouth'], subsurf=0); sk.rigid(o, 'head')
-    # mouth: dark cavity + teeth, with open / shut / wide shape keys
-    mk = face.get('mouth', 'grin'); mw = {'grin': 1.0, 'small': .45, 'smirk': .55, 'cat': .4, 'flat': .5, 'shark': 1.05}[mk]
-    mh = {'grin': .5, 'small': .3, 'smirk': .16, 'cat': .3, 'flat': .12, 'shark': .5}[mk]
-    my = face.get('mouth_y', 2.89); mx = face.get('mouth_x', 0)
-    mouth = sphere_bm(.2*mw, (1,.32,mh), (mx,-.4,my), 16, 10)
-    for v in list(mouth.verts):
-        if v.co.z > my: v.co.z = my + (v.co.z-my)*.35
-    mo = obj_from_bm('mouth', mouth, M['mouth'], subsurf=0); sk.rigid(mo, 'head')
-    shape(mo, 'open', (mx,-.4,my+.03), scale=(.9,1,2.6), move=(0,0,-.03)); shape(mo, 'shut', (mx,-.4,my), scale=(1.1,1,.25)); shape(mo, 'wide', (mx,-.4,my), scale=(1.25,1,1.2))
-    teeth = face.get('teeth', 'row')
-    if teeth:
-        if teeth == 'shark':
-            tb = merge([cone_bm((mx+(i-2.5)*.065, -.44, my+.03), (mx+(i-2.5)*.065, -.45, my-.05), .03, 3) for i in range(6)])
-        elif teeth == 'buck':
-            tb = merge([box_bm((.08,.025,.11), (mx-.045,-.45,my-.01)), box_bm((.08,.025,.11), (mx+.045,-.45,my-.01))])
-        else: tb = box_bm((.25*mw,.02,.04), (mx,-.455,my+.04))
-        to = obj_from_bm('teeth', tb, M['white'], smooth=False, subsurf=0); sk.rigid(to, 'head')
-        shape(to, 'open', (mx,-.4,my+.04), move=(0,0,.015)); shape(to, 'shut', (mx,-.4,my+.04), scale=(1.1,1,.01)); shape(to, 'wide', (mx,-.4,my), scale=(1.25,1,1))
+    build_face(spec, sk, M, o, HC)
     # ---- hair and headwear ----
     HAIR = M['hair']; hair = spec['hair']; rnd = random.Random(hair.get('seed', 7)); st = hair['style']
     def dome(low_z=3.4, back_z=2.95, side=True, r=.545, cz=3.26, sx=1.03):

@@ -60,13 +60,15 @@ const TEAM_COLORS=['#ff6a4a','#4aa8ff'],TEAM_NAMES=['红队','蓝队'];
 const teamColorOf=p=>world.teamMode?TEAM_COLORS[p.team]||null:null;
 const models=[null,null,null,null];
 // Characters authored in Blender (models/<id>.glb, see tools/blender/) replace the procedural bodies. The header button (or ?glb=0 / ?glb=1) switches back.
+// Blender characters are modelled big; this keeps them in proportion with the arena.
+const GLB_SCALE=.84;
 const GLB_CHARS=Object.fromEntries(['swordsman','guardian','brawler','gunner','cook','stormcaller'].map(id=>[id,`models/${id}.glb`]));
 const useGlb=(()=>{const q=new URLSearchParams(location.search).get('glb');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-glb')!=='0';}catch{return true;}})();
 function attachGlb(m,charId){
   const url=GLB_CHARS[charId];if(!useGlb||!url)return;
   loadGlbModel(url).then(model=>{
     if(m.root.parent===null||m.glb)return;
-    const g=instantiate(model,{ink:.022}),st=STATURE[charId]||[1,1,1];g.root.scale.set(...st);m.body.add(g.root);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
+    const g=instantiate(model,{ink:.022}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);m.body.add(g.root);m.tag.position.y*=GLB_SCALE+.06;g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
     for(const child of m.silhouette.children)if(child!==m.guard.root)child.visible=false;
     // weapon effects ride on the new weapon: glow, trail and sparks are re-created in a frame aligned with its long axis
     const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&o.name==='Weapon')weapon.push(o);});
@@ -117,8 +119,8 @@ function driveGlb(m,p,dt,walking){
   const f={blink:g.blink>0?1:0},won=world.roundOver>0&&world.roundWinner===p.id&&p.hp>0;
   if(p.hp<=0){f.blink=1;f.sad=.6;f.open=.3;}
   else if(hurtish){f.sad=1;f.squint=.8;f.open=1;f.blink=0;}
-  else if(p.attackTime>0||p.skillTime>0||p.pendingSkill){f.angry=1;f.open=.8;f.wide=.5;}
-  else if(p.blocking){f.angry=.7;f.shut=.9;}
+  else if(p.attackTime>0||p.skillTime>0||p.pendingSkill){f.angry=1;f.open=.7;f.wide=.4;}
+  else if(p.blocking){f.angry=.7;f.grit=1;}
   else if(won){f.squint=.85;f.open=.7;f.up=1;f.blink=0;}
   else if(p.hp<25){f.sad=.5;}
   g.setFace(f,dt);
