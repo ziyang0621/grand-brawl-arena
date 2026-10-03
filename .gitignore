@@ -1,2 +1,6 @@
 tools/blender/out/
 tools/blender/venv/
+artifacts/tripo-review/
+.tripo/
+*.blend1
+models/tripo-*/tripo-out/*/task.json

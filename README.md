@@ -10,11 +10,19 @@ Three.js 网页 3D 乱斗游戏，向 PS2《One Piece Grand Battle》的玩法�
 
 ```sh
 npm start          # 本地服务器，默认 http://127.0.0.1:4173/three-preview.html （端口用 PORT=4180 修改）
-npm test           # node --test tests/*.test.js ，241 项；最近验证与偶发失败见 PROGRESS.md
+npm test           # node --test tests/*.test.js ，258 项；最近验证与偶发失败见 PROGRESS.md
 ```
 
 Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模块必须加进 `serve.js` 的白名单，否则浏览器会 404。
 调试：URL 加 `?debug=1` 会暴露 `window.__brawl`（world、keys、`run(seconds,fps,render)`、`action(code)`、camera、renderer），截图脚本靠它驱动游戏。触屏设备或 `?touch=1` 显示虚拟按键。
+
+### Tripo 剑士预览（2026-10-03）
+
+启动服务器后打开 `http://127.0.0.1:4173/three-preview.html?tripo=1&v=83`，红帆使用 Tripo 蒙皮模型；其他角色保持原有模型。独立动作检视：`http://127.0.0.1:4173/glb-study.html?m=tripo-pirate`，支持朝向切换、暂停和逐段拖动动作。
+
+本轮修正模型正面校准、转身轴心、手腕绑定的真实刀剑、双骨 IK 步态和按移动距离播放动画。原始 GLB、导出动画 GLB、可编辑 Blender 文件及重建脚本均随仓库保存。重建命令和修改注意事项见 `tools/blender/README.md`，详细根因见 `PROGRESS.md` 最新章节。已完成模型数据检查与 Blender 离线画面检查；网页实玩、手机及双端联机视觉效果仍需人工验收。
+
+注意：`serve.js` 将 `/models/tripo-pirate.glb` 映射到实际的 `models/tripo-pirate-animated.glb`。若使用纯静态托管，需要配置同样的映射或同步修改游戏和检视页的资源 URL；仅推送 GitHub 不会自动发布网页。
 
 ## 玩法概览
 
@@ -64,7 +72,8 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 | `arena-touch.js` | 触屏虚拟按键 |
 | `arena-session.js` | 联机输入有效期与再战规则 |
 | `arena.css` | 界面样式 |
-| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存（当前 `arena.js?v=78`） |
+| `three-preview.html` | 入口页；`arena.js?v=N`、`arena.css?v=N` 的版本号在改动后必须手动加一，避免浏览器缓存（当前 `arena.js?v=83`） |
+| `arena-tripo.js` | Tripo 独立校准：模型前向、根节点偏移、步幅和强化刀材质；游戏与检视页共用 |
 
 ### 人物美术实现与接手步骤
 

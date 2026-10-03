@@ -29,13 +29,12 @@ function outlineMaterial(thickness,color){
   }
   return outlineMaterials.get(key);
 }
-export function instantiate(model,{ink=.022,inkColor='#101216',hide=[]}={}){
+export function instantiate(model,{ink=.022,inkColor='#101216',hide=[],preserveMaterials=false}={}){
   const root=SkeletonUtils.clone(model.scene),outlines=[];
   root.traverse(o=>{
     if(!o.isMesh)return;
     if(hide.includes(o.name)){o.visible=false;return;}
-    const c='#'+o.material.color.getHexString();
-    o.material=mat(c);o.castShadow=o.receiveShadow=true;o.frustumCulled=false;
+    if(!preserveMaterials){const c='#'+o.material.color.getHexString();o.material=mat(c);}o.castShadow=o.receiveShadow=true;o.frustumCulled=false;
     if(o.isSkinnedMesh&&ink>0)outlines.push(o);
   });
   for(const m of outlines){

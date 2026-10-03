@@ -11,6 +11,7 @@ import {crewMate,poseCannonCrew,poseSnowCrew} from './arena-crew.js';
 import {freezeSkinnedGeometry} from './arena-tailoring.js';
 import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
 import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
+import {configureTripo,TRIPO_STRIDE} from './arena-tripo.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -63,12 +64,15 @@ const models=[null,null,null,null];
 // Blender characters are modelled big; this keeps them in proportion with the arena.
 const GLB_SCALE=.84;
 const GLB_CHARS=Object.fromEntries(['swordsman','guardian','brawler','gunner','cook','stormcaller'].map(id=>[id,`models/${id}.glb`]));
+// Opt-in Tripo integration preview. Keep the generated character isolated to
+// the swordsman slot while its Blender-authored motion is being tuned.
+const TRIPO_PREVIEW=new URLSearchParams(location.search).get('tripo')==='1';
 const useGlb=(()=>{const q=new URLSearchParams(location.search).get('glb');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-glb')!=='0';}catch{return true;}})();
 function attachGlb(m,charId){
-  const url=GLB_CHARS[charId];if(!useGlb||!url)return;
+  const tripo=TRIPO_PREVIEW&&charId==='swordsman',url=tripo?'models/tripo-pirate.glb':GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
   loadGlbModel(url).then(model=>{
     if(m.root.parent===null||m.glb)return;
-    const g=instantiate(model,{ink:.022}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);m.body.add(g.root);m.tag.position.y*=GLB_SCALE+.06;g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
+    const g=instantiate(model,{ink:tripo?.002:.022,preserveMaterials:tripo}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);if(tripo)configureTripo(g);m.body.add(g.root);m.tag.position.y=tripo?4.05:m.tag.position.y*(GLB_SCALE+.06);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
     for(const child of m.silhouette.children)if(child!==m.guard.root)child.visible=false;
     // weapon effects ride on the new weapon: glow, trail and sparks are re-created in a frame aligned with its long axis
     const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&o.name==='Weapon')weapon.push(o);});
@@ -91,6 +95,8 @@ const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;
 const ATTACK_CLIP=a=>['heavy','upper','slam'].includes(a)?'heavy':['dash','rush','shieldBash'].includes(a)?'dash':a==='shot'?'shoot':a==='grab'?'grab':null;
 function driveGlb(m,p,dt,walking){
   const g=m.glb;if(!g)return;
+  const travelled=g.lastXZ?Math.hypot(p.x-g.lastXZ[0],p.z-g.lastXZ[1]):0;
+  g.lastXZ=[p.x,p.z];
   let name='idle',time=0;
   const enter=n=>{if(g.state!==n){g.state=n;g.t=0;}g.t+=dt;return g.t;};
   const hurtish=p.grabbedBy!==null||p.knocked>0||p.stun>0||p.hurtTime>0;
@@ -106,14 +112,14 @@ function driveGlb(m,p,dt,walking){
   else if(p.carrying||p.grabbedTarget!==null){name='carry';time=Math.min(enter(name)*1.5,12*FR24);}
   else if(!p.grounded){
     if(p.jumps!==g.lastJumps&&p.jumps>=2){g.state='';}
-    if(p.vy>2||g.state==='jump'&&g.t<.3){name='jump';time=Math.min((6+enter(name)*28)*FR24,18*FR24);}
+    if(p.vy>2||g.state==='jump'&&g.t<.3){name='jump';const jt=enter(name);time=Math.min((jt/.34)*18*FR24,18*FR24);}
     else{name='fall';time=enter(name)%(22*FR24);}
   }
   else if((p.landTime||0)>0){name='land';enter(name);time=Math.min((.2-p.landTime)*80,16)*FR24;}
-  else if(walking){name=p.running?'run':'walk';enter(name);const dur=p.running?RUN_DUR:WALK_DUR;time=(((p.walk/(Math.PI*2))%1)+1)%1*dur;}
+  else if(walking){name=p.running?'run':'walk';enter(name);const dur=p.running?RUN_DUR:WALK_DUR;if(g.tripo){g.stridePhase=((g.stridePhase||0)+(travelled<2?travelled:0)/TRIPO_STRIDE[name])%1;time=g.stridePhase*dur;}else time=(((p.walk/(Math.PI*2))%1)+1)%1*dur;}
   else{enter(name);time=g.t%(96*FR24);}
   g.lastJumps=p.jumps;
-  g.set(name,time);
+  g.set(name,time,{fade:g.tripo&&(p.attackTime>0||hurtish)?.045:.12});
   // face: blink now and then; shout when striking, grit when guarding, wince when hit, grin when the round is won
   g.blinkAt-=dt;if(g.blinkAt<=0){g.blink=.14;g.blinkAt=2.4+Math.random()*3.2;}g.blink=Math.max(0,g.blink-dt);
   const f={blink:g.blink>0?1:0},won=world.roundOver>0&&world.roundWinner===p.id&&p.hp>0;
@@ -608,8 +614,8 @@ function selectKey(e){
 buildSelect();
 $('startMatch').onclick=startMatch;
 $('randomRival').onclick=()=>{selection.p2=CHARACTER_IDS[Math.floor(Math.random()*CHARACTER_IDS.length)];previewSelection();};
-$('glbButton').textContent=useGlb?'角色模型：Blender':'角色模型：程序生成';
-$('glbButton').onclick=()=>{try{localStorage.setItem('gb-glb',useGlb?'0':'1');}catch{}const u=new URL(location.href);u.searchParams.delete('glb');location.href=u.toString();};
+ $('glbButton').textContent=TRIPO_PREVIEW?'角色模型：Tripo · Blender动作测试':useGlb?'角色模型：Blender':'角色模型：程序生成';
+ $('glbButton').onclick=()=>{if(TRIPO_PREVIEW){const u=new URL(location.href);u.searchParams.delete('tripo');location.href=u.toString();return;}try{localStorage.setItem('gb-glb',useGlb?'0':'1');}catch{}const u=new URL(location.href);u.searchParams.delete('glb');location.href=u.toString();};
 const muteLabel=()=>{$('muteButton').textContent=audio.muted?'声音：关':'声音：开';};
 $('muteButton').onclick=()=>{audio.unlock();audio.setMuted(!audio.muted);muteLabel();$('muteButton').blur();};muteLabel();
 addEventListener('keydown',e=>{if(e.code==='KeyM'&&!e.repeat){audio.unlock();audio.setMuted(!audio.muted);muteLabel();}});
@@ -795,6 +801,12 @@ function animateFighter(p,i,m,dt){
   }
   if(p.recoveryTime>0){const a=(1-p.recoveryTime/.22)*Math.PI*2;m.body.rotation.x=a;m.body.rotation.z=0;m.body.position.set(0,1.3*(1-Math.cos(a)),-1.3*Math.sin(a));}else m.body.position.set(tremble?(Math.random()-.5)*tremble*2:0,bodyY-(p.sink||0)*.45,tremble?(Math.random()-.5)*tremble*2:0);
   driveGlb(m,p,dt,walking);
+  if(m.glb?.tripo){
+    // IK already supplies hip compression and planted feet. Procedural whole-
+    // body bobbing/squash would move those planted boots through the deck.
+    if(p.grounded&&p.hp>0&&p.knocked<=0&&p.hurtTime<=0&&!p.recoveryTime){m.body.position.y=-(p.sink||0)*.45;m.body.scale.set(1,1,1);m.body.rotation.x=0;m.body.rotation.z=0;}
+    for(const material of m.glb.tripoSwordMaterials){material.emissive.set(p.weapon==='sword'?'#ffad12':'#000000');material.emissiveIntensity=p.weapon==='sword'?.8:0;}
+  }
   m.syncSurface();
   updateGuard(m.guard,p.blocking&&p.hp>0,t,dt,guardHits.delete(p.id));
   m.body.visible=!(p.invuln>0&&p.hp>0&&Math.floor(world.tick/6)%2===0);

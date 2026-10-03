@@ -5,10 +5,12 @@ const files=new Map([
   ['/character-study.html','character-study.html'],
   ['/arena-tailoring.js','arena-tailoring.js'],
   ['/arena-posing.js','arena-posing.js'],
+  ['/arena-tripo.js','arena-tripo.js'],
   ['/arena.js','arena.js'],['/arena-core.js','arena-core.js'],['/arena.css','arena.css'],
   ['/arena-session.js','arena-session.js'],['/arena-touch.js','arena-touch.js'],['/arena-guards.js','arena-guards.js'],['/arena-crew.js','arena-crew.js'],['/arena-audio.js','arena-audio.js'],['/arena-glb.js','arena-glb.js'],['/glb-study.html','glb-study.html'],['/vendor/addons/GLTFLoader.js','vendor/addons/GLTFLoader.js'],['/vendor/addons/BufferGeometryUtils.js','vendor/addons/BufferGeometryUtils.js'],['/vendor/addons/SkeletonUtils.js','vendor/addons/SkeletonUtils.js'],['/models/swordsman.glb','models/swordsman.glb'],['/models/guardian.glb','models/guardian.glb'],['/models/brawler.glb','models/brawler.glb'],['/models/gunner.glb','models/gunner.glb'],['/models/cook.glb','models/cook.glb'],['/models/stormcaller.glb','models/stormcaller.glb'],['/arena-face.js','arena-face.js'],['/arena-pieces.js','arena-pieces.js'],
   ['/arena-clouds.js','arena-clouds.js'],['/arena-roster.js','arena-roster.js'],['/arena-gfx.js','arena-gfx.js'],
   ['/arena-models.js','arena-models.js'],['/arena-stage.js','arena-stage.js'],
+  ['/models/tripo-pirate.glb','models/tripo-pirate-animated.glb'],
   ['/vendor/three.module.js','vendor/three.module.js'],['/vendor/three.core.js','vendor/three.core.js'],
   ['/vendor/THREE-LICENSE.txt','vendor/THREE-LICENSE.txt'],
 ]);
