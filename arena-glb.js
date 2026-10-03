@@ -29,13 +29,13 @@ function outlineMaterial(thickness,color){
   }
   return outlineMaterials.get(key);
 }
-export function instantiate(model,{ink=.022,inkColor='#101216',hide=[],preserveMaterials=false}={}){
+export function instantiate(model,{ink=.022,inkColor='#101216',hide=[],preserveMaterials=false,inkSkip=()=>false}={}){
   const root=SkeletonUtils.clone(model.scene),outlines=[];
   root.traverse(o=>{
     if(!o.isMesh)return;
     if(hide.includes(o.name)){o.visible=false;return;}
     if(!preserveMaterials){const c='#'+o.material.color.getHexString();o.material=mat(c);}o.castShadow=o.receiveShadow=true;o.frustumCulled=false;
-    if(o.isSkinnedMesh&&ink>0)outlines.push(o);
+    if(o.isSkinnedMesh&&ink>0&&!inkSkip(o.name))outlines.push(o);   // face decals must not get a black rim
   });
   for(const m of outlines){
     const o=new THREE.SkinnedMesh(m.geometry,outlineMaterial(ink,inkColor));o.bind(m.skeleton,m.bindMatrix);o.frustumCulled=false;o.userData.ink=true;

@@ -28,6 +28,7 @@ Run these commands from the repository root with the Blender executable on PATH 
 blender -b --factory-startup --python tools/blender/inspect_tripo_rig.py
 blender -b --factory-startup --python tools/blender/animate_tripo_pirate.py
 blender -b --factory-startup --python tools/blender/render_tripo_motion.py
+blender -b --factory-startup --python tools/blender/render_tripo_closeup.py -- --tag after   # hands, cuffs, belt scabbard
 node --test tests/tripo-model.test.js
 npm test
 npm start

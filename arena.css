@@ -226,7 +226,7 @@ body.touch .gauges{bottom:auto;top:84px}
   body.touch .gauges{top:70px}
   body.touch .combo{top:110px}
 }
-@media(orientation:portrait){body.touch .combo{top:124px}body.touch header{bottom:auto;top:148px}}
+@media(orientation:portrait){body.touch .combo{top:124px}body.touch header{bottom:auto;top:148px;left:6px;right:6px;transform:none}body.touch header .actions{width:100%;justify-content:center;flex-wrap:wrap}body.touch header button{white-space:nowrap;font-size:11px;padding:5px 8px}}
 
 /* ---- Four-fighter brawl HUD ---- */
 #brawlHud{position:fixed;z-index:3;top:30px;left:10px;right:10px;display:grid;grid-template-columns:1fr 1fr 96px 1fr 1fr;gap:8px;pointer-events:none;max-width:1100px;margin:0 auto}
@@ -290,3 +290,6 @@ body.brawl #callout{top:112px}
 @keyframes alertBlink{50%{filter:brightness(1.6) saturate(.7)}}
 @media(max-width:760px){.alert{width:46px;height:46px;margin:-23px 0 0 -23px}.alert b{font-size:26px}}
 @media (prefers-reduced-motion:reduce){.alert.soon{animation:none}}
+
+/* Narrow non-touch windows: compact header so it never sits on the portraits and health bars. */
+@media(max-width:760px){body:not(.touch) header{left:6px;right:6px;top:3px}body:not(.touch) .actions{gap:3px;flex-wrap:wrap;justify-content:flex-end}body:not(.touch) .actions button{padding:2px 6px;font-size:10px}body:not(.touch) .hud{top:52px}body:not(.touch) #callout{top:132px}}

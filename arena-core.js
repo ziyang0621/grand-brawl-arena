@@ -168,7 +168,7 @@ function beginAttack(w,p,type){
   emit(w,['light','air','slam','dash','upper','rush'].includes(actual)?'slash':actual,{id:p.id,char:p.char,x:p.x,y:p.y+1.1,z:p.z,fx:p.fx,fz:p.fz,combo:p.combo,airCombo:p.airCombo,attackType:actual,weapon:p.weapon});
 }
 function carriedObject(w,p){if(!p.carrying)return null;return p.carrying.kind==='crate'?w.crates.find(c=>c.id===p.carrying.id):w.props.find(c=>c.id===p.carrying.id);}
-function throwCarried(w,p,high=false){const held=carriedObject(w,p);if(!held){p.carrying=null;return false;}let prop=held;if(p.carrying.kind==='crate'){held.hp=0;held.heldBy=null;held.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);prop={id:w.nextProp++,kind:held.kind,owner:p.id,x:p.x+p.fx*.8,y:p.y+2,z:p.z+p.fz*.8,vx:0,vy:0,vz:0,life:3,heldBy:null};w.props.push(prop);}else prop.heldBy=null;prop.owner=p.id;prop.life=3;prop.x=p.x+p.fx*.8;prop.y=p.y+2;prop.z=p.z+p.fz*.8;prop.hitIds=[];prop.vx=p.fx*(high?4.5:10);prop.vz=p.fz*(high?4.5:10);prop.vy=high?12:5;p.carrying=null;emit(w,'propThrow',{id:p.id,kind:prop.kind,x:prop.x,y:prop.y,z:prop.z,high});return true;}
+function throwCarried(w,p,high=false){const held=carriedObject(w,p);if(!held){p.carrying=null;return false;}let prop=held;if(p.carrying.kind==='crate'){held.hp=0;held.heldBy=null;held.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);prop={id:w.nextProp++,kind:held.kind,owner:p.id,x:p.x+p.fx*.8,y:p.y+2,z:p.z+p.fz*.8,vx:0,vy:0,vz:0,life:3,heldBy:null};w.props.push(prop);}else prop.heldBy=null;prop.owner=p.id;prop.life=3;prop.x=p.x+p.fx*.8;prop.y=p.y+2;prop.z=p.z+p.fz*.8;prop.hitIds=[];prop.vx=p.fx*(high?4.5:10);prop.vz=p.fz*(high?4.5:10);prop.vy=high?12:5;p.carrying=null;p.tossTime=.32;p.tossTwo=true;emit(w,'propThrow',{id:p.id,kind:prop.kind,x:prop.x,y:prop.y,z:prop.z,high});return true;}
 function releaseGrab(w,holder,target,high=false,escaped=false){
   if(!holder||!target)return;
   holder.grabbedTarget=null;holder.grabHoldTime=0;
@@ -213,7 +213,7 @@ export function bomb(w,p){
   if(p.item==='meat'){p.hp=Math.min(100,p.hp+20);emit(w,'heal',{id:p.id,x:p.x,y:p.y+1,z:p.z});p.item=null;return;}
   if(p.item==='beer'){p.attackBoost=1.55;p.attackBoostTime=8;emit(w,'power',{id:p.id,item:p.item,x:p.x,y:p.y+1,z:p.z});p.item=null;return;}
   if(p.item==='sword'){p.attackBoost=1.35;p.attackBoostTime=10;p.weapon='sword';emit(w,'ready',{id:p.id,item:p.item});p.item=null;return;}
-  const kind=p.item;p.item=null;const bottle=kind==='poison'||kind==='virus'||kind==='slow',speed=kind==='slow'?6.2:5.8,arc=kind==='slow'?5.2:4.6;w.bombs.push({id:w.nextBomb++,owner:p.id,kind,x:p.x+p.fx*.8,y:p.y+1.3,z:p.z+p.fz*.8,vx:p.fx*(bottle?speed:7.5),vy:bottle?arc:6.5,vz:p.fz*(bottle?speed:7.5),life:bottle?1.05:1.2});emit(w,'throw',{id:p.id,kind});
+  const kind=p.item;p.item=null;const bottle=kind==='poison'||kind==='virus'||kind==='slow',speed=kind==='slow'?6.2:5.8,arc=kind==='slow'?5.2:4.6;w.bombs.push({id:w.nextBomb++,owner:p.id,kind,x:p.x+p.fx*.8,y:p.y+1.3,z:p.z+p.fz*.8,vx:p.fx*(bottle?speed:7.5),vy:bottle?arc:6.5,vz:p.fz*(bottle?speed:7.5),life:bottle?1.05:1.2});p.tossTime=.32;p.tossTwo=false;emit(w,'throw',{id:p.id,kind});
 }
 // Each roster member keeps the shared 3-level gauge but owns a different area shape.
 function skillSpec(w,p,level){
@@ -412,7 +412,7 @@ function ai(w,p,q){
   if(p.item==='sword'||p.item==='beer'||(p.item==='meat'&&p.hp<80))bomb(w,p);
   if(d>3||p.hp<45){
     const loot=w.pickups.filter(h=>h.life>0&&distance(p,h)<7&&
-      (h.type==='meat'?p.hp<80:h.type==='beer'||!p.item))
+      (h.type==='meat'?p.hp<80:h.type==='beer'||h.type==='sword'||!p.item))
       .sort((a,b)=>(distance(p,a)-(a.type==='meat'&&p.hp<45?3:0))-(distance(p,b)-(b.type==='meat'&&p.hp<45?3:0)))[0];
     if(loot&&Math.abs(p.y-(loot.y||0))<1.2){faceTarget(p,loot);return {x:p.fx,z:p.fz};}
     // Loot or a chest sitting on a deck: climb for it when nobody is on top of us.
@@ -615,7 +615,7 @@ export function step(w,input={},dt=STEP){
       p.attackBoost=1;p.attackBoostTime=0;p.poisonTick=0;
       if(p.respawnTimer<=dt)p.respawnProtection=1.5;
     }
-    p.throwTime=Math.max(0,(p.throwTime||0)-dt);p.thrownTime=Math.max(0,(p.thrownTime||0)-dt);p.recoveryTime=Math.max(0,(p.recoveryTime||0)-dt);
+    p.throwTime=Math.max(0,(p.throwTime||0)-dt);p.tossTime=Math.max(0,(p.tossTime||0)-dt);p.thrownTime=Math.max(0,(p.thrownTime||0)-dt);p.recoveryTime=Math.max(0,(p.recoveryTime||0)-dt);
     if(p.knocked<=0||p.hp<=0||p.poisonTime>0||p.virusTime>0||p.slowTime>0)p.recoveryBuffer=0;
     if(p.hp<=0||p.respawnTimer>0||p.knocked>0||p.grabbedBy!==null)cancelSkill(w,p);
     if(p.hp<=0||p.respawnTimer>0){cancelRecovery(p);dropHeld(w,p);if(p.grabbedBy!==null){const holder=w.fighters.find(q=>q.id===p.grabbedBy);if(holder)releaseGrab(w,holder,p,false,true);}}
@@ -738,11 +738,14 @@ export function step(w,input={},dt=STEP){
     // Resolve after damage: food must not resurrect a defeated fighter or steal a stock.
     // Nearest eligible player wins; exact distance ties use stable player ID.
     const p=w.fighters.filter(p=>p.hp>0&&p.respawnTimer<=0&&Math.abs(p.y-(h.y||0))<1.2&&distance(p,h)<1.8&&
-      (h.type==='meat'?p.hp<100:h.type==='beer'||!p.item))
+      (h.type==='meat'?p.hp<100:h.type==='beer'||h.type==='sword'||!p.item))
       .sort((a,b)=>distance(a,h)-distance(b,h)||a.id-b.id)[0];
     if(!p)continue;
     if(h.type==='meat'){p.hp=Math.min(100,p.hp+20);emit(w,'heal',{id:p.id,x:p.x,y:p.y+1,z:p.z});}
     else if(h.type==='beer'){p.attackBoost=1.55;p.attackBoostTime=8;emit(w,'power',{id:p.id,item:h.type,x:p.x,y:p.y+1,z:p.z});}
+    // The power-up blade works like beer: it takes effect the moment it is picked up and never sits in the
+    // item slot, so a fighter can still collect bombs and bottles while holding it.
+    else if(h.type==='sword'){p.attackBoost=1.35;p.attackBoostTime=10;p.weapon='sword';emit(w,'ready',{id:p.id,item:h.type,x:p.x,y:p.y+1,z:p.z});}
     else{p.item=h.type;emit(w,'pickup',{id:p.id,item:h.type,x:p.x,y:p.y+1,z:p.z});}
     w.pickups.splice(i,1);
   }

@@ -30,3 +30,17 @@ test('the nearer eligible fighter wins contested loot, not always player zero',(
 test('expired pickups cannot be collected on their expiry frame',()=>{
   const w=setup('bomb');w.pickups[0].life=STEP/2;step(w,{});assert.equal(w.fighters[0].item,null);assert.equal(w.pickups.length,0);
 });
+
+test('the power-up sword works like beer: instant effect, never occupies the item slot',()=>{
+  const w=createWorld();w.crates=[];w.training=true;const p=w.fighters[0];Object.assign(p,{x:0,z:5});
+  w.pickups=[{type:'sword',x:0.3,y:0,z:5,life:10}];step(w,{});
+  assert.equal(p.weapon,'sword');assert.equal(p.attackBoost,1.35);assert.ok(p.attackBoostTime>9);assert.equal(p.item,null,'no item slot is used');
+  assert.equal(w.pickups.length,0);assert.ok(w.events.some(e=>e.type==='ready'&&e.id===0));
+  // ...so a bomb can be picked up straight afterwards, while the blade stays active.
+  w.pickups=[{type:'bomb',x:0.3,y:0,z:5,life:10}];step(w,{});assert.equal(p.item,'bomb');assert.equal(p.weapon,'sword');
+});
+test('a fighter holding a bomb can still pick up the power-up sword',()=>{
+  const w=createWorld();w.crates=[];w.training=true;const p=w.fighters[0];Object.assign(p,{x:0,z:5,item:'bomb'});
+  w.pickups=[{type:'sword',x:0.3,y:0,z:5,life:10}];step(w,{});
+  assert.equal(p.weapon,'sword');assert.equal(p.item,'bomb','the held bomb is untouched');
+});

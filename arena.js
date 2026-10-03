@@ -11,7 +11,7 @@ import {crewMate,poseCannonCrew,poseSnowCrew} from './arena-crew.js';
 import {freezeSkinnedGeometry} from './arena-tailoring.js';
 import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
 import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
-import {configureTripo,TRIPO_STRIDE} from './arena-tripo.js';
+import {configureTripo,TRIPO_STRIDE,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -72,44 +72,71 @@ function attachGlb(m,charId){
   const tripo=TRIPO_PREVIEW&&charId==='swordsman',url=tripo?'models/tripo-pirate.glb':GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
   loadGlbModel(url).then(model=>{
     if(m.root.parent===null||m.glb)return;
-    const g=instantiate(model,{ink:tripo?.002:.022,preserveMaterials:tripo}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);if(tripo)configureTripo(g);m.body.add(g.root);m.tag.position.y=tripo?4.05:m.tag.position.y*(GLB_SCALE+.06);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
+    const g=instantiate(model,{ink:tripo?.002:.022,preserveMaterials:tripo,inkSkip:n=>/^Tripo(Eyes|Blush|Brow|Mouth|Tear)/.test(n)}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);if(tripo)configureTripo(g);m.body.add(g.root);m.tag.position.y=tripo?4.05:m.tag.position.y*(GLB_SCALE+.06);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
     for(const child of m.silhouette.children)if(child!==m.guard.root)child.visible=false;
     // weapon effects ride on the new weapon: glow, trail and sparks are re-created in a frame aligned with its long axis
-    const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&o.name==='Weapon')weapon.push(o);});
+    const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&(o.name==='Weapon'||tripo&&o.material?.name==='TripoSteel'))weapon.push(o);});
     for(const old of [m.weaponGlow,m.swordTrail,...m.swordSparks])old.visible=false;
-    if(weapon[0]){
-      const w=weapon[0],pa=principalAxis(w),bone=g.bones['handR']||g.bones['hand.R'];g.root.updateMatrixWorld(true);
+    if(weapon[0]&&tripo){
+      // Glow and trail are inflated copies of the steel blade skinned to the same skeleton, so they
+      // can never drift off the sword the way a separately placed box did.
+      const steel=weapon[0],shell=(inflate,color)=>{const geo=steel.geometry.clone(),pos=geo.attributes.position,nor=geo.attributes.normal;
+        for(let i=0;i<pos.count;i++)pos.setXYZ(i,pos.getX(i)+nor.getX(i)*inflate,pos.getY(i)+nor.getY(i)*inflate,pos.getZ(i)+nor.getZ(i)*inflate);
+        const s=new THREE.SkinnedMesh(geo,new THREE.MeshBasicMaterial({color,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));
+        s.bind(steel.skeleton,steel.bindMatrix);s.frustumCulled=false;s.renderOrder=2;steel.parent.add(s);return s;};
+      m.weaponGlow=shell(.007,'#ffd84e');m.swordTrail=shell(.02,'#ffae28');m.swordSparks=[];
+    }
+    else if(weapon[0]){
+      const w=weapon[0],pa=principalAxis(w),bone=tripo?Object.values(g.bones).find(b=>b.name.endsWith('0_Right_Limb_2')):g.bones['handR']||g.bones['hand.R'];g.root.updateMatrixWorld(true);
       const up=pa.axis.clone();if(up.y<0&&Math.abs(up.y)>Math.abs(up.x))up.negate();
       const base=pa.center.clone().addScaledVector(pa.axis,pa.min),holder=new THREE.Group();
       const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),pa.axis);holder.quaternion.copy(q);holder.position.copy(base);holder.scale.setScalar(pa.length/1.45);
-      const inv=new THREE.Matrix4().copy(bone.matrixWorld).invert(),hm=new THREE.Matrix4().compose(holder.position,holder.quaternion,holder.scale);hm.premultiply(inv);
+      const inv=new THREE.Matrix4().copy(bone.matrixWorld).invert(),hm=new THREE.Matrix4().compose(holder.position,holder.quaternion,holder.scale);if(tripo)hm.premultiply(w.matrixWorld);hm.premultiply(inv);
       hm.decompose(holder.position,holder.quaternion,holder.scale);bone.add(holder);
       const glow=fxMesh(new THREE.BoxGeometry(.32,1.6,.16),'#ffd84e',holder,0,.86,.01,0),trail=fxMesh(new THREE.PlaneGeometry(.7,1.9),'#ffbf28',holder,-.1,.86,-.08,0);
       const sparks=[];for(let i=0;i<5;i++){const s=fxMesh(new THREE.SphereGeometry(.055+(i%2)*.025,8,6),i%2?'#fff3a0':'#ffbe2e',holder,0,.25+i*.25,.12,0);s.userData={phase:i*.23};sparks.push(s);}
       m.weaponGlow=glow;m.swordTrail=trail;m.swordSparks=sparks;
     }
+    // The Tripo guard clip already holds the real blade up in front; the prop's crossed blades would overlap it.
+    if(tripo){g.tripoFace=Object.fromEntries(TRIPO_FACE.map(([k])=>[k,[]]));g.root.traverse(o=>{if(!o.isMesh||o.userData.ink)return;const hit=TRIPO_FACE.find(([,re])=>re.test(o.name));if(hit){o.visible=false;o.castShadow=false;o.receiveShadow=false;o.material=o.material.clone();o.material.transparent=true;o.material.depthWrite=false;g.tripoFace[hit[0]].push(o);}});}
+    if(tripo&&m.guard?.parts?.cross)m.guard.parts.cross.visible=false;
     m.glb=g;
   }).catch(err=>console.warn('glb load failed',err));
 }
+// Expression decals painted onto the scan's face (see tools/blender/animate_tripo_pirate.py add_face).
+const TRIPO_FACE=[['hurt',/^TripoEyesHurt/],['closed',/^TripoEyesClosed/],['blush',/^TripoBlush/],['angry',/^TripoBrowAngry/],['sad',/^TripoBrowSad/],['shout',/^TripoMouthShout/],['grit',/^TripoMouthGrit/],['grin',/^TripoMouthGrin/],['frown',/^TripoMouthFrown/],['tear',/^TripoTear/]];
+const HELD_BODY_CENTRE=1.55,HELD_BODY_THICKNESS=.9;   // a fighter's middle above his feet, and how deep he is lying down
 const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;
 const ATTACK_CLIP=a=>['heavy','upper','slam'].includes(a)?'heavy':['dash','rush','shieldBash'].includes(a)?'dash':a==='shot'?'shoot':a==='grab'?'grab':null;
 function driveGlb(m,p,dt,walking){
   const g=m.glb;if(!g)return;
-  const travelled=g.lastXZ?Math.hypot(p.x-g.lastXZ[0],p.z-g.lastXZ[1]):0;
+  // Guests only receive 20 Hz snapshots, so positions arrive in jumps; advancing the stride from
+  // velocity keeps the legs smooth instead of stepping 20 times a second.
+  const travelled=netRole==='guest'?Math.hypot(p.vx||0,p.vz||0)*dt:g.lastXZ?Math.hypot(p.x-g.lastXZ[0],p.z-g.lastXZ[1]):0;
   g.lastXZ=[p.x,p.z];
   let name='idle',time=0;
   const enter=n=>{if(g.state!==n){g.state=n;g.t=0;}g.t+=dt;return g.t;};
   const hurtish=p.grabbedBy!==null||p.knocked>0||p.stun>0||p.hurtTime>0;
   if(p.hp<=0){name='hurt';enter(name);time=10*FR24;}
+  else if(g.tripo&&p.knocked>0&&!p.grounded&&p.grabbedBy===null){name='knock';time=enter(name)%(16*FR24);}   // blown through the air: flail
   else if(hurtish){name='hurt';time=Math.min(enter(name)*2,10*FR24);}
-  else if(p.pendingSkill){name='skill';enter(name);time=0;}
-  else if(p.skillTime>0){name='skill';time=(enter(name)*30*FR24)%(g.actions.skill.getClip().duration||.33);}
+  else if(g.tripo&&p.tossTime>0){name=p.tossTwo?'toss':'throw';enter(name);time=tossFrame(p.tossTime)*FR24;}   // item / crate throw
+  else if(p.pendingSkill){name='skill';const held=enter(name);
+    // Tripo: crouch and raise the blade over the first quarter second, then hold the charge pose.
+    time=g.tripo?Math.min(held/.25,1)*8*FR24:0;}
+  else if(p.skillTime>0){name='skill';const held=enter(name);
+    if(g.tripo){const k=clamp(1-p.skillTime/.4,0,1);time=(k<.8?11+k/.8*10:21+(k-.8)/.2*7)*FR24;}   // release -> spin pose -> settle
+    else time=(held*30*FR24)%(g.actions.skill.getClip().duration||.33);}
   else if(p.attackTime>0){
     name=ATTACK_CLIP(p.attackType)||(p.combo%2===1?'attack_b':'attack_a');enter(name);
     const {phase,contact}=attackPhase(p);time=(phase<contact?9*phase/contact:9+13*(phase-contact)/(1-contact))*FR24;
   }
   else if(p.blocking){name='guard';time=Math.min(enter(name),12*FR24);}
-  else if(p.carrying||p.grabbedTarget!==null){name='carry';time=Math.min(enter(name)*1.5,12*FR24);}
+  else if(p.carrying||p.grabbedTarget!==null){
+    if(g.tripo&&walking){   // legs keep walking while the load (or the opponent) stays overhead
+      name='carry_walk';enter(name);g.stridePhase=((g.stridePhase||0)+(travelled<2?travelled:0)/TRIPO_STRIDE[name])%1;time=g.stridePhase*WALK_DUR;
+    }else{name='carry';time=Math.min(enter(name)*1.5,12*FR24);}
+  }
   else if(!p.grounded){
     if(p.jumps!==g.lastJumps&&p.jumps>=2){g.state='';}
     if(p.vy>2||g.state==='jump'&&g.t<.3){name='jump';const jt=enter(name);time=Math.min((jt/.34)*18*FR24,18*FR24);}
@@ -130,6 +157,14 @@ function driveGlb(m,p,dt,walking){
   else if(won){f.squint=.85;f.open=.7;f.up=1;f.blink=0;}
   else if(p.hp<25){f.sad=.5;}
   g.setFace(f,dt);
+  if(g.tripoFace){
+    const e=tripoExpression({dead:p.hp<=0,hurt:hurtish,striking:p.attackTime>0||p.skillTime>0||Boolean(p.pendingSkill),attackTime:p.attackTime,guarding:p.blocking,straining:p.carrying||p.grabbedTarget!==null,won,lowHp:p.hp<25,blink:f.blink>.5,flush:p.attackBoostTime>0&&p.weapon!=='sword'}),F=g.tripoFace;
+    const show=(k,on)=>F[k].forEach(o=>o.visible=on);
+    show('hurt',e.eyes==='hurt');show('closed',e.eyes==='closed');show('angry',e.brows==='angry');show('sad',e.brows==='sad');
+    for(const k of ['shout','grit','grin','frown'])show(k,e.mouth===k);
+    show('tear',e.tear);show('blush',e.blush);
+    F.blush.forEach(o=>{o.material.opacity=.72+.18*Math.sin(world.tick*.1);});
+  }
   g.update(dt);
 }
 function ensureModels(){
@@ -490,7 +525,7 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='energy'&&e.id===localPlayerId)tone(500,.05,'triangle');
   if(e.type==='break'){debris(e,e.kind==='chest'?['#9a5f2e','#e2a93c']:e.kind==='barrel'?['#a86a3c','#7a4a2a','#3d4650']:['#c08a50','#a06a36'],9,{size:.2,speed:5.5,flat:true});announce(`箱子打开：${ITEM_NAMES[e.item]||'道具'}出现`);}
   if(e.type==='pickup'){announce(`捡到 ${ITEM_NAMES[e.item]||'道具'} · 按 K 使用`);tone(620,.12,'triangle');}
-  if(e.type==='ready'){announce(`${WEAPON_NAMES[world.fighters[e.id]?.char]||'强化武器'}发光：攻击 +35%，持续 10 秒！`);tone(520,.16,'triangle');}
+  if(e.type==='ready'){announce(`${WEAPON_NAMES[world.fighters[e.id]?.char]||'强化武器'}发光：攻击 +35%，持续 10 秒（不占道具栏）`);if(e.x!==undefined)ringEffect(e,'#ffd66e',1.5,.45);tone(520,.16,'triangle');}
   if(e.type==='power'){announce('啤酒增幅：攻击 +55%，持续 8 秒！');ringEffect(e,'#ffd66e',1.4,.45);tone(700,.16,'triangle');}
   if(e.type==='poison'){announce('中毒！持续掉血');particles(e,'#8dffac',12);}
   if(e.type==='slow'){announce('减速！');particles(e,'#8ab8ff',12);}
@@ -614,7 +649,7 @@ function selectKey(e){
 buildSelect();
 $('startMatch').onclick=startMatch;
 $('randomRival').onclick=()=>{selection.p2=CHARACTER_IDS[Math.floor(Math.random()*CHARACTER_IDS.length)];previewSelection();};
- $('glbButton').textContent=TRIPO_PREVIEW?'角色模型：Tripo · Blender动作测试':useGlb?'角色模型：Blender':'角色模型：程序生成';
+ $('glbButton').textContent=TRIPO_PREVIEW?'角色模型：Tripo 测试版':useGlb?'角色模型：Blender':'角色模型：程序生成';
  $('glbButton').onclick=()=>{if(TRIPO_PREVIEW){const u=new URL(location.href);u.searchParams.delete('tripo');location.href=u.toString();return;}try{localStorage.setItem('gb-glb',useGlb?'0':'1');}catch{}const u=new URL(location.href);u.searchParams.delete('glb');location.href=u.toString();};
 const muteLabel=()=>{$('muteButton').textContent=audio.muted?'声音：关':'声音：开';};
 $('muteButton').onclick=()=>{audio.unlock();audio.setMuted(!audio.muted);muteLabel();$('muteButton').blur();};muteLabel();
@@ -805,7 +840,19 @@ function animateFighter(p,i,m,dt){
     // IK already supplies hip compression and planted feet. Procedural whole-
     // body bobbing/squash would move those planted boots through the deck.
     if(p.grounded&&p.hp>0&&p.knocked<=0&&p.hurtTime<=0&&!p.recoveryTime){m.body.position.y=-(p.sink||0)*.45;m.body.scale.set(1,1,1);m.body.rotation.x=0;m.body.rotation.z=0;}
-    for(const material of m.glb.tripoSwordMaterials){material.emissive.set(p.weapon==='sword'?'#ffad12':'#000000');material.emissiveIntensity=p.weapon==='sword'?.8:0;}
+    // Picking the power-up up already warms the blade (pulsing); equipping it turns the whole blade molten gold.
+    const swordEquipped=p.weapon==='sword',swordHeld=p.item==='sword',pulse=.5+.5*Math.sin(world.tick*.12);
+    for(const material of m.glb.tripoSwordMaterials){material.emissive.set(swordEquipped?'#ffad12':swordHeld?'#ffd27a':'#000000');material.emissiveIntensity=swordEquipped?.75+.25*pulse:swordHeld?.25+.3*pulse:0;}
+  }
+  // Held by a Tripo fighter: lie on his back across the holder's shoulders, resting on the head, like the
+  // crate. The core keeps the opponent chest-high in front of the holder; this is a visual-only override.
+  const holderIndex=p.grabbedBy!==null&&p.hp>0?world.fighters.findIndex(q=>q.id===p.grabbedBy):-1,holderModel=holderIndex>=0?models[holderIndex]:null;
+  if(holderModel?.glb?.tripo){
+    const h=world.fighters[holderIndex];
+    m.body.rotation.set(-Math.PI/2+Math.sin(world.tick*.2)*.05,Math.atan2(h.fx,h.fz)+Math.PI/2,Math.sin(world.tick*.17)*.06);
+    const centre=new THREE.Vector3(0,HELD_BODY_CENTRE,0).applyQuaternion(new THREE.Quaternion().setFromEuler(m.body.rotation));
+    m.root.position.set(h.x-centre.x,h.y+tripoCarryHeight(holderModel.glb.root.scale.y)+HELD_BODY_THICKNESS/2-centre.y,h.z-centre.z);
+    m.body.position.set(0,0,0);
   }
   m.syncSurface();
   updateGuard(m.guard,p.blocking&&p.hp>0,t,dt,guardHits.delete(p.id));
@@ -994,8 +1041,10 @@ function updateVisuals(dt){
   for(const c of world.clouds){let g=cloudModels.get(c.id);if(!g){g=createCloudVisual(c.kind);scene.add(g);cloudModels.set(c.id,g);}updateCloudVisual(g,c,world.tick*STEP);}
   for(const [id,m] of cloudModels)if(!world.clouds.some(c=>c.id===id)){scene.remove(m);m.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});cloudModels.delete(id);}
   while(crateModels.length<world.crates.length){const g=containerModel();scene.add(g);crateModels.push(g);}
-  crateModels.forEach((m,i)=>{const c=world.crates[i];if(!c){m.visible=false;return;}m.visible=c.hp>0||c.falling||c.heldBy!==null;setContainerKind(m,c.kind);m.position.set(c.x,c.y||0,c.z);m.rotation.z=c.falling?Math.sin(world.tick*.12+i):0;});
-  for(const p of world.props||[]){let g=propModels.get(p.id);if(!g){g=containerModel();scene.add(g);propModels.set(p.id,g);}setContainerKind(g,p.kind);g.position.set(p.x,p.y-.45,p.z);g.rotation.x+=dt*4;g.rotation.z+=dt*5;}for(const [id,g] of propModels)if(!(world.props||[]).some(p=>p.id===id)){scene.remove(g);propModels.delete(id);}
+  // A Tripo fighter holds the load overhead, resting on the head; everyone else keeps the core's chest-height spot.
+  const carryOverhead=id=>{const f=world.fighters.findIndex(q=>q.id===id);return f>=0&&models[f]?.glb?.tripo?{p:world.fighters[f],h:tripoCarryHeight(models[f].glb.root.scale.y)}:null;};
+  crateModels.forEach((m,i)=>{const c=world.crates[i];if(!c){m.visible=false;return;}m.visible=c.hp>0||c.falling||c.heldBy!==null;setContainerKind(m,c.kind);const over=c.heldBy!==null?carryOverhead(c.heldBy):null;if(over)m.position.set(over.p.x,over.p.y+over.h,over.p.z);else m.position.set(c.x,c.y||0,c.z);m.rotation.z=c.falling?Math.sin(world.tick*.12+i):0;});
+  for(const p of world.props||[]){let g=propModels.get(p.id);if(!g){g=containerModel();scene.add(g);propModels.set(p.id,g);}setContainerKind(g,p.kind);const over=p.heldBy!==null?carryOverhead(p.heldBy):null;if(over){g.position.set(over.p.x,over.p.y+over.h,over.p.z);g.rotation.set(0,0,0);}else{g.position.set(p.x,p.y-.45,p.z);g.rotation.x+=dt*4;g.rotation.z+=dt*5;}}for(const [id,g] of propModels)if(!(world.props||[]).some(p=>p.id===id)){scene.remove(g);propModels.delete(id);}
   const theme=THEMES[stage.id];
   for(const c of world.cannonballs||[]){let g=cannonModels.get(c.id);if(!g){g=c.kind==='rock'?mesh(new THREE.DodecahedronGeometry(.8,0),'#8a6a48',scene,0,0,0):c.kind==='snowball'?sphere(.72,'#f6fbff',scene,0,0,0):sphere(.36,theme.cannon,scene,0,0,0);ink(g,.04);cannonModels.set(c.id,g);}g.visible=!(c.delay>0);g.position.set(c.x,c.y,c.z);if(c.kind==='snowball')g.rotation.z-=dt*(c.vx||0)/.72;else g.rotation.x+=dt*(c.kind==='rock'?3:7);}for(const [id,g] of cannonModels)if(!(world.cannonballs||[]).some(c=>c.id===id)){scene.remove(g);cannonModels.delete(id);}
   waveMesh.visible=(world.waveTime||0)>0;const sandstorm=stage.id==='desert';waveMesh.scale.set(sandstorm?1.2:1,sandstorm?4:stage.id==='snow'?1.7:1,1);document.body.classList.toggle('sandstorm',waveMesh.visible&&sandstorm);if(waveMesh.visible){waveMesh.material.opacity=(sandstorm?.18:.3)+Math.sin(world.tick*.2)*.06;waveMesh.position.x=-(world.waveDir||1)*10+(2.2-world.waveTime)*(world.waveDir||1)*10;}
