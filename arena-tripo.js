@@ -27,13 +27,14 @@ export function configureTripo(g){
 
 // Pure: which decals show for a fighter state. Eyes, brows and mouth are chosen independently.
 export function tripoExpression(s){
-  const e={eyes:null,brows:null,mouth:null,tear:false,blush:s.flush};
+  const e={eyes:null,brows:null,mouth:null,tear:false,blush:s.flush,mark:null};   // mark: big comic symbol beside the head, readable at the default camera distance
   if(s.dead){e.eyes='closed';e.brows='sad';e.mouth='frown';}
-  else if(s.hurt){e.eyes='hurt';e.mouth='shout';}
-  else if(s.striking){e.brows='angry';e.mouth=s.attackTime>0?'shout':'grit';}
-  else if(s.guarding||s.straining){e.brows='angry';e.mouth='grit';}
-  else if(s.won){e.eyes='closed';e.mouth='grin';}
-  else if(s.lowHp){e.brows='sad';e.mouth='frown';e.tear=true;}
+  else if(s.hurt){e.eyes='hurt';e.mouth='shout';e.mark='sweat';}
+  else if(s.striking){e.brows='angry';e.mouth=s.attackTime>0?'shout':'grit';if(s.skill)e.mark='anger';}
+  else if(s.guarding){e.brows='angry';e.mouth='grit';}
+  else if(s.straining){e.brows='angry';e.mouth='grit';e.mark='sweat';}
+  else if(s.won){e.eyes='closed';e.mouth='grin';e.mark='star';}
+  else if(s.lowHp){e.brows='sad';e.mouth='frown';e.tear=true;e.mark='sweat';}
   if(!e.eyes&&s.blink)e.eyes='closed';
   return e;
 }

@@ -194,9 +194,9 @@ test('throw animation releases within a few frames of the projectile spawning',(
 });
 
 test('expressions: eyes, brows and mouth follow the fight state, one mouth at a time',()=>{
-  const base={dead:false,hurt:false,striking:false,attackTime:0,guarding:false,straining:false,won:false,lowHp:false,blink:false,flush:false};
+  const base={dead:false,hurt:false,striking:false,skill:false,attackTime:0,guarding:false,straining:false,won:false,lowHp:false,blink:false,flush:false};
   const x=o=>tripoExpression({...base,...o});
-  assert.deepEqual(x({}),{eyes:null,brows:null,mouth:null,tear:false,blush:false},'a relaxed fighter has no overlay');
+  assert.deepEqual(x({}),{eyes:null,brows:null,mouth:null,tear:false,blush:false,mark:null},'a relaxed fighter has no overlay');
   assert.deepEqual([x({hurt:true}).eyes,x({hurt:true}).mouth],['hurt','shout'],'hit: >< eyes and an open mouth');
   assert.deepEqual([x({striking:true,attackTime:.2}).brows,x({striking:true,attackTime:.2}).mouth],['angry','shout'],'attacking: angry brows, shouting');
   assert.equal(x({striking:true,attackTime:0}).mouth,'grit','charging a special grits the teeth');
@@ -204,6 +204,10 @@ test('expressions: eyes, brows and mouth follow the fight state, one mouth at a 
   assert.deepEqual([x({straining:true}).brows,x({straining:true}).mouth],['angry','grit'],'lifting or holding someone strains');
   assert.deepEqual([x({won:true}).eyes,x({won:true}).mouth],['closed','grin']);
   const low=x({lowHp:true});assert.deepEqual([low.brows,low.mouth,low.tear],['sad','frown',true]);
+  assert.equal(x({hurt:true}).mark,'sweat','a hit shows a sweat drop');
+  assert.equal(x({striking:true,skill:true,attackTime:0}).mark,'anger','charging or casting a special shows the anger mark');
+  assert.equal(x({striking:true,attackTime:.2}).mark,null,'an ordinary swing does not spam symbols');
+  assert.equal(x({straining:true}).mark,'sweat');assert.equal(x({won:true}).mark,'star');assert.equal(x({lowHp:true}).mark,'sweat');assert.equal(x({guarding:true}).mark,null);
   assert.equal(x({blink:true}).eyes,'closed','blinks close the eyes');
   assert.equal(x({hurt:true,blink:true}).eyes,'hurt','a hit wins over a blink');
   assert.equal(x({flush:true}).blush,true,'beer flushes the cheeks in every state');
@@ -245,5 +249,30 @@ test('carrying a load or an opponent overhead keeps the legs walking',{skip:!fs.
     assert.ok(feet[0][0].distanceTo(feet[4][0])<1e-4,clip+' loop boundary must not snap');
     assert.ok(feet[1][0].y<feet[1][1].y-.1&&feet[3][0].y>feet[3][1].y+.1,clip+': feet lift alternately');
     const reach=Math.max(...feet.map(([r,l])=>r.distanceTo(l)));assert.ok(reach>.9,clip+': legs actually stride (reach '+reach.toFixed(2)+')');
+  }
+});
+
+// Rig-space box of a carried crate (.95 game units at the model's 3.1 scale, centred over the hips).
+const CRATE_HALF=.95/3.1/2,CRATE_CENTRE=[-.19,0];
+function bladeInsideCrate(g,parent,pose,clip,times){
+  const steel=[];g.root.getObjectByName('TripoCutlass').traverse(o=>{if(o.isSkinnedMesh&&o.material.name==='TripoSteel')steel.push(o);});
+  let worst=0;
+  for(const time of times){
+    pose(clip,time);parent.updateMatrixWorld(true);const v=new THREE.Vector3();
+    for(const mesh of steel){mesh.skeleton.update();
+      for(let i=0;i<mesh.geometry.attributes.position.count;i++){
+        mesh.getVertexPosition(i,v).applyMatrix4(mesh.matrixWorld);
+        const bx=v.z/TRIPO_SCALE-.19,by=v.x/TRIPO_SCALE,bz=v.y/TRIPO_SCALE-TRIPO_MESH_OFFSET;
+        const depth=Math.min(CRATE_HALF-Math.abs(bx-CRATE_CENTRE[0]),CRATE_HALF-Math.abs(by-CRATE_CENTRE[1]),bz-TRIPO_CARRY_BOTTOM,TRIPO_CARRY_BOTTOM+CRATE_HALF*2-bz);
+        if(depth>worst)worst=depth;
+      }}
+  }
+  return worst;
+}
+test('the cutlass never pokes into a carried crate',{skip:!fs.existsSync(file)},async()=>{
+  const {g,parent,pose}=await model();
+  for(const [clip,times] of [['carry',[0,.5]],['carry_walk',[0,.125,.25,.5,.75]]]){
+    const depth=bladeInsideCrate(g,parent,pose,clip,times);
+    assert.ok(depth<.004,clip+': blade vertices sink '+depth.toFixed(3)+' (rig units) into the crate');
   }
 });

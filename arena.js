@@ -98,13 +98,29 @@ function attachGlb(m,charId){
       m.weaponGlow=glow;m.swordTrail=trail;m.swordSparks=sparks;
     }
     // The Tripo guard clip already holds the real blade up in front; the prop's crossed blades would overlap it.
-    if(tripo){g.tripoFace=Object.fromEntries(TRIPO_FACE.map(([k])=>[k,[]]));g.root.traverse(o=>{if(!o.isMesh||o.userData.ink)return;const hit=TRIPO_FACE.find(([,re])=>re.test(o.name));if(hit){o.visible=false;o.castShadow=false;o.receiveShadow=false;o.material=o.material.clone();o.material.transparent=true;o.material.depthWrite=false;g.tripoFace[hit[0]].push(o);}});}
+    if(tripo){g.tripoMarks=Object.fromEntries(['anger','sweat','star'].map(k=>{const s=new THREE.Sprite(new THREE.SpriteMaterial({map:markTexture(k),transparent:true,depthTest:false}));s.renderOrder=12;s.visible=false;m.body.add(s);return [k,s];}));
+      g.tripoFace=Object.fromEntries(TRIPO_FACE.map(([k])=>[k,[]]));g.root.traverse(o=>{if(!o.isMesh||o.userData.ink)return;const hit=TRIPO_FACE.find(([,re])=>re.test(o.name));if(hit){o.visible=false;o.castShadow=false;o.receiveShadow=false;o.material=o.material.clone();o.material.transparent=true;o.material.depthWrite=false;g.tripoFace[hit[0]].push(o);}});}
     if(tripo&&m.guard?.parts?.cross)m.guard.parts.cross.visible=false;
     m.glb=g;
   }).catch(err=>console.warn('glb load failed',err));
 }
 // Expression decals painted onto the scan's face (see tools/blender/animate_tripo_pirate.py add_face).
 const TRIPO_FACE=[['hurt',/^TripoEyesHurt/],['closed',/^TripoEyesClosed/],['blush',/^TripoBlush/],['angry',/^TripoBrowAngry/],['sad',/^TripoBrowSad/],['shout',/^TripoMouthShout/],['grit',/^TripoMouthGrit/],['grin',/^TripoMouthGrin/],['frown',/^TripoMouthFrown/],['tear',/^TripoTear/]];
+// Comic symbols drawn on a canvas, shown as sprites beside a Tripo fighter's head (see tripoExpression().mark).
+function markTexture(kind){
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.lineCap='round';x.lineJoin='round';
+  const outline=(w,color,draw)=>{x.lineWidth=w;x.strokeStyle=color;draw();x.stroke();};
+  if(kind==='anger'){   // four curved wedges around a gap, the manga "cross-popped vein"
+    for(const [dx,dy] of [[1,1],[-1,1],[1,-1],[-1,-1]]){const p=()=>{x.beginPath();x.moveTo(64+dx*12,64+dy*50);x.quadraticCurveTo(64+dx*12,64+dy*12,64+dx*50,64+dy*12);};outline(22,'#15171c',p);outline(11,'#ff3b2a',p);}
+  }else if(kind==='sweat'){
+    const drop=()=>{x.beginPath();x.moveTo(64,10);x.bezierCurveTo(96,52,104,70,64,114);x.bezierCurveTo(24,70,32,52,64,10);x.closePath();};
+    drop();x.fillStyle='#7fd6ff';x.fill();outline(9,'#15171c',drop);x.beginPath();x.ellipse(52,74,6,14,.3,0,Math.PI*2);x.fillStyle='#fff';x.fill();
+  }else{
+    const star=()=>{x.beginPath();for(let i=0;i<8;i++){const r=i%2?16:56,a=i*Math.PI/4-Math.PI/2;x.lineTo(64+Math.cos(a)*r,64+Math.sin(a)*r);}x.closePath();};
+    star();x.fillStyle='#ffe14a';x.fill();outline(8,'#15171c',star);
+  }
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
 const HELD_BODY_CENTRE=1.55,HELD_BODY_THICKNESS=.9;   // a fighter's middle above his feet, and how deep he is lying down
 const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;
 const ATTACK_CLIP=a=>['heavy','upper','slam'].includes(a)?'heavy':['dash','rush','shieldBash'].includes(a)?'dash':a==='shot'?'shoot':a==='grab'?'grab':null;
@@ -158,12 +174,17 @@ function driveGlb(m,p,dt,walking){
   else if(p.hp<25){f.sad=.5;}
   g.setFace(f,dt);
   if(g.tripoFace){
-    const e=tripoExpression({dead:p.hp<=0,hurt:hurtish,striking:p.attackTime>0||p.skillTime>0||Boolean(p.pendingSkill),attackTime:p.attackTime,guarding:p.blocking,straining:p.carrying||p.grabbedTarget!==null,won,lowHp:p.hp<25,blink:f.blink>.5,flush:p.attackBoostTime>0&&p.weapon!=='sword'}),F=g.tripoFace;
+    const e=tripoExpression({dead:p.hp<=0,hurt:hurtish,striking:p.attackTime>0||p.skillTime>0||Boolean(p.pendingSkill),skill:p.skillTime>0||Boolean(p.pendingSkill),attackTime:p.attackTime,guarding:p.blocking,straining:p.carrying||p.grabbedTarget!==null,won,lowHp:p.hp<25,blink:f.blink>.5,flush:p.attackBoostTime>0&&p.weapon!=='sword'}),F=g.tripoFace;
     const show=(k,on)=>F[k].forEach(o=>o.visible=on);
     show('hurt',e.eyes==='hurt');show('closed',e.eyes==='closed');show('angry',e.brows==='angry');show('sad',e.brows==='sad');
     for(const k of ['shout','grit','grin','frown'])show(k,e.mouth===k);
     show('tear',e.tear);show('blush',e.blush);
     F.blush.forEach(o=>{o.material.opacity=.72+.18*Math.sin(world.tick*.1);});
+    for(const [k,s] of Object.entries(g.tripoMarks)){   // pop in, float, vanish
+      const on=k===e.mark;s.userData.t=on?Math.min(1,(s.userData.t||0)+dt*7):Math.max(0,(s.userData.t||0)-dt*10);
+      s.visible=s.userData.t>0;const pop=s.userData.t<1?1.35-.35*s.userData.t:1;
+      s.scale.setScalar(1.05*s.userData.t*pop*(1+.06*Math.sin(world.tick*.25)));s.position.set(.62,3.45+.05*Math.sin(world.tick*.18),.1);
+    }
   }
   g.update(dt);
 }
@@ -846,13 +867,21 @@ function animateFighter(p,i,m,dt){
   }
   // Held by a Tripo fighter: lie on his back across the holder's shoulders, resting on the head, like the
   // crate. The core keeps the opponent chest-high in front of the holder; this is a visual-only override.
-  const holderIndex=p.grabbedBy!==null&&p.hp>0?world.fighters.findIndex(q=>q.id===p.grabbedBy):-1,holderModel=holderIndex>=0?models[holderIndex]:null;
-  if(holderModel?.glb?.tripo){
-    const h=world.fighters[holderIndex];
-    m.body.rotation.set(-Math.PI/2+Math.sin(world.tick*.2)*.05,Math.atan2(h.fx,h.fz)+Math.PI/2,Math.sin(world.tick*.17)*.06);
-    const centre=new THREE.Vector3(0,HELD_BODY_CENTRE,0).applyQuaternion(new THREE.Quaternion().setFromEuler(m.body.rotation));
-    m.root.position.set(h.x-centre.x,h.y+tripoCarryHeight(holderModel.glb.root.scale.y)+HELD_BODY_THICKNESS/2-centre.y,h.z-centre.z);
-    m.body.position.set(0,0,0);
+  // The blend eases in when picked up and, importantly, eases OUT when thrown: the core launches the
+  // opponent from chest height, so without it he would pop from the head to the chest as he flies off.
+  const holderIndex=p.grabbedBy!==null&&p.hp>0?world.fighters.findIndex(q=>q.id===p.grabbedBy):-1;
+  if(holderIndex>=0&&models[holderIndex]?.glb?.tripo)m.heldBy=holderIndex;
+  const holderModel=m.heldBy!==undefined?models[m.heldBy]:null;
+  m.heldBlend=holderIndex>=0&&holderModel?.glb?.tripo?Math.min(1,(m.heldBlend||0)+dt/.1):Math.max(0,(m.heldBlend||0)-dt/.22);
+  if(m.heldBlend>0&&holderModel?.glb?.tripo){
+    const h=world.fighters[m.heldBy],k=m.heldBlend*m.heldBlend*(3-2*m.heldBlend);
+    const lying=new THREE.Euler(-Math.PI/2+Math.sin(world.tick*.2)*.05,Math.atan2(h.fx,h.fz)+Math.PI/2,Math.sin(world.tick*.17)*.06,'YXZ');
+    const from=m.body.rotation.clone();
+    m.body.rotation.set(from.x+(lying.x-from.x)*k,from.y+(lying.y-from.y)*k,from.z+(lying.z-from.z)*k);
+    const centre=new THREE.Vector3(0,HELD_BODY_CENTRE,0).applyQuaternion(new THREE.Quaternion().setFromEuler(lying));
+    const over=new THREE.Vector3(h.x-centre.x,h.y+tripoCarryHeight(holderModel.glb.root.scale.y)+HELD_BODY_THICKNESS/2-centre.y,h.z-centre.z);
+    m.root.position.lerp(over,k);
+    m.body.position.multiplyScalar(1-k);
   }
   m.syncSurface();
   updateGuard(m.guard,p.blocking&&p.hp>0,t,dt,guardHits.delete(p.id));
