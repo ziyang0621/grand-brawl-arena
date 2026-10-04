@@ -33,3 +33,32 @@ test("the brawler's uppercut launches the target for a juggle",()=>{
   const r=duel('brawler',q=>Object.assign(q,{x:2,z:0,fx:-1,fz:0}));
   assert.ok(r.q.hp<100);assert.equal(r.q.juggle,1,'target is in the juggle state');
 });
+
+import {grab,attack} from '../arena-core.js';
+function grabThrow(char){
+  const w=createWorld({chars:[char,'brawler'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
+  const [p,q]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:1.5,z:0,fx:-1,fz:0});
+  p.attackCD=0;grab(w,p,{});for(let t=0;t<.6;t+=STEP)step(w,{});
+  const afterGrab=q.hp;assert.equal(q.grabbedBy,p.id,char+' holds');
+  attack(w,p,{});step(w,{});
+  return {afterGrab,after:q.hp,q,spd:Math.hypot(q.vx,q.vz)};
+}
+test('every grab ends with its own damage on release; the stormcaller shocks and the gunner throws far',()=>{
+  const sw=grabThrow('swordsman'),gu=grabThrow('gunner'),st=grabThrow('stormcaller'),br=grabThrow('brawler');
+  for(const r of [sw,gu,st,br])assert.ok(r.after<r.afterGrab,'release hurts');
+  assert.ok(gu.spd>sw.spd*1.2,'gunner throws further');
+  assert.ok(st.q.slowTime>0,'shocked');
+  assert.ok(br.afterGrab<sw.afterGrab,'the brawler grab hurts most');
+});
+
+import {createFighter,stepFighter} from '../arena-core.js';
+import {STAGES} from '../arena-roster.js';
+const walkOn=(char,stage,x,z,seconds,input)=>{const p=createFighter(0,x,z,char);for(let t=0;t<seconds;t+=STEP)stepFighter(p,input,STEP,stage);return p;};
+test('characters cope differently with quicksand and ice',()=>{
+  const sand=STAGES.desert.zones[0];
+  const dist=char=>walkOn(char,STAGES.desert,sand.x-1.5,sand.z,.6,{x:1}).x-(sand.x-1.5);
+  assert.ok(dist('cook')>dist('swordsman')&&dist('swordsman')>dist('guardian'),'cook wades best, the armoured guardian worst');
+  const iceZone=STAGES.snow.zones.find(z=>z.kind==='ice');
+  const slide=char=>{const p=walkOn(char,STAGES.snow,iceZone.x-4,iceZone.z,.5,{x:1});const x0=p.x;for(let t=0;t<.6;t+=STEP)stepFighter(p,{},STEP,STAGES.snow);return p.x-x0;};
+  assert.ok(slide('gunner')>slide('guardian')*1.5,'the light gunner slides much further than the planted guardian');
+});

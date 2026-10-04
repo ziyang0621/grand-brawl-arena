@@ -68,6 +68,8 @@ const GLB_CHARS=Object.fromEntries(['swordsman','guardian','brawler','gunner','c
 // the swordsman slot while its Blender-authored motion is being tuned.
 // Tripo models are the default look; ?tripo=0 (or the header button) switches to the older Blender/procedural bodies.
 const TRIPO_PREVIEW=(()=>{const q=new URLSearchParams(location.search).get('tripo');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-tripo')!=='0';}catch{return true;}})();
+// Tripo mode shows the Tripo models' own busts (tools/blender/render_tripo_portraits.py) in the HUD, cards, VS screen and cut-ins.
+if(TRIPO_PREVIEW)for(const id of Object.keys(TRIPO_CHARS))portraits[id]=`models/portraits/tripo-${id==='swordsman'?'pirate':id}.png`;
 const useGlb=(()=>{const q=new URLSearchParams(location.search).get('glb');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-glb')!=='0';}catch{return true;}})();
 function attachGlb(m,charId){
   const tripoCfg=TRIPO_PREVIEW?TRIPO_CHARS[charId]:null,tripo=Boolean(tripoCfg),url=tripo?tripoCfg.url:GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
@@ -890,7 +892,7 @@ function animateFighter(p,i,m,dt){
   }
   m.syncSurface();
   updateGuard(m.guard,p.blocking&&p.hp>0,t,dt,guardHits.delete(p.id));
-  m.body.visible=!(p.invuln>0&&p.hp>0&&Math.floor(world.tick/6)%2===0);
+  m.body.visible=!(p.invuln>0&&p.hp>0&&p.grabbedBy===null&&Math.floor(world.tick/6)%2===0);   // a held fighter keeps the grab's invulnerability but must not flicker
   m.poisonFx.visible=p.poisonTime>0;m.poisonBubbles.forEach((b,j)=>{b.position.x=Math.cos(b.userData.a+t*(1.5+j*.08))*b.userData.r;b.position.z=Math.sin(b.userData.a+t*(1.5+j*.08))*b.userData.r;b.position.y=.35+((b.userData.y+t*(.55+j*.04))%2.25);b.scale.setScalar(.8+Math.sin(t*7+j)*.25);});
   m.virusFx.visible=p.virusTime>0;m.virusFx.rotation.y=-t*2.2;m.virusNodes.forEach((n,j)=>{n.position.y=n.userData.y+Math.sin(t*9+j)*.13;n.rotation.x+=dt*(2+j*.2);n.rotation.y+=dt*3;n.scale.setScalar(.8+Math.abs(Math.sin(t*8+j))*.65);});
   m.iceFx.visible=p.slowTime>0;m.iceShards.forEach((s,j)=>{s.material.opacity=.55+Math.sin(t*6+j)*.2;s.scale.setScalar(.92+Math.sin(t*5+j)*.08);});

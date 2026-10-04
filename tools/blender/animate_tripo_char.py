@@ -234,6 +234,31 @@ def purge_far_limb_weights(reach=.09):
 purge_far_limb_weights()
 
 
+def merge_weights():
+    """Fold a helper bone's weights into a leg bone (spec 'merge_weights'), e.g. the gunner's holster into the left thigh."""
+    ob = body_mesh
+    for helper, (side, key) in SPEC.get('merge_weights', {}).items():
+        target = (RIGHT if side == 'Right' else LEFT)[key].name
+        if helper not in ob.vertex_groups:
+            continue
+        src = ob.vertex_groups[helper]
+        dst = ob.vertex_groups.get(target) or ob.vertex_groups.new(name=target)
+        moved = 0
+        for v in ob.data.vertices:
+            for g in v.groups:
+                if g.group == src.index and g.weight > 0:
+                    w = g.weight
+                    old = next((x.weight for x in v.groups if x.group == dst.index), 0.0)
+                    dst.add([v.index], min(1.0, old + w), 'REPLACE')
+                    src.remove([v.index])
+                    moved += 1
+                    break
+        print('MERGED', helper, '->', target, moved)
+
+
+merge_weights()
+
+
 def heal_tears(max_stretch=3.0, passes=6):
     """Tripo's automatic weights sometimes bind a vertex to a bone on the far side of a seam: a long hair strand's last
     bone dragging the shoulder, a hip pouch following the thigh. Pose the rig at its extremes, find every edge that is

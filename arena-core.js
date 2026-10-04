@@ -175,10 +175,15 @@ function releaseGrab(w,holder,target,high=false,escaped=false){
   target.grabbed=0;target.grabbedBy=null;target.grabEscape=0;
   target.knocked=escaped?.2:.95;target.stun=escaped?0:.25;target.grounded=false;
   const length=Math.hypot(holder.fx,holder.fz),fx=length>.001?holder.fx/length:1,fz=length>.001?holder.fz/length:0;
-  const speed=escaped?-4:high?4.5:10;
+  const gp=characterOf(holder).grab;
+  const speed=escaped?-4:(high?4.5:10)*(gp?.speed||1);
   target.vx=fx*speed;target.vz=fz*speed;target.vy=escaped?3:high?12:7.8;
   target.thrownTime=escaped?0:.65;
   if(!escaped){holder.throwTime=.3;holder.throwHigh=high;holder.attackTime=0;holder.attackCD=Math.max(holder.attackCD,.3);}
+  if(!escaped&&gp){   // each character's grab ends differently: damage on release, and the stormcaller leaves a shock
+    if(gp.throwDamage&&target.hp>0){target.hp=Math.max(0,target.hp-gp.throwDamage*(holder.attackBoost||1));emit(w,'hit',{x:target.x,y:target.y+1.2,z:target.z,damage:gp.throwDamage,id:target.id});}
+    if(gp.shock)target.slowTime=Math.max(target.slowTime||0,gp.shock);
+  }
   emit(w,escaped?'grabEscape':'throwHit',{x:target.x,y:target.y+1.1,z:target.z,id:target.id,holder:holder.id,high});
 }
 // Shared cleanup for being hit, losing a life, or an invalid holder/target pair.
@@ -454,7 +459,8 @@ function ai(w,p,q){
 export function stepFighter(p,input,dt,stage=STAGES.classic){
   // Terrain only applies on the ground floor: quicksand slows and drags, ice speeds up and slides.
   const zone=p.y<.05&&p.support==='ground'?zoneAt(stage,p.x,p.z):null,terrain=zone?.kind||null;p.terrain=terrain;
-  if(terrain==='hotspring'&&p.hp>0){p.hp=Math.min(100,p.hp+dt*3.5);p.slowTime=Math.max(0,(p.slowTime||0)-dt*3);}
+  const tp=characterOf(p).terrain||{};   // each character copes with the stage terrain differently (see CHARACTERS[id].terrain)
+  if(terrain==='hotspring'&&p.hp>0){p.hp=Math.min(100,p.hp+dt*3.5*(tp.spring??1));p.slowTime=Math.max(0,(p.slowTime||0)-dt*3);}
   p.sink=terrain==='quicksand'?Math.min(1,(p.sink||0)+dt*.8):Math.max(0,(p.sink||0)-dt*3);
   for(const key of ['attackCD','comboWindow','bombCD','skillCD','skillTime','dodgeCD','dodgeTime','stun','invuln','parryWindow'])p[key]=Math.max(0,p[key]-dt);
   p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);p.coyote=p.grounded?.09:Math.max(0,p.coyote-dt);
@@ -463,13 +469,13 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
   let ix=p.skillTime>0?0:input.x||0,iz=p.skillTime>0?0:input.z||0;const len=Math.hypot(ix,iz);if(len>1){ix/=len;iz/=len;}
   if(p.stun<=0&&p.dodgeTime<=0&&p.knocked<=0){
     const slow=p.slowTime>0?.55:1;if(len===0||p.blocking||p.attackTime>0||p.carrying||!p.grounded&&p.vy<-2)p.running=false;
-    const ground=terrain==='quicksand'?.45:terrain==='ice'?1.3:1,speed=p.blocking?1.2:(p.grabbedTarget!==null?4.8:p.attackTime>0?2:p.carrying?5.4:characterOf(p).speed*(p.running?1.6:1))*slow*ground,accel=terrain==='ice'?3:p.blocking?18:14;
+    const ground=terrain==='quicksand'?tp.sand??.45:terrain==='ice'?tp.ice??1.3:1,speed=p.blocking?1.2:(p.grabbedTarget!==null?4.8:p.attackTime>0?2:p.carrying?5.4:characterOf(p).speed*(p.running?1.6:1))*slow*ground,accel=terrain==='ice'?tp.iceAccel??3:p.blocking?18:14;
     p.vx+=(ix*speed-p.vx)*Math.min(1,accel*dt);p.vz+=(iz*speed-p.vz)*Math.min(1,accel*dt);
-    if(len===0){const friction=terrain==='ice'?.4:.001;p.vx*=Math.pow(friction,dt);p.vz*=Math.pow(friction,dt);}
+    if(len===0){const friction=terrain==='ice'?tp.iceFriction??.4:.001;p.vx*=Math.pow(friction,dt);p.vz*=Math.pow(friction,dt);}
     if(len>0&&(p.attackTime<=0||p.grabbedTarget!==null)&&!p.blocking){p.fx=ix/Math.hypot(ix,iz);p.fz=iz/Math.hypot(ix,iz);p.walk+=dt*14;}
     if(!p.blocking&&p.jumpBuffer>0&&(p.grounded||p.coyote>0||p.jumps<2)){
       if(!p.grounded&&p.coyote<=0&&p.jumps===0)p.jumps=1;
-      p.vy=JUMP_SPEED*(terrain==='quicksand'&&p.grounded?.62:1);p.jumps++;p.grounded=false;p.coyote=0;p.jumpBuffer=0;
+      p.vy=JUMP_SPEED*(terrain==='quicksand'&&p.grounded?tp.sandJump??.62:1);p.jumps++;p.grounded=false;p.coyote=0;p.jumpBuffer=0;
     }
   }
   const oldY=p.y;
@@ -484,7 +490,7 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
   }
   p.x=clamp(p.x+p.vx*dt,-14.5,14.5);p.z=clamp(p.z+p.vz*dt,-8.5,8.5);
   p.climbing=false;
-  if(terrain==='quicksand'&&p.dodgeTime<=0){const dx=zone.x-p.x,dz=zone.z-p.z,d=Math.hypot(dx,dz);if(d>.05){const pull=Math.min(d,1.3*dt);p.x+=dx/d*pull;p.z+=dz/d*pull;}}
+  if(terrain==='quicksand'&&p.dodgeTime<=0){const dx=zone.x-p.x,dz=zone.z-p.z,d=Math.hypot(dx,dz);if(d>.05){const pull=Math.min(d,1.3*(tp.pull??1)*dt);p.x+=dx/d*pull;p.z+=dz/d*pull;}}
   stage._ladders??=laddersOf(stage);
   const ladder=stage._ladders.find(l=>l.dz!==0?Math.abs(p.x-l.x)<.72&&Math.abs(p.z-l.z)<1.8:Math.abs(p.z-l.z)<.72&&Math.abs(p.x-l.x)<1.8);
   const into=ladder?ix*ladder.dx+iz*ladder.dz:0;
@@ -655,7 +661,7 @@ export function step(w,input={},dt=STEP){
           w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,vx:p.fx*sh.speed,vz:p.fz*sh.speed,fx:p.fx,fz:p.fz,life:sh.life,boost:p.attackBoost,damage:sh.damage,slow:sh.slow||0,style:sh.style||'ball'});
           emit(w,'shotFire',{id:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,fx:p.fx,fz:p.fz,style:sh.style||'ball'});
         }else if(p.attackType==='grab'){
-          for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);if(d<1.85&&(dot>-.25||d<.8))hit(w,p,q,12*(characterOf(p).boost.grab||1)*p.attackBoost,8,{grab:true});
+          for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);const gp=characterOf(p).grab;if(d<(gp?.reach??1.85)&&(dot>-.25||d<.8))hit(w,p,q,(gp?.damage??12)*(characterOf(p).boost.grab||1)*p.attackBoost,8,{grab:true});
           }
         }else for(const q of w.fighters){const d=distance(p,q);const vertical=['slam','air','upper'].includes(p.attackType)?2.4:1.5;if(q===p||Math.abs(p.y-q.y)>vertical)continue;
           const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);

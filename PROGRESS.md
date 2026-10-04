@@ -721,3 +721,11 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Audit method that works: contact sheets rendered in Blender (3/4 view, every clip at its key frames, decals hidden) show shards and bad poses far faster than in-game screenshots.
 - Online: snapshots carry the whole world state, so toss/boost/carry visuals follow on the guest; both sides default to Tripo. Not tested on a real phone: models are ~4 MB (pirate 9 MB), ~20k triangles each.
 
+## Per-character grab and terrain, 3D portraits, held-fighter flicker fix
+- `CHARACTERS[id].grab` (reach, damage, throw speed, damage on release, shock) and `.terrain` (quicksand speed/pull/jump, ice speed/grip, hot-spring heal) make grabs and stage terrain differ per character.
+  Tests: `tests/heavy-profiles.test.js` (U profiles, grabs, sand and ice). Ice grip is `iceAccel`/`iceFriction`: lower friction stops faster; measured slides over .6 s: guardian 1.1, brawler 1.6, swordsman 1.7, cook 1.5, gunner 2.1, stormcaller 2.2.
+- U reach was checked against the model: the wrist/foot extends 1.5-1.9 units from the fighter at the hit frame, the brawler's uppercut only .7, so its reach is 2.1 with a 4-unit lunge, the cook's whirlwind 2.55.
+- Bug fixed: a held fighter kept the grab's invulnerability and flickered (half the frames invisible). `arena.js` no longer blinks a fighter that is being held.
+- `tools/blender/render_tripo_portraits.py` renders busts to `models/portraits/tripo-<id>.png`; Tripo mode uses them in the HUD, cards, VS screen and cut-ins. `serve.js` serves that path (static hosting needs it too).
+- Gunner holster: `merge_weights` in `tripo_specs.py` folds `bone_49` into the left thigh (the holster tore away whenever the leg swung).
+

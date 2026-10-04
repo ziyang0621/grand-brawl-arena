@@ -3,19 +3,21 @@
 // move attack (move + J), heavy variant and a three-level special.
 export const CHARACTERS={
   swordsman:{quote:'这把刀还没砍够呢！下一个是谁？',name:'红帆',title:'海盗剑士',color:'#d4462f',accent:'#ffd24a',skin:'#f2c08f',hair:'#2a2a38',speed:7.6,moveAttack:'dash',skill:'whirlwind',skillName:'红帆旋风斩',
-    blurb:'冲刺斩快，旋风斩可打空中',heavy:{name:'突刺',reach:3.5,arc:.55,damage:17,force:9,lunge:8},boost:{dash:1.1,air:1.1}},
+    blurb:'冲刺斩快，旋风斩可打空中',heavy:{name:'突刺',reach:3.5,arc:.55,damage:17,force:9,lunge:8},grab:{name:'擒抱',reach:1.85,damage:12,speed:1,throwDamage:4},terrain:{},boost:{dash:1.1,air:1.1}},
   guardian:{quote:'港口的秩序，由我来守护。',name:'蓝潮',title:'港口守卫',color:'#2f7fb4',accent:'#e8d38e',skin:'#e9b98a',hair:'#1e3346',speed:7.6,moveAttack:'shieldBash',skill:'shieldQuake',skillName:'蓝潮震盾',
-    blurb:'盾冲破防，震盾范围大可跳避',heavy:{name:'盾剑重砸',reach:3.1,arc:-1.01,damage:17,force:11},boost:{heavy:1.2,upper:1.2,slam:1.2,shieldBash:1.2}},
+    blurb:'盾冲破防，震盾范围大可跳避',heavy:{name:'盾剑重砸',reach:3.1,arc:-1.01,damage:17,force:11},grab:{name:'盾牌擒拿',reach:1.95,damage:11,speed:1.1,throwDamage:8},terrain:{sand:.38,pull:1.2,sandJump:.55,ice:1.15,iceAccel:5,iceFriction:.15},boost:{heavy:1.2,upper:1.2,slam:1.2,shieldBash:1.2}},
   brawler:{quote:'哈哈！拳头说话最痛快！',name:'铁拳',title:'水手拳师',color:'#2e9b57',accent:'#ff8a3c',skin:'#d99a6c',hair:'#f0e6c8',speed:7.1,moveAttack:'rush',skill:'fistStorm',skillName:'铁拳暴风连打',
-    blurb:'近身连打最痛，抓投更强',heavy:{name:'上勾拳',reach:2.5,arc:.2,damage:15,force:6,launch:true},boost:{light:1.15,rush:1.1,grab:1.25}},
+    blurb:'近身连打最痛，抓投更强',heavy:{name:'上勾拳',reach:2.1,arc:.2,damage:15,force:6,launch:true,lunge:4},grab:{name:'铁拳抱摔',reach:1.8,damage:16,speed:1,throwDamage:10},terrain:{sand:.55,pull:.85,sandJump:.7,spring:1.3},boost:{light:1.15,rush:1.1,grab:1.25}},
   gunner:{quote:'瞄准完毕——百发百中！',name:'火哨',title:'炮手狙击',color:'#e0a21c',accent:'#6b3fa0',skin:'#f0c49a',hair:'#8a3b1e',speed:8,moveAttack:'shot',skill:'barrage',skillName:'火哨流星弹幕',
-    blurb:'移动+J 远程射击，弹幕瞄准对手',heavy:{name:'枪托猛击',reach:2.3,arc:.1,damage:16,force:12},boost:{}},
+    blurb:'移动+J 远程射击，弹幕瞄准对手',heavy:{name:'枪托猛击',reach:2.3,arc:.1,damage:16,force:12},grab:{name:'近身击发',reach:1.9,damage:9,speed:1.4,throwDamage:7},terrain:{ice:1.4,iceAccel:2.5,iceFriction:.5},boost:{}},
 };
 CHARACTERS.cook={quote:'饭要好好吃，架也要好好打。',name:'灶火',title:'踢技厨师',color:'#3a3f4c',accent:'#ffcf3a',skin:'#f3c9a0',hair:'#f2d46a',speed:7.7,moveAttack:'dash',skill:'flameKick',skillName:'灶火烈焰踢',
-  blurb:'脚下功夫最快，烈焰踢会点燃对手',heavy:{name:'旋风腿',reach:2.95,arc:-1.01,damage:16,force:9},boost:{dash:1.05,air:1.05}};
+  blurb:'脚下功夫最快，烈焰踢会点燃对手',heavy:{name:'旋风腿',reach:2.55,arc:-1.01,damage:16,force:9},grab:{name:'踢飞',reach:2.1,damage:11,speed:1.25,throwDamage:6},terrain:{sand:.58,pull:.8,sandJump:.75,iceAccel:4,iceFriction:.25},boost:{dash:1.05,air:1.05}};
 CHARACTERS.stormcaller={quote:'天气预报说，你今天会倒霉。',name:'云雀',title:'气象航海士',color:'#e0507a',accent:'#ffe27a',skin:'#f6cfa6',hair:'#ff8f2a',speed:7.9,moveAttack:'shot',skill:'thunder',skillName:'云雀落雷',
   shot:{speed:13,damage:4.5,life:.7,slow:.8,style:'bolt'},
-  blurb:'移动+J 放电击，落雷范围大会麻痹',heavy:{name:'长杖横扫',reach:3.4,arc:.3,damage:15,force:8},boost:{}};
+  blurb:'移动+J 放电击，落雷范围大会麻痹',heavy:{name:'长杖横扫',reach:3.4,arc:.3,damage:15,force:8},grab:{name:'电击擒拿',reach:1.85,damage:8,speed:1,throwDamage:5,shock:2},terrain:{sandJump:.8,ice:1.45,iceAccel:2.5,iceFriction:.55,spring:1.5},boost:{}};
+// The select cards also name each character's own U move.
+for(const c of Object.values(CHARACTERS))if(c.heavy&&!c.blurb.includes('U '))c.blurb+=` · U ${c.heavy.name}`;
 export const CHARACTER_IDS=Object.keys(CHARACTERS);
 // Slot colours for the 1P–4P rings, name tags and brawl HUD cards.
 export const SLOT_COLORS=['#ffd24a','#5fd8ff','#ff7ac8','#8dff7a'],SLOT_LABELS=['1P','2P','3P','4P'];

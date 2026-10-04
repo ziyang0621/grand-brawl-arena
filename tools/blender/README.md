@@ -69,4 +69,6 @@ blender -b --factory-startup --python tools/blender/animate_tripo_char.py -- bra
 - `tripo_face.py` builds the expression decals from the `face` pixel coordinates in `tripo_specs.py` (front render, +Y = image right, 0.0005 units/pixel).
 - `purge_far_limb_weights()` removes far-away limb/hair influences left by the automatic skinning (these cause shards at fingertips and boot soles).
 - Per-character U profiles live in `arena-roster.js` (`heavy`), not in the clips: the clip only has to look like the move.
+- `render_tripo_portraits.py` renders the HUD/select-card busts (`models/portraits/`). Re-run it after changing a character's look.
+- `merge_weights` (spec) folds a helper bone's weights into a leg bone.
 

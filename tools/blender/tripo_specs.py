@@ -4,6 +4,7 @@ source   rigged Tripo GLB (the default biped skeleton, ~15k faces)
 style    which attack choreography to bake: fist | swordshield | gun | kick | staff
 weapon   what is bound to the right wrist (None = bare hands): sword | pistol | staff
 off_hand extra prop bound to the left forearm: buckler | None
+merge_weights  {bone: (side, 'thigh'|...)} fold a helper bone's weights into a leg bone
 eyes     optional hand-measured eye centres in armature space, only for faces the texture search cannot read
          (for example hair that covers one eye); otherwise they are found from the texture
 """
@@ -24,6 +25,7 @@ SPECS = {
     'gunner': {
         'source': 'models/tripo-roster/gunner/rig/tripo-out/*/model.glb',
         'style': 'gun', 'weapon': 'pistol', 'off_hand': None,
+        'merge_weights': {'bone_49': ('Left', 'thigh')},      # the holster hangs on the thigh: skinned to the hip bone it tears away whenever the leg swings
         'face': {'centre': (.001, .2956), 'look': (400, 420), 'skin': [(330, 440), (470, 440)],
                  'eyes': {1: (453, 392, 60, 50), -1: (330, 392, 60, 50)}, 'brows': {1: (465, 333, 105, 40), -1: (328, 333, 105, 40)}, 'mouth': (400, 502, 170, 70)},
     },
