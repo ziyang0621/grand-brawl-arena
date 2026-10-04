@@ -674,9 +674,9 @@ export function step(w,input={},dt=STEP){
           const reach=hv?.reach??(p.attackType==='light'?(p.weapon==='sword'?3.05:2.1):p.weapon==='sword'?3.25:p.attackType==='shieldBash'?2.8:p.attackType==='slam'?2.9:p.attackType==='heavy'?2.85:p.attackType==='upper'?2.55:p.attackType==='dash'?3:p.attackType==='rush'?2.7:p.attackType==='air'?2.7:2.6);
           if(d<reach&&(dot>(hv?.arc??-.15)||d<.8)){const baseDamage=hv?.damage??(p.attackType==='slam'?21:p.attackType==='heavy'?18:p.attackType==='upper'?16:p.attackType==='shieldBash'?15:p.attackType==='rush'?13:p.attackType==='dash'?12:p.attackType==='air'?(p.airCombo===2?14:9):(p.combo===2?15:p.combo===1?12:9)),baseForce=hv?.force??(p.attackType==='slam'?12:p.attackType==='heavy'?10:p.attackType==='upper'?9:p.attackType==='shieldBash'?11:p.attackType==='rush'?6.5:p.attackType==='dash'?7:p.attackType==='air'?5.5:(p.combo===2?9:p.combo===1?6:4)),styleBoost=characterOf(p).boost[p.attackType]||1;hit(w,p,q,baseDamage*styleBoost*p.attackBoost,baseForce*(p.char==='guardian'&&styleBoost>1?1.12:1),{guardBreak:p.attackType==='heavy'||p.attackType==='slam'||p.attackType==='shieldBash',kind:hv?.launch?'upper':p.attackType});}
         }
-        if(p.attackType!=='grab'&&p.attackType!=='shot')for(const c of w.crates)if(c.hp>0&&distance(p,c)<2.5&&Math.abs(p.y+.48-c.y)<1.7)breakCrate(w,c,1);
+        if(p.attackType!=='grab'&&p.attackType!=='shot')for(const c of w.crates)if(c.hp>0&&distance(p,c)<Math.max(2.5,(p.attackType==='heavy'&&characterOf(p).heavy?.reach||0)-.1)&&Math.abs(p.y+.48-c.y)<1.7)breakCrate(w,c,1);
         if(p.attackType!=='grab'&&p.attackType!=='shot')for(const pc of w.pieces){
-          const d=distance(p,pc);if(pc.state!=='standing'||d>2.6+pc.r||p.y>=pc.h)continue;
+          const d=distance(p,pc);if(pc.state!=='standing'||d>Math.max(2.6,(p.attackType==='heavy'&&characterOf(p).heavy?.reach||0)-.1)+pc.r||p.y>=pc.h)continue;
           if(((pc.x-p.x)*p.fx+(pc.z-p.z)*p.fz)/Math.max(.01,d)>-.1)hurtPiece(w,pc,(PIECE_DAMAGE[p.attackType]||6)*p.attackBoost,p);
         }
       }

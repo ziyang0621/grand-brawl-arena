@@ -25,15 +25,6 @@ test('a CPU standing on a glowing vent steps off before it erupts',()=>{
   assert.ok(Math.hypot(p.x-v.x,p.z-v.z)>v.r+.3,'left the grate');
   advance(w,1.5);assert.equal(p.hp,100,'not burned');
 });
-test('a ranged CPU shoots a powder keg when the rival stands beside it, from outside the blast',()=>{
-  const w=world('port',['swordsman','gunner']),keg=w.crates.find(c=>c.kind==='keg'),p=w.fighters[1],q=w.fighters[0];
-  Object.assign(q,{x:keg.x-1.2,z:keg.z});Object.assign(p,{x:keg.x+6,z:keg.z});
-  let ownDist=null;
-  for(let t=0;t<3&&keg.hp>0;t+=STEP){step(w,{});q.x=keg.x-1.2;q.z=keg.z;if(keg.hp<=0)ownDist=Math.hypot(p.x-keg.x,p.z-keg.z);}
-  assert.equal(keg.hp,0,'keg went off');assert.ok(w.events.some(e=>e.type==='explosion'&&e.kind==='keg'));
-  assert.ok(ownDist>3.2,`shooter was clear of the blast: ${ownDist}`);
-  advance(w,.2);assert.ok(q.hp<100,'the rival took the blast');
-});
 test('a melee CPU backs away from a keg rather than fighting beside it',()=>{
   const w=world('port'),keg=w.crates.find(c=>c.kind==='keg'),p=w.fighters[1];
   Object.assign(p,{x:keg.x+1,z:keg.z});Object.assign(w.fighters[0],{x:-12,z:-6});

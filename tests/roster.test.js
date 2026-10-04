@@ -9,21 +9,10 @@ test('roster has six distinct characters and three stages',()=>{
   assert.equal(CHARACTER_IDS.length,6);assert.equal(STAGE_IDS.length,3);
   assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].skill)).size,6);
   assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].name)).size,6);
-  assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].moveAttack)).size,4,'four attack styles, shared by the two ranged and two dash fighters');
+  assert.equal(new Set(CHARACTER_IDS.map(id=>CHARACTERS[id].moveAttack)).size,3,'three move+J styles (dash, shield bash, rush); nobody has a ranged J');
 });
 test('default world keeps the original swordsman vs guardian pairing',()=>{
   const w=createWorld();assert.deepEqual(w.fighters.map(p=>p.char),['swordsman','guardian']);assert.equal(w.bestOf,1);assert.equal(w.intro,0);
-});
-test('gunner move attack fires a projectile that hits at range',()=>{
-  const w=duel(['gunner','guardian']);const [p,q]=w.fighters;Object.assign(p,{x:-4,z:2,fx:1,fz:0});Object.assign(q,{x:2,z:2});
-  attack(w,p,{x:1});assert.equal(p.attackType,'shot');advance(w,.2);assert.equal(w.shots.length,1);
-  advance(w,.4);assert.ok(q.hp<100);assert.equal(w.shots.length,0);assert.ok(w.events.some(e=>e.type==='shotHit'));
-});
-test('a guarded shot is reduced from behind too and never passes through',()=>{
-  const damageTaken=guard=>{const w=duel(['gunner','guardian']);w.online=true;w.remoteInput={x:0,z:0,guard};w.nextCannonTick=w.nextWaveTick=1e9;
-    const [a,b]=w.fighters;Object.assign(a,{x:-4,z:2,fx:1,fz:0});Object.assign(b,{x:0,z:2,fx:1,fz:0});
-    attack(w,a,{x:1});advance(w,.6);assert.equal(w.shots.length,0);return 100-b.hp;};
-  assert.ok(damageTaken(true)<damageTaken(false));
 });
 test('brawler rush lunges forward and hits harder than a first jab',()=>{
   const w=duel(['brawler','guardian']);const [p,q]=w.fighters;Object.assign(p,{x:0,z:2,fx:1,fz:0});Object.assign(q,{x:2.4,z:2});
@@ -74,15 +63,6 @@ test('thunder strikes the targeted area and slows opponents that are not guardin
   assert.ok(q.hp<100);assert.ok(q.slowTime>0);
   const g=duel(['stormcaller','swordsman']);Object.assign(g.fighters[0],{x:0,z:3,fx:1,fz:0,energy:3});Object.assign(g.fighters[1],{x:5,z:3});
   skill(g,g.fighters[0],1);advance(g,.6,{});g.fighters[1].blocking=false;
-});
-test('the storm caller fires slower, weaker bolts that slow on hit',()=>{
-  const w=duel(['stormcaller','swordsman']);const [p,q]=w.fighters;
-  Object.assign(p,{x:0,z:3,fx:1,fz:0});Object.assign(q,{x:6,z:3});
-  attack(w,p,{x:1});advance(w,.2);
-  const shot=w.shots[0];assert.ok(shot);assert.equal(shot.style,'bolt');assert.ok(Math.hypot(shot.vx,shot.vz)<15);
-  advance(w,.8);assert.ok(q.hp<100);assert.ok(q.slowTime>0);
-  const g=createWorld({chars:['gunner','swordsman']});g.training=true;g.crates=[];Object.assign(g.fighters[0],{x:0,z:3,fx:1,fz:0});attack(g,g.fighters[0],{x:1});advance(g,.2);
-  assert.ok(Math.hypot(g.shots[0].vx,g.shots[0].vz)>Math.hypot(shot.vx,shot.vz),'gunner bullets are faster');
 });
 test('every pairing of the six fighters finishes a match without invalid state',()=>{
   for(const a of CHARACTER_IDS)for(const b of CHARACTER_IDS){
@@ -185,4 +165,11 @@ test('each character has its own eye, brow and nose style',()=>{
   assert.equal(new Set(pick('eyeStyle')).size,6,'six eye styles');
   assert.ok(new Set(pick('browStyle')).size>=5,'brows differ');
   assert.ok(new Set(pick('noseStyle')).size>=5,'noses differ');
+});
+
+test('move+J is a close-range lunge for every character, including the gunner and the storm caller',()=>{
+  for(const id of CHARACTER_IDS){
+    const w=duel([id,'guardian']);const [p,q]=w.fighters;Object.assign(p,{x:0,z:2,fx:1,fz:0});Object.assign(q,{x:8,z:2});
+    attack(w,p,{x:1});assert.notEqual(p.attackType,'shot',id);advance(w,.5);assert.equal(w.shots.length,0,id+' fires nothing');
+  }
 });

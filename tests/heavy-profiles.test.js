@@ -18,11 +18,11 @@ test('every character has a distinct heavy profile',()=>{
   assert.equal(names.size,CHARACTER_IDS.length);
 });
 test("Red Sail's U is a flying slash: it reaches far ahead, pierces, and does not hit behind",()=>{
-  const far=duel('swordsman',q=>Object.assign(q,{x:4,z:0,fx:-1,fz:0}));
-  assert.ok(far.q.hp<100,'the slash wave travels about 4 units');
-  assert.equal(duel('swordsman',q=>Object.assign(q,{x:7,z:0,fx:-1,fz:0})).q.hp,100,'but not across the arena');
+  const far=duel('swordsman',q=>Object.assign(q,{x:3.2,z:0,fx:-1,fz:0}));
+  assert.ok(far.q.hp<100,'the slash wave travels about 3 units');
+  assert.equal(duel('swordsman',q=>Object.assign(q,{x:5.5,z:0,fx:-1,fz:0})).q.hp,100,'but not across the arena');
   const two=(()=>{const w=createWorld({chars:['swordsman','brawler','gunner'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
-    const [p,q,r]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:2.6,z:0});Object.assign(r,{x:4,z:0});p.attackCD=0;heavy(w,p,{});
+    const [p,q,r]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:2.4,z:0});Object.assign(r,{x:3.2,z:0});p.attackCD=0;heavy(w,p,{});
     for(let t=0;t<.9;t+=STEP)step(w,{});return [q.hp,r.hp];})();
   assert.ok(two[0]<100&&two[1]<100,'the wave pierces through both');
   const behind=duel('swordsman',q=>Object.assign(q,{x:-4,z:0,fx:1,fz:0}));
@@ -30,14 +30,14 @@ test("Red Sail's U is a flying slash: it reaches far ahead, pierces, and does no
 });
 test("the guardian's U throws his shield out and back, hitting on both legs",()=>{
   const w=createWorld({chars:['guardian','brawler'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
-  const [p,q]=w.fighters;Object.assign(p,{x:-2.5,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:1,z:0,fx:-1,fz:0});q.hp=100;p.attackCD=0;heavy(w,p,{});
+  const [p,q]=w.fighters;Object.assign(p,{x:-2,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:1,z:0,fx:-1,fz:0});q.hp=100;p.attackCD=0;heavy(w,p,{});
   let first=100,sawShield=false,gone=false;
-  for(let t=0;t<2.4;t+=STEP){step(w,{});if(w.shots.length)sawShield=true;q.vx=q.vz=0;q.x=1;q.z=0;q.invuln=0;q.knocked=0;if(t<.5)first=q.hp;if(sawShield&&!w.shots.length)gone=true;}
+  for(let t=0;t<2.4;t+=STEP){step(w,{});if(w.shots.length)sawShield=true;q.vx=q.vz=0;q.x=1;q.z=0;q.invuln=0;q.knocked=0;if(t<.4)first=q.hp;if(sawShield&&!w.shots.length)gone=true;}
   assert.ok(sawShield,'a shield flies');assert.ok(first<100,'hit on the way out');assert.ok(q.hp<first,'hit again on the way back');assert.ok(gone,'the shield returns to him');
 });
 test("the brawler's rubber rocket punch reaches 3 units, narrowly",()=>{
-  const near=duel('brawler',q=>Object.assign(q,{x:3.0,z:0,fx:-1,fz:0}));assert.ok(near.q.hp<100,'hits at 3.0');
-  const far=duel('brawler',q=>Object.assign(q,{x:3.8,z:0,fx:-1,fz:0}));assert.equal(far.q.hp,100);
+  const near=duel('brawler',q=>Object.assign(q,{x:3.2,z:0,fx:-1,fz:0}));assert.ok(near.q.hp<100,'hits at 3.2');
+  const far=duel('brawler',q=>Object.assign(q,{x:4,z:0,fx:-1,fz:0}));assert.equal(far.q.hp,100);
   const side=duel('brawler',q=>Object.assign(q,{x:0,z:2.9,fx:0,fz:-1}));assert.equal(side.q.hp,100);
 });
 test("the cook's whirlwind kick hits all around him, Red Sail's thrust does not",()=>{

@@ -48,7 +48,7 @@ test('ice columns burst in a ring and chill nearby fighters',()=>{
 });
 test('shots, thrown containers, bombs and specials all damage pieces',()=>{
   let w=quiet('port',['gunner','guardian']);let pc=w.pieces[0];Object.assign(w.fighters[0],{x:pc.x+5,z:pc.z,fx:-1,fz:0});
-  attack(w,w.fighters[0],{x:-1,z:0});advance(w,.7);assert.ok(pc.hp<pc.maxHp,'shot');
+  w.shots.push({id:w.nextShot++,owner:0,x:pc.x+3,y:1.2,z:pc.z,vx:-14,vz:0,fx:-1,fz:0,life:.6,boost:1,damage:6,style:'ball'});advance(w,.6);assert.ok(pc.hp<pc.maxHp,'shot');
   w=quiet('port');pc=w.pieces[0];w.bombs.push({id:0,owner:0,kind:'bomb',x:pc.x+1,y:.3,z:pc.z,vx:0,vy:-3,vz:0,life:.01});advance(w,.2);assert.ok(pc.hp<pc.maxHp,'bomb');
   w=quiet('port');pc=w.pieces[0];Object.assign(w.fighters[0],{x:pc.x+1.5,z:pc.z,energy:3});skill(w,w.fighters[0],1);advance(w,.8);assert.ok(pc.hp<pc.maxHp,'special');
 });

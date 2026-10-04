@@ -741,3 +741,10 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
   Move+J specials (dash, shield bash, rush, gunner/stormcaller shots) keep their own ranges.
 - The brawler's rocket punch is square to the target: the clip has yaw 0 at the strike (a yaw there made the stretched arm point diagonally) and the fist is aimed slightly across so it ends on the facing line; peak bone scale 2.7.
 
+## Consistent move+J, and the rocket punch told straight
+- The gunner and stormcaller no longer have a ranged move+J: everybody's move+J is now a close lunge (dash, shield bash or rush); their bullets stay as the L specials and the engine's `shot` type. Tests that depended on ranged J were removed or rewritten (`move+J is a close-range lunge for every character`).
+- Brawler rocket punch: measured, not eyeballed. Arm elevation at the strike (shoulder to wrist) was -14 degrees (the target z was 0 relative to the chest and the torso leaned 12 degrees forward); a pirate-unit z of .03 and a 3 degree lean give about +2 to +4 degrees. Target z moves the arm ~3.3 degrees per .01.
+- Visual vs hit reach: the rubber arm used to reach 4.46 units (bone positions in game) while the hit reached 3.1, so a target that the fist visibly passed through was missed. Now peak bone scale 2.0 gives fist 3.32 and reach is 3.3; crates and pieces use the U reach too (they had a fixed 2.5 / 2.6). Method: sweep the opponent from 1.6 to 4.8 units in game and record the farthest hit against the farthest bone (`scratchpad/rk3.json` pattern).
+- Slash wave and shield travel ~2.3 units after leaving the hand (hits up to ~3.3), a little over J's 2.1.
+- Known: the cook's and gunner's hits reach ~2.4 while their visible limbs reach 1.7 (legs/pistol swing), a milder mismatch of the opposite kind.
+
