@@ -250,7 +250,8 @@ ATTACK_POWER = {'attack_a': 1, 'attack_b': 1, 'heavy': 1.5, 'dash': 1.15, 'shoot
 hand_ready = {}
 TORSO_LOW, TORSO_HIGH = RIG['torso'][0], RIG['torso'][-1]
 HEAD_TURN = RIG['head_turn']
-FOOT_TOE_IN = max(0, M['foot_out_deg'] - TOE_OUT)
+HAS_FOOT = M['has_foot']
+FOOT_TOE_IN = max(0, M['foot_out_deg'] - TOE_OUT) if HAS_FOOT else 0   # without a foot bone there is nothing to toe in
 
 
 def arm_pose(name, t, p):
@@ -259,7 +260,7 @@ def arm_pose(name, t, p):
     if STYLE == 'fist':
         right, left = Vector((.10, .045, -.035)), Vector((.12, -.05, -.015))   # fists held up, a boxer's ready stance
     elif STYLE == 'kick':
-        right, left = Vector((.05, .09, -.18)), Vector((.05, -.09, -.18))      # hands in the pockets
+        right, left = Vector((.04, .08, -.23)), Vector((.04, -.08, -.23))      # hands in the pockets
     return right, left, axis
 
 
@@ -302,7 +303,7 @@ def pose(name, t):
         right.x -= math.cos(phase) * (.06 if running else .04) if HAS_WEAPON else -math.cos(phase) * (.13 if running else .10) * -1
         right.z += math.cos(phase) * (.02 if running else .012) if HAS_WEAPON else math.cos(phase) * (-.05 if running else -.035)
         if STYLE == 'kick':
-            left = Vector((.04, -.09, -.19)); right = Vector((.04, .09, -.19))
+            left = Vector((.04, -.08, -.23)); right = Vector((.04, .08, -.23))
     elif name in ATTACK_POWER:
         right, left, axis = melee(name, t, body, feet, right, left, axis)
     elif name == 'skill':
@@ -383,13 +384,21 @@ def apply_pose(body, right, left, axis, feet, name):
     for side, foot in zip((RIGHT, LEFT), feet):
         sign = side['sign']
         target = Vector((side['thigh'].head_local.x + (foot.x - PIRATE_FOOT.x) * SL,
-                         sign * (M['hip_y'] + (abs(foot.y) - PIRATE_HIP_Y) * SL),
+                         sign * M['hip_y'] + (foot.y - sign * PIRATE_HIP_Y) * SL,     # signed: a spin kick swings the foot across the body
                          M['ankle_z'] + (foot.z - PIRATE_FOOT.z) * SL))
         limb(side['thigh'], side['shin'], target, (1, 0, .05))
-        orient(side['foot'].name, Quaternion(UP, math.radians(FOOT_TOE_IN * -sign)) @ rest[side['foot'].name].to_quaternion())
+        if HAS_FOOT:
+            orient(side['foot'].name, Quaternion(UP, math.radians(FOOT_TOE_IN * -sign)) @ rest[side['foot'].name].to_quaternion())
+        else:
+            # No foot bone: the last bone is the boot's lower half. Keep it continuing the shin (straight down), not turned.
+            shin_dir = (pb[side['shin'].name].tail - pb[side['shin'].name].head).normalized()
+            point(side['foot'].name, shin_dir)
     if SPEC['weapon'] == 'staff' and name in ('idle', 'attack_a', 'attack_b', 'heavy', 'dash', 'shoot', 'skill', 'guard', 'grab'):
         left = right + axis * .24 + Vector((0, -.07, 0))      # the off hand rides the staff, a hand-span below the fist
-    for side, hand, pole in ((RIGHT, right, (-.15, 1, -.2)), (LEFT, left, (-.15, -1, -.2))):
+    # Elbow bend direction: out and slightly back by default. The cook's narrow shoulders and long arms flare their elbows with that,
+    # so his spec asks for 'back' (see tripo_specs.py); changing it for everyone doubled finger stretch on the others.
+    px, py = SPEC.get('elbow_pole', (-.15, 1.0))
+    for side, hand, pole in ((RIGHT, right, (px, py, -.2)), (LEFT, left, (px, -py, -.2))):
         limb(side['upper'], side['fore'], pb[side['upper'].name].head + total @ (hand * SA), total @ Vector(pole))
     if HAS_WEAPON:
         wrist = RIGHT['wrist'].name
@@ -464,6 +473,34 @@ def sword_skill(name, t, body, feet, right, left, axis):
     return right, left, axis
 
 
+def swordshield_melee(name, t, body, feet, right, left, axis):
+    """Guardian: attack_a/b stay the horizontal sword slashes. heavy is a two-beat overhead chop with a deep lunge; dash is a shield
+    bash (the buckler is bound to the left forearm, so thrusting that arm drives the shield)."""
+    T = [0, .23, .41, .7, 1]
+    right0, left0 = Vector((.145, .025, -.155)), Vector((.075, -.035, -.19))
+    if name == 'heavy':    # SHIELD-AND-BLADE SMASH: leap with both arms overhead, then crash sword and shield down together in a wide crouch
+        right = cr(keys(T, [right0, (-.02, .05, .3), (.2, .03, -.12), (.17, .03, -.14), right0]), t)
+        left = cr(keys(T, [left0, (-.02, -.06, .28), (.19, -.05, -.1), (.16, -.05, -.13), left0]), t)
+        axis = cr(keys(T, [READY_AXIS, (-.1, 0, 1), (1, 0, -.9), (.9, 0, -.9), READY_AXIS]), t).normalized()
+        jump = cr([(0, 0), (.1, 0), (.23, .08), (.34, .03), (.41, 0), (1, 0)], t)
+        body.update(yaw=0, lean=cr(keys(T, [0, -10, 30, 22, 0]), t), dx=cr(keys(T, [0, -.03, .09, .08, 0]), t),
+                    dz=PIRATE_STAND + cr(keys(T, [0, -.03, -.1, -.085, 0]), t) + jump, head_pitch=cr(keys(T, [0, 6, -12, -8, 0]), t))
+        wide = cr(keys(T, [0, 0, 1, 1, 0]), t)
+        feet[0].y += .05 * wide; feet[1].y -= .05 * wide
+        feet[0].z += jump; feet[1].z += jump
+        feet[1].x += cr(keys(T, [0, 0, .08, .08, 0]), t); feet[0].x += cr(keys(T, [0, 0, -.04, -.04, 0]), t)
+        return right, left, axis
+    if name == 'dash':
+        left = cr(keys(T, [left0, (.0, -.1, -.02), (.25, -.04, .02), (.2, -.05, .0), left0]), t)
+        right = cr(keys(T, [right0, (-.03, .09, -.1), (-.02, .1, -.08), (.0, .08, -.1), right0]), t)
+        axis = cr(keys(T, [READY_AXIS, (-.5, .6, .6), (-.5, .6, .6), (-.2, .5, .7), READY_AXIS]), t).normalized()
+        body.update(yaw=cr(keys(T, [0, 14, -12, -8, 0]), t), lean=cr(keys(T, [0, -4, 20, 14, 0]), t), dx=cr(keys(T, [0, -.05, .16, .13, 0]), t),
+                    dz=PIRATE_STAND + cr(keys(T, [0, -.02, -.05, -.035, 0]), t))
+        feet[1].x += cr(keys(T, [0, -.03, .2, .2, 0]), t); feet[0].x += cr(keys(T, [0, .0, -.1, -.1, 0]), t)
+        return right, left, axis
+    return sword_melee(name, t, body, feet, right, left, axis)
+
+
 def fist_melee(name, t, body, feet, right, left, axis):
     """Boxing: attack_a right straight, attack_b left hook, heavy overhead double-fist slam, dash lunging punch."""
     T = [0, .23, .41, .7, 1]
@@ -482,12 +519,14 @@ def fist_melee(name, t, body, feet, right, left, axis):
         body.update(yaw=cr(keys(T, [0, 22, -20, -12, 0]), t), lean=cr(k([0, -4, 9, 5, 0]), t), dx=cr(k([0, -.03, .08, .06, 0]), t),
                     dz=PIRATE_STAND + cr(k([0, -.012, -.03, -.018, 0]), t), roll=cr(keys(T, [0, 4, -6, -3, 0]), t), head_yaw=cr(keys(T, [0, -9, 8, 6, 0]), t))
         feet[0].x += cr(keys(T, [0, -.02, .13, .13, 0]), t); feet[1].x += cr(keys(T, [0, 0, -.06, -.06, 0]), t)
-    elif name == 'heavy':           # both fists over the head, then down onto the target
-        right = cr(keys(T, [r0, (.02, .06, .3), (.2, .05, -.08), (.15, .05, -.12), r0]), t)
-        left = cr(keys(T, [l0, (.02, -.06, .3), (.2, -.05, -.08), (.15, -.05, -.12), l0]), t)
-        body.update(yaw=0, lean=cr(keys(T, [0, -12, 22, 14, 0]), t), dx=cr(keys(T, [0, -.05, .1, .08, 0]), t),
-                    dz=PIRATE_STAND + cr(keys(T, [0, .01, -.06, -.04, 0]), t), head_pitch=cr(keys(T, [0, 6, -10, -6, 0]), t))
-        feet[1].x += cr(keys(T, [0, -.02, .12, .12, 0]), t)
+    elif name == 'heavy':           # UPPERCUT: sink low, drive the rear fist up under the chin while rising off the ground, guard hand by the face
+        right = cr(keys(T, [r0, (.05, .06, -.3), (.2, .02, .2), (.13, .03, .27), r0]), t)
+        left = cr(keys(T, [l0, (.1, -.06, .02), (.11, -.05, .09), (.1, -.05, .06), l0]), t)
+        body.update(yaw=cr(keys(T, [0, -20, 14, 8, 0]), t), lean=cr(keys(T, [0, 14, -16, -6, 0]), t), dx=cr(keys(T, [0, -.03, .07, .06, 0]), t),
+                    dz=PIRATE_STAND + cr(keys(T, [0, -.075, .035, .01, 0]), t), head_pitch=cr(keys(T, [0, 6, -10, -4, 0]), t),
+                    roll=cr(keys(T, [0, 5, -6, -2, 0]), t))
+        feet[1].x += cr(keys(T, [0, .03, .1, .1, 0]), t)
+        feet[1].z += max(0, cr([(0, 0), (.23, 0), (.41, .045), (.7, 0), (1, 0)], t))   # the lead foot comes off the floor as he leaps into the punch
     elif name == 'dash':            # lunging punch: whole body behind the fist
         right = cr(keys(T, [r0, (-.02, .06, .0), (.255, .02, .02), (.2, .03, .0), r0]), t)
         left = cr(keys(T, [l0, (.0, -.1, -.04), (.02, -.14, -.06), (.05, -.1, -.04), l0]), t)
@@ -562,17 +601,21 @@ def kick_melee(name, t, body, feet, right, left, axis):
     heavy axe kick, dash flying kick, shoot a quick snap kick."""
     T = [0, .23, .41, .7, 1]
     p = ATTACK_POWER[name]
-    pocket_r, pocket_l = Vector((.05, .09, -.18)), Vector((.05, -.09, -.18))
+    pocket_r, pocket_l = Vector((.04, .08, -.23)), Vector((.04, -.08, -.23))
     right, left = pocket_r, pocket_l
     k = lambda vals: keys(T, [v * p for v in vals])
     leg = {'attack_a': 0, 'attack_b': 1, 'heavy': 0, 'dash': 0, 'shoot': 1, 'grab': 1}[name]
     kicker, base = feet[leg], feet[1 - leg]
     fwd_a = {'attack_a': .32, 'attack_b': .26, 'heavy': .2, 'dash': .4, 'shoot': .22, 'grab': .2}[name]
     lift = {'attack_a': .2, 'attack_b': .26, 'heavy': .36, 'dash': .24, 'shoot': .14, 'grab': .1}[name]
-    if name == 'heavy':    # axe kick: leg up and over, then slammed down
-        kicker.x += cr(keys(T, [0, .04, .16, .24, 0]), t); kicker.z += cr(keys(T, [0, .26, .36, -.005, 0]), t)
-        body.update(lean=cr(keys(T, [0, -14, 8, 14, 0]), t), dz=PIRATE_STAND + cr(keys(T, [0, -.02, -.035, -.03, 0]), t),
-                    dx=cr(keys(T, [0, -.03, .05, .06, 0]), t), head_pitch=cr(keys(T, [0, 6, -6, -6, 0]), t))
+    if name == 'heavy':    # WHIRLWIND KICK: the game turns the whole model once (arena.js); the clip chambers the leg, then holds it out
+        # in front at hip height so the turn sweeps it round. No spine yaw here: a 360-degree spine twist tears the chest.
+        out = cr(keys(T, [0, .25, 1, 1, 0]), t)
+        kicker.x += cr(keys(T, [0, -.03, .3, .26, 0]), t)
+        kicker.y += -.03 * out * (1 if leg == 0 else -1)
+        kicker.z += cr(keys(T, [0, .14, .24, .2, 0]), t)
+        body.update(yaw=0, lean=cr(keys(T, [0, -6, -16, -12, 0]), t), dz=PIRATE_STAND + cr(keys(T, [0, -.02, -.035, -.025, 0]), t),
+                    roll=cr(keys(T, [0, 2, -8, -5, 0]), t) * (1 if leg == 0 else -1), head_yaw=0)
     else:
         kicker.x += cr(keys(T, [0, -.05, fwd_a, fwd_a * .5, 0]), t)
         kicker.z += cr(keys(T, [0, .03, lift, lift * .4, 0]), t)
@@ -587,7 +630,7 @@ def kick_melee(name, t, body, feet, right, left, axis):
 def kick_skill(name, t, body, feet, right, left, axis):
     """Cook's special: a spinning flurry of kicks (the game also spins the body)."""
     T = [0, 5 / 28, 8 / 28, 11 / 28, 21 / 28, 1]
-    right, left = Vector((.05, .09, -.18)), Vector((.05, -.09, -.18))
+    right, left = Vector((.04, .08, -.23)), Vector((.04, -.08, -.23))
     swing = math.sin((t - 8 / 28) * math.tau * 3) if 8 / 28 < t < 24 / 28 else 0
     feet[0].x += .34 * max(0, swing); feet[0].z += .22 * max(0, swing)
     feet[1].x += .34 * max(0, -swing); feet[1].z += .22 * max(0, -swing)
@@ -602,7 +645,7 @@ def staff_melee(name, t, body, feet, right, left, axis):
     return sword_melee(name, t, body, feet, right, left, axis)
 
 
-STYLE_MELEE = {'fist': fist_melee, 'swordshield': sword_melee, 'gun': gun_melee, 'kick': kick_melee, 'staff': staff_melee}
+STYLE_MELEE = {'fist': fist_melee, 'swordshield': swordshield_melee, 'gun': gun_melee, 'kick': kick_melee, 'staff': staff_melee}
 STYLE_SKILL = {'fist': fist_skill, 'swordshield': sword_skill, 'gun': gun_skill, 'kick': kick_skill, 'staff': sword_skill}
 
 # ---------------------------------------------------------------- weapons, bound to the wrist like the pirate's cutlass

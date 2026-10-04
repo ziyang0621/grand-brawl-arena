@@ -136,8 +136,15 @@ def measure(rig):
     v_straight = (leg * leg - lateral * lateral) ** .5
     foot = r['foot']
     fwd = Vector((foot.tail_local.x - foot.head_local.x, abs(foot.tail_local.y - foot.head_local.y)))
-    return {'leg': leg, 'arm': arm, 'leg_scale': leg / PIRATE_LEG, 'arm_scale': arm / PIRATE_ARM,
+    # A rig can end the leg at the shin with no foot bone at all (the 'foot' we found is just the lower shin, pointing
+    # down, and its tail sits far below the floor line). Turning such a bone sideways swings the whole boot.
+    foot_len = foot.length
+    # A real foot bone points forward: its tip is clearly in front of its root. A boot-bottom bone continues the shin, so its tip is
+    # level with (or behind) the root along the forward axis.
+    has_foot = (foot.tail_local.x - foot.head_local.x) > .4 * foot_len
+    return {'has_foot': has_foot, 'leg': leg, 'arm': arm, 'leg_scale': leg / PIRATE_LEG, 'arm_scale': arm / PIRATE_ARM,
             'hip_y': abs(hip.y), 'ankle_y': abs(ankle.y), 'ankle_z': ankle.z, 'ankle_x': ankle.x,
+            'sole_drop': (ankle.z - foot.tail_local.z) if not has_foot else 0.0,   # how far below the 'ankle' the sole is when the last bone is just boot
             'hip_z': hip.z, 'hip_x': hip.x, 'v_rest': v_rest, 'v_straight': v_straight,
             'stand': v_straight - v_rest,
             'foot_out_deg': fwd.angle(Vector((1, 0))) * 180 / 3.141592653589793,

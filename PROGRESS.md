@@ -692,3 +692,18 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 4. 联机：延迟、断线重连、房主离开处理；四人乱斗和 2v2 尚不支持联机。
 5. 手机端性能与血条 / 状态文字布局未实测。
 6. `touch-controls` 分支尚未合并到 `main`。
+
+## Distinct U attacks and a red Red Sail
+- J and U no longer share choreography for the Tripo roster: brawler U = uppercut, cook U = whirlwind kick, guardian J/U = chop and shield bash.
+  Red Sail (pirate) U is now a lunging cutlass thrust (draw back, deep lunge, point straight ahead) instead of a second slash.
+- The pirate's blue jacket is recoloured red in `animate_tripo_pirate.py` (`redden_coat`, hue-rotates blue texels, skin/teal trim untouched).
+- Cook uses a per-character `elbow_pole` in `tripo_specs.py`; changing the pole globally hurt other characters.
+- `tripo_rig.measure().has_foot` must use the forward-extent test; the earlier test misclassified brawler/gunner and stretched their fingers ~10x.
+- Gotcha: patch scripts that contain Chinese text must read/write with `encoding='utf-8'` (a failed ascii write truncates the file).
+- Cook's whirlwind U: the 360-degree turn is applied to the whole model in `arena.js` (like Red Sail's L spin). Yawing only the spine in the
+  clip twisted the upper torso ~100 degrees against the lower one mid-spin, which tore the chest.
+- Red Sail thrust bug: a foot target was assigned an absolute `z` of 0 (should be `-.4191 + lift`), lifting the left foot to hip height for the
+  whole U. A test now checks both feet across the clip.
+- In-game frame checks: headless canvas grabs can return a stale frame. Stop the page's rAF loop (`window.requestAnimationFrame=()=>0`), step with
+  `__brawl.run(dt,120,true)`, then take the CDP screenshot.
+

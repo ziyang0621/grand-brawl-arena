@@ -18,9 +18,11 @@ Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模�
 
 ### Tripo 剑士预览（2026-10-03）
 
-启动服务器后打开 `http://127.0.0.1:4173/three-preview.html?tripo=1&v=83`，红帆使用 Tripo 蒙皮模型；其他角色保持原有模型。独立动作检视：`http://127.0.0.1:4173/glb-study.html?m=tripo-pirate`，支持朝向切换、暂停和逐段拖动动作。
+启动服务器后打开 `http://127.0.0.1:4173/three-preview.html?tripo=1&v=83`，全部六个角色使用 Tripo 蒙皮模型（红帆、铁拳、蓝潮、火哨、灶火、云雀）；不带 `?tripo=1` 时仍是原有模型。独立动作检视：`http://127.0.0.1:4173/glb-study.html?m=tripo-pirate`，支持朝向切换、暂停和逐段拖动动作。
 
 本轮修正模型正面校准、转身轴心、手腕绑定的真实刀剑、双骨 IK 步态和按移动距离播放动画。原始 GLB、导出动画 GLB、可编辑 Blender 文件及重建脚本均随仓库保存。重建命令和修改注意事项见 `tools/blender/README.md`，详细根因见 `PROGRESS.md` 最新章节。已完成模型数据检查与 Blender 离线画面检查；网页实玩、手机及双端联机视觉效果仍需人工验收。
+
+每个角色的 J（连击）和 U（重击）是不同招式：红帆 U 弓步突刺，铁拳 U 上勾拳，灶火 U 旋风腿（整个模型旋转一圈），蓝潮 U 盾剑重砸、移动+J 盾冲。红帆的外套由脚本把贴图里的蓝色转成红色。其余角色由 `tools/blender/animate_tripo_char.py <角色>` 生成，配置在 `tools/blender/tripo_specs.py`。
 
 注意：`serve.js` 将 `/models/tripo-pirate.glb` 映射到实际的 `models/tripo-pirate-animated.glb`。若使用纯静态托管，需要配置同样的映射或同步修改游戏和检视页的资源 URL；仅推送 GitHub 不会自动发布网页。
 

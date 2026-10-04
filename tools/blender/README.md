@@ -52,3 +52,18 @@ The original belt blade was wrongly skinned and produced spikes. The script remo
 The model test parses the exported GLB and checks four-way facing, hilt/wrist invariance, blade movement, knee direction, alternating foot lifts and cycle continuity. It skips when the optional generated GLB is absent, so verify that none of these three tests are skipped when shipping the Tripo preview. Offline renders and data tests passed; browser gameplay, online visual synchronization and mobile performance still require manual review. Original finger/clothing weights can be refined further.
 
 `models/tripo-treasure-chest/tripo-out/arena-treasure-chest-convert-f29af3fb/model.fbx` is a generated source asset only, not integrated into gameplay yet. CLI context, task JSON, Blender backup files and review renders are deliberately excluded from commits.
+
+## Tripo roster pipeline (all characters)
+
+```sh
+blender -b --factory-startup --python tools/blender/animate_tripo_char.py -- brawler   # brawler | guardian | gunner | cook | stormcaller
+```
+
+- `tripo_specs.py` sets each character's source rig, attack style (`fist swordshield gun kick staff`), weapon, off-hand prop and optional `elbow_pole`.
+- `tripo_rig.py` finds the bones by geometry (Tripo bone names are not reliable) and measures leg/arm scale. `has_foot` uses the forward reach of the last
+  leg bone; a looser test misclassified brawler/gunner and stretched their fingers ~10x.
+- J and U must look different: each style has its own `heavy` choreography. Never spin the spine 360 degrees inside a clip (it tears the chest);
+  whole-body spins are applied by `arena.js` (Red Sail L, cook U).
+- Foot targets in the pose code are absolute in the stance (floor at z = -.4191 in pirate units): add lifts, never assign bare heights.
+- The pirate's jacket is recoloured blue to red by `redden_coat()` in `animate_tripo_pirate.py`.
+

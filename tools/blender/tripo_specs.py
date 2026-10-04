@@ -24,6 +24,7 @@ SPECS = {
     'cook': {
         'source': 'models/tripo-roster/cook/rig/tripo-out/*/model.glb',
         'style': 'kick', 'weapon': None, 'off_hand': None,
+        'elbow_pole': (-.9, .35),
     },
     'stormcaller': {
         'source': 'models/tripo-roster/stormcaller/rig/tripo-out/*/model.glb',

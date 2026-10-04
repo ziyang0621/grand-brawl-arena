@@ -38,7 +38,7 @@ for(const id of ROSTER)test(`${id}: legs are the same length on both sides and t
   const g=await load(id),bones=Object.values(g.bones);
   let lo=Infinity,hi=-Infinity,count=0;
   g.root.updateMatrixWorld(true);
-  g.root.traverse(o=>{if(o.isSkinnedMesh){o.skeleton.update();const v=new THREE.Vector3();for(let i=0;i<o.geometry.attributes.position.count;i+=7){o.getVertexPosition(i,v).applyMatrix4(o.matrixWorld);lo=Math.min(lo,v.y);hi=Math.max(hi,v.y);count++;}}});
+  g.root.traverse(o=>{if(o.isSkinnedMesh&&!o.name.startsWith('Tripo')){o.skeleton.update();const v=new THREE.Vector3();for(let i=0;i<o.geometry.attributes.position.count;i+=7){o.getVertexPosition(i,v).applyMatrix4(o.matrixWorld);lo=Math.min(lo,v.y);hi=Math.max(hi,v.y);count++;}}});
   assert.ok(Math.abs(lo)<.25,`${id}: feet at ${lo.toFixed(2)}, expected on the floor`);
   assert.ok(hi>2.6&&hi<4.4,`${id}: height ${hi.toFixed(2)} outside the roster range`);
   assert.ok(bones.length>20,id+' has a full skeleton');
@@ -47,7 +47,7 @@ test('roster heights stay close to each other (nobody towers over or hides behin
   const heights=[];
   for(const id of ROSTER){
     const g=await load(id);let hi=-Infinity;g.root.updateMatrixWorld(true);
-    g.root.traverse(o=>{if(o.isSkinnedMesh){o.skeleton.update();const v=new THREE.Vector3();for(let i=0;i<o.geometry.attributes.position.count;i+=11){o.getVertexPosition(i,v).applyMatrix4(o.matrixWorld);hi=Math.max(hi,v.y);}}});
+    g.root.traverse(o=>{if(o.isSkinnedMesh&&!o.name.startsWith('Tripo')){o.skeleton.update();const v=new THREE.Vector3();for(let i=0;i<o.geometry.attributes.position.count;i+=11){o.getVertexPosition(i,v).applyMatrix4(o.matrixWorld);hi=Math.max(hi,v.y);}}});
     heights.push(hi);
   }
   assert.ok(Math.max(...heights)/Math.min(...heights)<1.45,'tallest/shortest ratio '+(Math.max(...heights)/Math.min(...heights)).toFixed(2));

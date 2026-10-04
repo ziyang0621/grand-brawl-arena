@@ -778,7 +778,10 @@ function updateCamera(dt){
 function animateFighter(p,i,m,dt){
   const c=p.char,facing=Math.atan2(p.fx,p.fz),t=world.tick*STEP;
   m.root.position.set(p.x,p.y,p.z);
-  const spin=p.skillTime>0&&!p.pendingSkill&&c==='swordsman'?(1-p.skillTime/.4)*Math.PI*4:0;
+  let spin=p.skillTime>0&&!p.pendingSkill&&c==='swordsman'?(1-p.skillTime/.4)*Math.PI*4:0;
+  // Tripo cook's U is a whirlwind kick: the WHOLE model turns once (the clip keeps the leg out and the torso square), because
+  // spinning only the spine inside the clip twists the chest apart.
+  if(m.glb?.tripo&&c==='cook'&&p.attackTime>0&&p.attackType==='heavy'){const {phase,contact}=attackPhase(p),k=clamp(phase/contact,0,1);spin=Math.PI*2*k*k*(3-2*k);}
   m.body.rotation.set(0,facing+spin,0);
   const walking=p.grounded&&Math.hypot(p.vx,p.vz)>1;
   m.legs.forEach((leg,j)=>leg.rotation.set(walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:-.045,0,p.grounded?(j?1:-1)*(walking?.025:c==='brawler'?.105:.065):0));

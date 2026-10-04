@@ -276,3 +276,11 @@ test('the cutlass never pokes into a carried crate',{skip:!fs.existsSync(file)},
     assert.ok(depth<.004,clip+': blade vertices sink '+depth.toFixed(3)+' (rig units) into the crate');
   }
 });
+
+test('U thrust keeps both feet on the floor (only a short step for the lead foot)',{skip:!fs.existsSync(file)},async()=>{
+  const {bone,pose}=await model(),feet=['1_Right_Limb_2','1_Left_Limb_2'].map(n=>bone(n));
+  const y=b=>b.getWorldPosition(new THREE.Vector3()).y;
+  pose('idle',0);const rest=feet.map(y);
+  for(let f=0;f<=22;f++){pose('heavy',f/22);
+    feet.forEach((b,i)=>{const lift=y(b)-rest[i];assert.ok(lift<(i===1&&f>4&&f<10?.25:.03),'foot '+b.name+' lifted '+lift.toFixed(3)+' at frame '+f);});}
+});
