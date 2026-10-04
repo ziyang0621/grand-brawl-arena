@@ -554,17 +554,15 @@ def swordshield_melee(name, t, body, feet, right, left, axis):
     bash (the buckler is bound to the left forearm, so thrusting that arm drives the shield)."""
     T = [0, .23, .41, .7, 1]
     right0, left0 = Vector((.145, .025, -.155)), Vector((.075, -.035, -.19))
-    if name == 'heavy':    # SHIELD-AND-BLADE SMASH: leap with both arms overhead, then crash sword and shield down together in a wide crouch
-        right = cr(keys(T, [right0, (-.02, .05, .3), (.2, .03, -.12), (.17, .03, -.14), right0]), t)
-        left = cr(keys(T, [left0, (-.02, -.06, .28), (.19, -.05, -.1), (.16, -.05, -.13), left0]), t)
-        axis = cr(keys(T, [READY_AXIS, (-.1, 0, 1), (1, 0, -.9), (.9, 0, -.9), READY_AXIS]), t).normalized()
-        jump = cr([(0, 0), (.1, 0), (.23, .08), (.34, .03), (.41, 0), (1, 0)], t)
-        body.update(yaw=0, lean=cr(keys(T, [0, -10, 30, 22, 0]), t), dx=cr(keys(T, [0, -.03, .09, .08, 0]), t),
-                    dz=PIRATE_STAND + cr(keys(T, [0, -.03, -.1, -.085, 0]), t) + jump, head_pitch=cr(keys(T, [0, 6, -12, -8, 0]), t))
-        wide = cr(keys(T, [0, 0, 1, 1, 0]), t)
-        feet[0].y += .05 * wide; feet[1].y -= .05 * wide
-        feet[0].z += jump; feet[1].z += jump
-        feet[1].x += cr(keys(T, [0, 0, .08, .08, 0]), t); feet[0].x += cr(keys(T, [0, 0, -.04, -.04, 0]), t)
+    if name == 'heavy':    # SHIELD THROW: the buckler arm winds back beside the head, then whips out overhand and lets go (the game hides the buckler
+        # while the shield flies and catches it again); the sword arm stays back on guard
+        left = cr(keys(T, [left0, (-.06, -.15, .17), (.31, -.05, .02), (.22, -.06, -.04), left0]), t)
+        right = cr(keys(T, [right0, (.06, .07, -.05), (.03, .09, -.08), (.07, .06, -.1), right0]), t)
+        axis = cr(keys(T, [READY_AXIS, (.2, .5, .85), (.1, .6, .8), (.3, .4, .85), READY_AXIS]), t).normalized()
+        body.update(yaw=cr(keys(T, [0, 26, -18, -10, 0]), t), lean=cr(keys(T, [0, -9, 11, 6, 0]), t), dx=cr(keys(T, [0, -.03, .06, .05, 0]), t),
+                    dz=PIRATE_STAND + cr(keys(T, [0, -.01, -.045, -.03, 0]), t), head_yaw=cr(keys(T, [0, -10, 8, 5, 0]), t), roll=cr(keys(T, [0, -3, 4, 2, 0]), t))
+        feet[1].x += cr(keys(T, [0, -.02, .1, .1, 0]), t)
+        feet[0].x += cr(keys(T, [0, 0, -.03, -.03, 0]), t)
         return right, left, axis
     if name == 'dash':
         left = cr(keys(T, [left0, (.0, -.1, -.02), (.25, -.04, .02), (.2, -.05, .0), left0]), t)
@@ -595,14 +593,12 @@ def fist_melee(name, t, body, feet, right, left, axis):
         body.update(yaw=cr(keys(T, [0, 22, -20, -12, 0]), t), lean=cr(k([0, -4, 9, 5, 0]), t), dx=cr(k([0, -.03, .08, .06, 0]), t),
                     dz=PIRATE_STAND + cr(k([0, -.012, -.03, -.018, 0]), t), roll=cr(keys(T, [0, 4, -6, -3, 0]), t), head_yaw=cr(keys(T, [0, -9, 8, 6, 0]), t))
         feet[0].x += cr(keys(T, [0, -.02, .13, .13, 0]), t); feet[1].x += cr(keys(T, [0, 0, -.06, -.06, 0]), t)
-    elif name == 'heavy':           # UPPERCUT: sink low, drive the rear fist up under the chin while rising off the ground, guard hand by the face
-        right = cr(keys(T, [r0, (.05, .06, -.3), (.2, .02, .2), (.13, .03, .27), r0]), t)
-        left = cr(keys(T, [l0, (.1, -.06, .02), (.11, -.05, .09), (.1, -.05, .06), l0]), t)
-        body.update(yaw=cr(keys(T, [0, -20, 14, 8, 0]), t), lean=cr(keys(T, [0, 14, -16, -6, 0]), t), dx=cr(keys(T, [0, -.03, .07, .06, 0]), t),
-                    dz=PIRATE_STAND + cr(keys(T, [0, -.075, .035, .01, 0]), t), head_pitch=cr(keys(T, [0, 6, -10, -4, 0]), t),
-                    roll=cr(keys(T, [0, 5, -6, -2, 0]), t))
-        feet[1].x += cr(keys(T, [0, .03, .1, .1, 0]), t)
-        feet[1].z += max(0, cr([(0, 0), (.23, 0), (.41, .045), (.7, 0), (1, 0)], t))   # the lead foot comes off the floor as he leaps into the punch
+    elif name == 'heavy':           # RUBBER ROCKET PUNCH: coil back with the whole torso, then the right arm stretches (bone scale, see STRETCH below) and drives out
+        right = cr(keys(T, [r0, (-.06, .08, -.03), (.255, .01, .04), (.24, .015, .03), r0]), t)
+        left = cr(keys(T, [l0, (.1, -.08, .03), (.02, -.14, -.04), (.04, -.12, -.03), l0]), t)
+        body.update(yaw=cr(keys(T, [0, -34, 24, 16, 0]), t), lean=cr(keys(T, [0, -6, 14, 9, 0]), t), dx=cr(keys(T, [0, -.04, .05, .045, 0]), t),
+                    dz=PIRATE_STAND + cr(keys(T, [0, -.05, -.07, -.05, 0]), t), head_yaw=cr(keys(T, [0, 12, -10, -6, 0]), t), roll=cr(keys(T, [0, 3, -4, -2, 0]), t))
+        feet[1].x += cr(keys(T, [0, 0, .06, .06, 0]), t)
     elif name == 'dash':            # lunging punch: whole body behind the fist
         right = cr(keys(T, [r0, (-.02, .06, .0), (.255, .02, .02), (.2, .03, .0), r0]), t)
         left = cr(keys(T, [l0, (.0, -.1, -.04), (.02, -.14, -.06), (.05, -.1, -.04), l0]), t)
@@ -846,15 +842,33 @@ WEAPONS = build_weapons()
 # ---------------------------------------------------------------- bake
 DURATIONS = {'carry_walk': 24, 'throw': 18, 'toss': 18, 'knock': 16, 'idle': 96, 'walk': 24, 'run': 16, 'attack_a': 22, 'attack_b': 22, 'heavy': 22,
              'dash': 22, 'shoot': 22, 'skill': 28, 'guard': 12, 'hurt': 10, 'jump': 18, 'fall': 22, 'land': 16, 'carry': 12, 'grab': 22}
+def apply_stretch(name, t):
+    """Spec 'stretch': the right arm of a rubber-limbed fighter grows along its length during the heavy (bone scale on the upper arm and
+    forearm, the wrist scaled back so the fist keeps its size). Returns the bones to key; every clip keys them (1 outside the heavy) so
+    nothing is left stretched when the mixer cross-fades."""
+    if not SPEC.get('stretch'):
+        return []
+    arm_bones = [RIGHT['upper'].name, RIGHT['fore'].name, RIGHT['wrist'].name]
+    s = cr([(0, 1.0), (.23, 1.0), (.36, 2.4), (.41, 3.8), (.6, 3.5), (.82, 1.6), (1, 1.0)], t) if name == 'heavy' else 1.0
+    for n in arm_bones[:2]:
+        pb[n].scale = Vector((1, s, 1))
+    pb[arm_bones[2]].scale = Vector((1, 1 / s, 1))
+    update()
+    return arm_bones
+
+
 for name, duration in DURATIONS.items():
     action = bpy.data.actions.new(name=name)
     arm.animation_data.action = action
     for frame in range(duration + 1):
         pose(name, frame / duration)
+        stretch = apply_stretch(name, frame / duration)
         for b in pb:
             b.keyframe_insert(data_path='rotation_quaternion', frame=frame, group=b.name)
             if b.name == ROOT_BONE:
                 b.keyframe_insert(data_path='location', frame=frame, group=b.name)
+        for n in stretch:
+            pb[n].keyframe_insert(data_path='scale', frame=frame, group=n)
     action.use_fake_user = True
     print('BAKED', name, duration)
 

@@ -656,6 +656,11 @@ export function step(w,input={},dt=STEP){
       const active=['heavy','upper','shieldBash'].includes(p.attackType)?.29:p.attackType==='slam'?.27:p.attackType==='grab'?.25:p.attackType==='rush'?.26:p.attackType==='shot'?.2:p.attackType==='air'||p.attackType==='dash'?.24:.22;
       if(!p.hitDone&&p.attackTime<active){
         p.hitDone=true;
+        const prj=p.attackType==='heavy'?characterOf(p).heavy?.projectile:null;
+        if(prj){   // a thrown U: Red Sail's flying slash and the guardian's boomerang shield travel and pierce (see the shot update below)
+          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,vx:p.fx*prj.speed,vz:p.fz*prj.speed,fx:p.fx,fz:p.fz,life:prj.life,boost:p.attackBoost,damage:prj.damage,force:prj.force,pierce:prj.pierce,boomerang:prj.boomerang||0,age:0,hitIds:[],style:prj.style,speed:prj.speed});
+          emit(w,'shotFire',{id:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,fx:p.fx,fz:p.fz,style:prj.style});
+        }
         if(p.attackType==='shot'){
           const sh=characterOf(p).shot||{speed:17,damage:6,life:.62};
           w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*.7,y:p.y+1.25,z:p.z+p.fz*.7,vx:p.fx*sh.speed,vz:p.fz*sh.speed,fx:p.fx,fz:p.fz,life:sh.life,boost:p.attackBoost,damage:sh.damage,slow:sh.slow||0,style:sh.style||'ball'});
@@ -663,7 +668,7 @@ export function step(w,input={},dt=STEP){
         }else if(p.attackType==='grab'){
           for(const q of w.fighters){const d=distance(p,q);if(q===p||Math.abs(p.y-q.y)>1.5)continue;const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);const gp=characterOf(p).grab;if(d<(gp?.reach??1.85)&&(dot>-.25||d<.8))hit(w,p,q,(gp?.damage??12)*(characterOf(p).boost.grab||1)*p.attackBoost,8,{grab:true});
           }
-        }else for(const q of w.fighters){const d=distance(p,q);const vertical=['slam','air','upper'].includes(p.attackType)?2.4:1.5;if(q===p||Math.abs(p.y-q.y)>vertical)continue;
+        }else if(!(prj&&characterOf(p).heavy.melee===false))for(const q of w.fighters){const d=distance(p,q);const vertical=['slam','air','upper'].includes(p.attackType)?2.4:1.5;if(q===p||Math.abs(p.y-q.y)>vertical)continue;
           const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);
           const hv=p.attackType==='heavy'?characterOf(p).heavy:null;   // each character's U has its own reach, arc, force and launch
           const reach=hv?.reach??(p.weapon==='sword'?3.25:p.attackType==='shieldBash'?2.8:p.attackType==='slam'?2.9:p.attackType==='heavy'?2.85:p.attackType==='upper'?2.55:p.attackType==='dash'?3:p.attackType==='rush'?2.7:p.attackType==='air'?2.7:2.6);
@@ -711,14 +716,22 @@ export function step(w,input={},dt=STEP){
     }
   }
   for(let i=w.shots.length-1;i>=0;i--){
-    const s=w.shots[i];s.life-=dt;s.x+=s.vx*dt;s.z+=s.vz*dt;
-    const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
-    if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,3.5,{kind:'shot'})&&s.slow&&!blocked){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
+    const s=w.shots[i];s.life-=dt;s.age=(s.age||0)+dt;
+    if(s.boomerang){   // out for `boomerang` seconds, then home in on the thrower; each leg can hit a target once
+      const owner=w.fighters.find(f=>f.id===s.owner);
+      if(s.age>=s.boomerang&&!s.returning){s.returning=true;s.hitIds=[];}
+      if(s.returning&&owner){const dx=owner.x-s.x,dz=owner.z-s.z,d=Math.hypot(dx,dz)||1;s.vx=dx/d*s.speed*1.15;s.vz=dz/d*s.speed*1.15;if(d<.9){w.shots.splice(i,1);emit(w,'shieldCatch',{id:owner.id,x:owner.x,y:owner.y+1.2,z:owner.z});continue;}}
+    }
+    s.x+=s.vx*dt;s.z+=s.vz*dt;
+    const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&!(s.hitIds||[]).includes(q.id)&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
+    if(target&&s.pierce){hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot'});s.hitIds.push(target.id);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});}
+    else if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,3.5,{kind:'shot'})&&s.slow&&!blocked){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
     const shotPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,s)<pc.r+.35&&s.y<pc.h);
-    if(shotPiece){hurtPiece(w,shotPiece,4*s.boost,{owner:s.owner,x:s.x-s.vx*.05,z:s.z-s.vz*.05});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
+    if(shotPiece&&!s.pierce){hurtPiece(w,shotPiece,4*s.boost,{owner:s.owner,x:s.x-s.vx*.05,z:s.z-s.vz*.05});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     const crate=w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&distance(c,s)<.75&&s.y<c.y+1.4);
-    if(crate){breakCrate(w,crate,1);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
-    if(s.life<=0||Math.abs(s.x)>15||Math.abs(s.z)>9)w.shots.splice(i,1);
+    if(crate&&s.pierce&&!(s.crates||(s.crates=[])).includes(crate.id)){s.crates.push(crate.id);breakCrate(w,crate,1);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});}
+    else if(crate&&!s.pierce){breakCrate(w,crate,1);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
+    if(s.life<=0||(!s.boomerang&&(Math.abs(s.x)>15||Math.abs(s.z)>9)))w.shots.splice(i,1);
   }
   for(let i=w.props.length-1;i>=0;i--){const o=w.props[i];if(o.heldBy!==null){const p=w.fighters.find(p=>p.id===o.heldBy);if(p){o.x=p.x+p.fx*.3;o.z=p.z+p.fz*.3;o.y=p.y+2.15;}continue;}const oldY=o.y;o.life-=dt;o.age=(o.age||0)+dt;o.vy-=GRAVITY*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.z+=o.vz*dt;const target=w.fighters.find(p=>p.hp>0&&p.id!==o.owner&&distance(p,o)<.8&&Math.abs(p.y+1-o.y)<1.2);const ground=o.y<.35||stageOf(w.stage).platforms.some(p=>supported(o.x,o.z,p)&&o.vy<0&&oldY>=p.top+.35&&o.y<=p.top+.35);const hitPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,o)<pc.r+.45&&o.y<pc.h+.5&&o.vx*o.vx+o.vz*o.vz>4);if(target){hit(w,o,target,o.kind==='chest'?20:o.kind==='barrel'?17:14,o.kind==='chest'?11:8,{kind:'prop'});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z,o.y);w.props.splice(i,1);}else if(hitPiece){hurtPiece(w,hitPiece,18,{owner:o.owner,x:o.x-o.vx*.05,z:o.z-o.vz*.05});emit(w,'propBreak',{x:o.x,y:o.y,z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z,o.y);w.props.splice(i,1);}else if(ground||o.life<=0){emit(w,'propBreak',{x:o.x,y:Math.max(.3,o.y),z:o.z,kind:o.kind});dropLoot(w,o.kind,o.x,o.z,o.y);w.props.splice(i,1);}}
   for(const p of w.fighters)if(p.sprung){p.sprung=false;emit(w,'spring',{id:p.id,x:p.x,y:p.y,z:p.z});}

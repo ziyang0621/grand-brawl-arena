@@ -729,3 +729,10 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - `tools/blender/render_tripo_portraits.py` renders busts to `models/portraits/tripo-<id>.png`; Tripo mode uses them in the HUD, cards, VS screen and cut-ins. `serve.js` serves that path (static hosting needs it too).
 - Gunner holster: `merge_weights` in `tripo_specs.py` folds `bone_49` into the left thigh (the holster tore away whenever the leg swung).
 
+## U moves that are not melee swings
+- Users still found J and U alike for Red Sail, the guardian and the brawler, so their U became a different kind of move, not a different swing:
+  Red Sail 飞斩 (a piercing slash wave, 15 dmg, 7+ units), guardian 盾牌回旋 (a boomerang shield that hits out and back; the buckler is hidden while it flies and `shieldCatch` fires when it returns),
+  brawler 橡皮火箭拳 (the right arm bone-scales up to 3.8x, reach 4.7, narrow cone). The other three keep melee U (pistol whip, whirlwind kick, staff sweep).
+- Core: `CHARACTERS[id].heavy.projectile` spawns a shot at the hit frame (`pierce`, `boomerang`, per-target `hitIds`); `heavy.melee:false` skips the melee check. The Red Sail slash still does its normal melee chop up close.
+- Rubber arm: spec `stretch` keys bone `scale` on upper arm/forearm (and the inverse on the wrist so the fist keeps its size) in every clip, so nothing stays stretched after a cross-fade.
+

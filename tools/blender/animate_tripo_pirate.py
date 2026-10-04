@@ -452,26 +452,14 @@ def pose(name,t):
         body.update(yaw=cr(k([0,25,-17,-23,0]),t)*side,       # coil, whip through, over-rotate
                     lean=cr(k([0,-9,14,9,0]),t)+(10 if name=='dash' else 0),
                     roll=cr(k([0,-3,5,3,0]),t)*side,
-                    dx=cr(k([0,-.05,.11,.10,0]),t),
+                    dx=cr(k([0,-.05,.11,.10,0]),t)*(.75 if heavy else 1),
                     dz=STAND+cr(k([0,-.015,-.04,-.025,0]),t),
                     head_yaw=cr(k([0,-9,7,7,0]),t)*side)
         # Lead (left) foot steps in, rear foot pivots back; both stay planted afterwards.
         feet[1].x+=cr(k([0,-.02,.13,.13,0]),t)
         feet[1].z+=max(0,cr([(0,0),(.23,0),(.32,.07*p),(.41,0),(1,0)],t))
-        feet[0].x+=cr(k([0,0,-.07,-.07,0]),t)
+        feet[0].x+=cr(k([0,0,-.07,-.07,0]),t)*(.45 if heavy else 1)   # the heavy's x1.5 power would overstretch the rear leg
         left=cr(list(zip(T,[(.075,-.035,-.19),(.09,-.085,-.1),(-.02,-.1,-.12),(-.03,-.09,-.14),(.075,-.035,-.19)])),t)
-        if heavy:
-            # U is a LUNGING THRUST, not a slash: the cutlass is drawn back beside the hip, then the whole body drops into a
-            # deep lunge and the point drives straight ahead at chest height while the off hand flings back for balance.
-            right=cr(list(zip(T,[(.145,.025,-.155),(-.02,.08,-.1),(.30,.0,.02),(.27,.0,.0),(.145,.025,-.155)])),t)
-            blade=cr(list(zip(T,[READY_BLADE,(.55,.15,.3),(1,0,.02),(1,0,0),READY_BLADE])),t).normalized()
-            left=cr(list(zip(T,[(.075,-.035,-.19),(-.05,-.1,-.05),(-.13,-.12,.03),(-.12,-.1,0),(.075,-.035,-.19)])),t)
-            body.update(yaw=cr(list(zip(T,[0,-14,10,8,0])),t),lean=cr(list(zip(T,[0,-5,13,11,0])),t),roll=0,
-                        dx=cr(list(zip(T,[0,-.03,.07,.065,0])),t),dz=STAND+cr(list(zip(T,[0,-.025,-.06,-.05,0])),t),
-                        head_yaw=cr(list(zip(T,[0,6,-6,-5,0])),t))
-            feet[1].x=-.19+cr(list(zip(T,[0,-.02,.13,.13,0])),t)
-            feet[1].z=-.4191+max(0,cr([(0,0),(.23,0),(.32,.05),(.41,0),(1,0)],t))   # absolute: the stance foot sits at -.4191
-            feet[0].x=-.19+cr(list(zip(T,[0,0,-.02,-.02,0])),t)
     elif name=='skill':
         # Whirlwind: coil low with the blade raised behind the head, release into a wide stance
         # with both arms out so the game's body spin sweeps the blade, then settle. Frames/28:

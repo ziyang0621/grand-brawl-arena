@@ -371,7 +371,8 @@ function eventSound(e){
     case 'rockWarn':case 'hazardWarn':case 'waveWarning':P('warn',{k:1});break;
     case 'rockImpact':P('rock');break;
     case 'snowBurst':P('ice');break;
-    case 'shotFire':P('shot',{bolt:e.style==='bolt'});break;
+    case 'shotFire':if(e.style==='slash'||e.style==='shield')P('whoosh',{heavy:true});else P('shot',{bolt:e.style==='bolt'});break;
+    case 'shieldCatch':P('hit',{level:0});particles(e,'#8fc7ff',8);break;
     case 'shotHit':P('hit',{level:0});break;
     case 'grab':case 'lift':P('grab');break;
     case 'throwHit':P('hit',{level:2});break;
@@ -870,6 +871,7 @@ function animateFighter(p,i,m,dt){
     // Picking the power-up up already warms the blade (pulsing); equipping it turns the whole blade molten gold.
     const swordEquipped=p.weapon==='sword',swordHeld=p.item==='sword',pulse=.5+.5*Math.sin(world.tick*.12);
     for(const material of m.glb.tripoSwordMaterials){material.emissive.set(swordEquipped?'#ffad12':swordHeld?'#ffd27a':'#000000');material.emissiveIntensity=swordEquipped?.75+.25*pulse:swordHeld?.25+.3*pulse:0;}
+    const buckler=m.glb.root.getObjectByName('TripoBuckler');if(buckler)buckler.visible=!(world.shots||[]).some(sh=>sh.owner===p.id&&sh.style==='shield');   // the shield is in the air
     for(const material of m.glb.tripoAuraMaterials){material.emissive.set(swordEquipped||swordHeld?'#ff9a10':'#000000');material.emissiveIntensity=swordEquipped?.22+.08*pulse:swordHeld?.1+.1*pulse:0;}
   }
   // Held by a Tripo fighter: lie on his back across the holder's shoulders, resting on the head, like the
@@ -1072,7 +1074,11 @@ function updateVisuals(dt){
   world.fighters.forEach((p,i)=>animateFighter(p,i,models[i],dt));
   for(const b of world.bombs){let g=bombModels.get(b.id);if(!g){g=new THREE.Group();const bottle=b.kind==='poison'||b.kind==='virus'||b.kind==='slow';if(bottle){const color=b.kind==='virus'?'#8d55bd':b.kind==='slow'?'#4c9ee8':'#55a866';const glow=b.kind==='virus'?'#d19aff':b.kind==='slow'?'#bde8ff':'#a7f58c';cylinder(.18,.23,.48,color,g,0,0,0);sphere(.16,glow,g,0,.3,0);box(.16,.08,.16,'#e7d1a7',g,0,.28,0);}else{sphere(.26,'#29394b',g,0,0,0);const fuse=box(.055,.23,.055,'#ffd366',g,.06,.3,0);fuse.rotation.z=-.3;sphere(.07,'#fff1a2',g,.1,.42,0);}ink(g,.03);scene.add(g);bombModels.set(b.id,g);}g.position.set(b.x,b.y,b.z);g.rotation.z+=dt*(b.kind==='bomb'?6:3);g.userData.trail=(g.userData.trail||0)-dt;if(g.userData.trail<=0){g.userData.trail=.04;trailBit(b);}}
   for(const [id,m] of bombModels)if(!world.bombs.some(b=>b.id===id)){scene.remove(m);bombModels.delete(id);}
-  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g){g=new THREE.Group();const bolt=s.style==='bolt';fxMesh(new THREE.SphereGeometry(bolt?.26:.18,10,8),bolt?'#fff6a0':'#ffe08a',g,0,0,0,1);if(bolt)fxMesh(new THREE.IcosahedronGeometry(.4,0),'#8fe0ff',g,0,0,0,.5);const trail=fxMesh(new THREE.CylinderGeometry(.02,.16,1.2,8),bolt?'#7fd0ff':'#ff8a3c',g,0,0,0,.7);trail.rotation.x=Math.PI/2;trail.position.z=-.6;scene.add(g);shotModels.set(s.id,g);}g.position.set(s.x,s.y,s.z);g.rotation.y=Math.atan2(s.vx,s.vz);}
+  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g&&s.style==='slash'){g=new THREE.Group();   // Red Sail's flying slash: a bright crescent lying forward with a wider glow behind it
+    const arc=(r,tube,color,op)=>{const m=fxMesh(new THREE.TorusGeometry(r,tube,6,28,Math.PI),color,g,0,0,0,op);m.rotation.x=Math.PI/2;return m;};arc(.95,.1,'#fff4c0',.95);arc(1.05,.22,'#ffae3c',.5);arc(.8,.05,'#ffffff',.9);scene.add(g);shotModels.set(s.id,g);}
+  else if(!g&&s.style==='shield'){g=new THREE.Group();   // the guardian's boomerang shield: a spinning blue disc with a gold rim
+    const disc=fxMesh(new THREE.CylinderGeometry(.62,.62,.12,24),'#4a86c8',g,0,0,0,1,false),rim=fxMesh(new THREE.TorusGeometry(.62,.07,8,28),'#e8d38e',g,0,0,0,1,false);rim.rotation.x=Math.PI/2;fxMesh(new THREE.SphereGeometry(.14,10,8),'#fff4c0',g,0,.1,0,1,false);disc.userData.spin=true;scene.add(g);shotModels.set(s.id,g);}
+  if(!g){g=new THREE.Group();const bolt=s.style==='bolt';fxMesh(new THREE.SphereGeometry(bolt?.26:.18,10,8),bolt?'#fff6a0':'#ffe08a',g,0,0,0,1);if(bolt)fxMesh(new THREE.IcosahedronGeometry(.4,0),'#8fe0ff',g,0,0,0,.5);const trail=fxMesh(new THREE.CylinderGeometry(.02,.16,1.2,8),bolt?'#7fd0ff':'#ff8a3c',g,0,0,0,.7);trail.rotation.x=Math.PI/2;trail.position.z=-.6;scene.add(g);shotModels.set(s.id,g);}g.position.set(s.x,s.y,s.z);if(s.style==='shield'){g.rotation.y=world.tick*.5;g.rotation.x=.25;}else g.rotation.y=Math.atan2(s.vx,s.vz);}
   for(const [id,g] of shotModels)if(!(world.shots||[]).some(s=>s.id===id)){scene.remove(g);g.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});shotModels.delete(id);}
   for(const c of world.clouds){let g=cloudModels.get(c.id);if(!g){g=createCloudVisual(c.kind);scene.add(g);cloudModels.set(c.id,g);}updateCloudVisual(g,c,world.tick*STEP);}
   for(const [id,m] of cloudModels)if(!world.clouds.some(c=>c.id===id)){scene.remove(m);m.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});cloudModels.delete(id);}

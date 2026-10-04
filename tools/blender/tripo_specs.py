@@ -13,6 +13,7 @@ SPECS = {
         'source': 'models/tripo-roster/brawler/rig/tripo-out/tripo-brawler-rig-16415211/model.glb',
         'style': 'fist', 'weapon': None, 'off_hand': None,
         'pelvis_bone': None,
+        'stretch': True,           # the heavy is a rubber rocket punch: the right arm grows (bone scale) as it strikes
         'face': {'centre': (.002, .2663), 'look': (400, 450), 'skin': [(330, 520), (470, 520)],
                  'eyes': {1: (488, 440, 130, 118), -1: (318, 440, 130, 118)}, 'brows': {1: (497, 348, 190, 64), -1: (292, 348, 190, 64)}, 'mouth': (400, 552, 260, 100)},
     },
