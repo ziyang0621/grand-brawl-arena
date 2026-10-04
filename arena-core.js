@@ -658,7 +658,7 @@ export function step(w,input={},dt=STEP){
         p.hitDone=true;
         const prj=p.attackType==='heavy'?characterOf(p).heavy?.projectile:null;
         if(prj){   // a thrown U: Red Sail's flying slash and the guardian's boomerang shield travel and pierce (see the shot update below)
-          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,vx:p.fx*prj.speed,vz:p.fz*prj.speed,fx:p.fx,fz:p.fz,life:prj.life,boost:p.attackBoost,damage:prj.damage,force:prj.force,pierce:prj.pierce,boomerang:prj.boomerang||0,age:0,hitIds:[],style:prj.style,speed:prj.speed});
+          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,vx:p.fx*prj.speed,vz:p.fz*prj.speed,fx:p.fx,fz:p.fz,life:prj.life,boost:p.attackBoost,damage:prj.damage,force:prj.force,pierce:prj.pierce,boomerang:prj.boomerang||0,age:0,hitIds:[],style:prj.style,speed:prj.speed,slow:prj.slow||0});
           emit(w,'shotFire',{id:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,fx:p.fx,fz:p.fz,style:prj.style});
         }
         if(p.attackType==='shot'){
@@ -725,7 +725,7 @@ export function step(w,input={},dt=STEP){
     s.x+=s.vx*dt;s.z+=s.vz*dt;
     const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&!(s.hitIds||[]).includes(q.id)&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
     if(target&&s.pierce){hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot'});s.hitIds.push(target.id);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});}
-    else if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,3.5,{kind:'shot'})&&s.slow&&!blocked){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
+    else if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot'})&&s.slow&&!blocked){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
     const shotPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,s)<pc.r+.35&&s.y<pc.h);
     if(shotPiece&&!s.pierce){hurtPiece(w,shotPiece,4*s.boost,{owner:s.owner,x:s.x-s.vx*.05,z:s.z-s.vz*.05});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     const crate=w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&distance(c,s)<.75&&s.y<c.y+1.4);

@@ -748,3 +748,7 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Slash wave and shield travel ~2.3 units after leaving the hand (hits up to ~3.3), a little over J's 2.1.
 - Known: the cook's and gunner's hits reach ~2.4 while their visible limbs reach 1.7 (legs/pistol swing), a milder mismatch of the opposite kind.
 
+## Ranged U for the gunner and storm caller, a longer whirlwind for the cook
+- Gunner U 重型狙击 (speed 21, 15 dmg, force 8) and storm caller U 雷球 (slow bolt, 12 dmg, slows 1.4 s) are `heavy.projectile` shots with `melee:false`; the game plays the `shoot` clip for them (`driveGlb`), the shot spawns at the usual heavy hit frame.
+- Cook U reach 3.5 with a 7-unit lunge, so he travels while he spins (hit up to 3.6 in a measured sweep; limbs reach ~1.7 from the body, the rest is the lunge and the spin). J still stops at 2.1.
+

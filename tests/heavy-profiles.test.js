@@ -73,3 +73,11 @@ test('characters cope differently with quicksand and ice',()=>{
   const slide=char=>{const p=walkOn(char,STAGES.snow,iceZone.x-4,iceZone.z,.5,{x:1});const x0=p.x;for(let t=0;t<.6;t+=STEP)stepFighter(p,{},STEP,STAGES.snow);return p.x-x0;};
   assert.ok(slide('gunner')>slide('guardian')*1.5,'the light gunner slides much further than the planted guardian');
 });
+
+test("the gunner's and the storm caller's U are ranged shots; the cook's whirlwind kick reaches further than J",()=>{
+  const g=duel('gunner',q=>Object.assign(q,{x:9,z:0,fx:-1,fz:0}));assert.ok(g.q.hp<100,'a heavy bullet hits at 9');
+  const s=duel('stormcaller',q=>Object.assign(q,{x:6,z:0,fx:-1,fz:0}));assert.ok(s.q.hp<100,'a thunder ball hits at 6');assert.ok(s.q.slowTime>0,'and slows');
+  const k=duel('cook',q=>Object.assign(q,{x:3.1,z:0,fx:-1,fz:0}));assert.ok(k.q.hp<100,'whirlwind reaches 3.1');
+  const j=(()=>{const w=createWorld({chars:['cook','brawler'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;const [p,q]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:3.1,z:0});attack(w,p,{});for(let t=0;t<.6;t+=STEP)step(w,{});return q.hp;})();
+  assert.equal(j,100,'while J does not');
+});

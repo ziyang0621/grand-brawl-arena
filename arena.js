@@ -147,7 +147,7 @@ function driveGlb(m,p,dt,walking){
     if(g.tripo){const k=clamp(1-p.skillTime/.4,0,1);time=(k<.8?11+k/.8*10:21+(k-.8)/.2*7)*FR24;}   // release -> spin pose -> settle
     else time=(held*30*FR24)%(g.actions.skill.getClip().duration||.33);}
   else if(p.attackTime>0){
-    name=ATTACK_CLIP(p.attackType)||(p.combo%2===1?'attack_b':'attack_a');enter(name);
+    name=(p.attackType==='heavy'&&CHARACTERS[p.char].heavy?.projectile&&['gunner','stormcaller'].includes(p.char)?'shoot':ATTACK_CLIP(p.attackType))||(p.combo%2===1?'attack_b':'attack_a');enter(name);
     const {phase,contact}=attackPhase(p);time=(phase<contact?9*phase/contact:9+13*(phase-contact)/(1-contact))*FR24;
   }
   else if(p.blocking){name='guard';time=Math.min(enter(name),12*FR24);}
