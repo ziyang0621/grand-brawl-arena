@@ -736,3 +736,8 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Core: `CHARACTERS[id].heavy.projectile` spawns a shot at the hit frame (`pierce`, `boomerang`, per-target `hitIds`); `heavy.melee:false` skips the melee check. The Red Sail slash still does its normal melee chop up close.
 - Rubber arm: spec `stretch` keys bone `scale` on upper arm/forearm (and the inverse on the wrist so the fist keeps its size) in every clip, so nothing stays stretched after a cross-fade.
 
+## J is close range, U is a little longer
+- Plain J (light) reach is 2.1 (2.7... 3.05 with the power-up sword); every U is 2.6-3.1 (brawler rocket punch 3.1, stormcaller staff 2.7). Projectile U moves travel only ~3.5 (slash `speed 12, life .3`, shield `speed 11, boomerang .3`).
+  Move+J specials (dash, shield bash, rush, gunner/stormcaller shots) keep their own ranges.
+- The brawler's rocket punch is square to the target: the clip has yaw 0 at the strike (a yaw there made the stretched arm point diagonally) and the fist is aimed slightly across so it ends on the facing line; peak bone scale 2.7.
+

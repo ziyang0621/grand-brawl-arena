@@ -594,10 +594,10 @@ def fist_melee(name, t, body, feet, right, left, axis):
                     dz=PIRATE_STAND + cr(k([0, -.012, -.03, -.018, 0]), t), roll=cr(keys(T, [0, 4, -6, -3, 0]), t), head_yaw=cr(keys(T, [0, -9, 8, 6, 0]), t))
         feet[0].x += cr(keys(T, [0, -.02, .13, .13, 0]), t); feet[1].x += cr(keys(T, [0, 0, -.06, -.06, 0]), t)
     elif name == 'heavy':           # RUBBER ROCKET PUNCH: coil back with the whole torso, then the right arm stretches (bone scale, see STRETCH below) and drives out
-        right = cr(keys(T, [r0, (-.06, .08, -.03), (.255, .01, .04), (.24, .015, .03), r0]), t)
+        right = cr(keys(T, [r0, (-.06, .08, -.03), (.255, -.05, .0), (.24, -.045, .0), r0]), t)     # straight ahead, slightly across so the fist ends on the facing line
         left = cr(keys(T, [l0, (.1, -.08, .03), (.02, -.14, -.04), (.04, -.12, -.03), l0]), t)
-        body.update(yaw=cr(keys(T, [0, -34, 24, 16, 0]), t), lean=cr(keys(T, [0, -6, 14, 9, 0]), t), dx=cr(keys(T, [0, -.04, .05, .045, 0]), t),
-                    dz=PIRATE_STAND + cr(keys(T, [0, -.05, -.07, -.05, 0]), t), head_yaw=cr(keys(T, [0, 12, -10, -6, 0]), t), roll=cr(keys(T, [0, 3, -4, -2, 0]), t))
+        body.update(yaw=cr(keys(T, [0, -30, 0, 0, 0]), t), lean=cr(keys(T, [0, -6, 12, 8, 0]), t), dx=cr(keys(T, [0, -.04, .05, .045, 0]), t),
+                    dz=PIRATE_STAND + cr(keys(T, [0, -.05, -.07, -.05, 0]), t), head_yaw=cr(keys(T, [0, 12, 0, 0, 0]), t), roll=0)   # coil, then square to the target: no yaw at the strike, or the arm points diagonally
         feet[1].x += cr(keys(T, [0, 0, .06, .06, 0]), t)
     elif name == 'dash':            # lunging punch: whole body behind the fist
         right = cr(keys(T, [r0, (-.02, .06, .0), (.255, .02, .02), (.2, .03, .0), r0]), t)
@@ -849,7 +849,7 @@ def apply_stretch(name, t):
     if not SPEC.get('stretch'):
         return []
     arm_bones = [RIGHT['upper'].name, RIGHT['fore'].name, RIGHT['wrist'].name]
-    s = cr([(0, 1.0), (.23, 1.0), (.36, 2.4), (.41, 3.8), (.6, 3.5), (.82, 1.6), (1, 1.0)], t) if name == 'heavy' else 1.0
+    s = cr([(0, 1.0), (.23, 1.0), (.36, 1.8), (.41, 2.7), (.6, 2.5), (.82, 1.4), (1, 1.0)], t) if name == 'heavy' else 1.0
     for n in arm_bones[:2]:
         pb[n].scale = Vector((1, s, 1))
     pb[arm_bones[2]].scale = Vector((1, 1 / s, 1))
