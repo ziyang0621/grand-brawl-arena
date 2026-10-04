@@ -33,12 +33,21 @@ export function configureTripo(g,cfg=TRIPO_CHARS.swordsman){
   // Center the scan's hips over the gameplay origin (pirate: source X=-.19).
   g.root.position.z=-cfg.hipX*cfg.scale;
   g.tripo=true;g.tripoCfg=cfg;g.stride=tripoStride(cfg);
-  g.tripoSwordMaterials=[];
-  g.root.getObjectByName('TripoCutlass')?.traverse(o=>{
+  g.tripoSwordMaterials=[];g.tripoAuraMaterials=[];
+  // The power-up glows on whatever this character holds (cutlass blade, pistol barrel, staff). A bare-handed fighter
+  // (brawler, cook) glows all over, softly, instead.
+  let armed=false;
+  for(const name of ['TripoCutlass','TripoPistol','TripoStaff'])g.root.getObjectByName(name)?.traverse(o=>{
     if(!o.isMesh||o.userData.ink)return;
-    o.material=o.material.clone();
-    if(o.material.name==='TripoSteel')g.tripoSwordMaterials.push(o.material);
+    o.material=o.material.clone();armed=true;
+    if(/^Tripo(Steel|Gunmetal)$/.test(o.material.name)||name==='TripoStaff')g.tripoSwordMaterials.push(o.material);
   });
+  if(!armed)g.root.traverse(o=>{
+    if(!o.isMesh||o.userData.ink||/^Tripo/.test(o.name)||!o.material?.emissive)return;
+    o.material=o.material.clone();g.tripoAuraMaterials.push(o.material);
+  });
+  // Where the comic symbols (anger, sweat, star) float: just above this model's head.
+  g.markY=Math.max(3.45,cfg.scale*.97);
 }
 
 // Pure: which decals show for a fighter state. Eyes, brows and mouth are chosen independently.

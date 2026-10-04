@@ -66,7 +66,8 @@ const GLB_SCALE=.84;
 const GLB_CHARS=Object.fromEntries(['swordsman','guardian','brawler','gunner','cook','stormcaller'].map(id=>[id,`models/${id}.glb`]));
 // Opt-in Tripo integration preview. Keep the generated character isolated to
 // the swordsman slot while its Blender-authored motion is being tuned.
-const TRIPO_PREVIEW=new URLSearchParams(location.search).get('tripo')==='1';
+// Tripo models are the default look; ?tripo=0 (or the header button) switches to the older Blender/procedural bodies.
+const TRIPO_PREVIEW=(()=>{const q=new URLSearchParams(location.search).get('tripo');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-tripo')!=='0';}catch{return true;}})();
 const useGlb=(()=>{const q=new URLSearchParams(location.search).get('glb');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-glb')!=='0';}catch{return true;}})();
 function attachGlb(m,charId){
   const tripoCfg=TRIPO_PREVIEW?TRIPO_CHARS[charId]:null,tripo=Boolean(tripoCfg),url=tripo?tripoCfg.url:GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
@@ -75,7 +76,7 @@ function attachGlb(m,charId){
     const g=instantiate(model,{ink:tripo?.002:.022,preserveMaterials:tripo,inkSkip:n=>/^Tripo(Eyes|Blush|Brow|Mouth|Tear)/.test(n)}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);if(tripo)configureTripo(g,tripoCfg);m.body.add(g.root);m.tag.position.y=tripo?4.05:m.tag.position.y*(GLB_SCALE+.06);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
     for(const child of m.silhouette.children)if(child!==m.guard.root)child.visible=false;
     // weapon effects ride on the new weapon: glow, trail and sparks are re-created in a frame aligned with its long axis
-    const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&(o.name==='Weapon'||tripo&&o.material?.name==='TripoSteel'))weapon.push(o);});
+    const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&(o.name==='Weapon'||tripo&&/^Tripo(Steel|Gunmetal|Wood)$/.test(o.material?.name)))weapon.push(o);});
     for(const old of [m.weaponGlow,m.swordTrail,...m.swordSparks])old.visible=false;
     if(weapon[0]&&tripo){
       // Glow and trail are inflated copies of the steel blade skinned to the same skeleton, so they
@@ -183,7 +184,7 @@ function driveGlb(m,p,dt,walking){
     for(const [k,s] of Object.entries(g.tripoMarks)){   // pop in, float, vanish
       const on=k===e.mark;s.userData.t=on?Math.min(1,(s.userData.t||0)+dt*7):Math.max(0,(s.userData.t||0)-dt*10);
       s.visible=s.userData.t>0;const pop=s.userData.t<1?1.35-.35*s.userData.t:1;
-      s.scale.setScalar(1.05*s.userData.t*pop*(1+.06*Math.sin(world.tick*.25)));s.position.set(.62,3.45+.05*Math.sin(world.tick*.18),.1);
+      s.scale.setScalar(1.05*s.userData.t*pop*(1+.06*Math.sin(world.tick*.25)));s.position.set(.62,g.markY+.05*Math.sin(world.tick*.18),.1);
     }
   }
   g.update(dt);
@@ -670,8 +671,8 @@ function selectKey(e){
 buildSelect();
 $('startMatch').onclick=startMatch;
 $('randomRival').onclick=()=>{selection.p2=CHARACTER_IDS[Math.floor(Math.random()*CHARACTER_IDS.length)];previewSelection();};
- $('glbButton').textContent=TRIPO_PREVIEW?'角色模型：Tripo 测试版':useGlb?'角色模型：Blender':'角色模型：程序生成';
- $('glbButton').onclick=()=>{if(TRIPO_PREVIEW){const u=new URL(location.href);u.searchParams.delete('tripo');location.href=u.toString();return;}try{localStorage.setItem('gb-glb',useGlb?'0':'1');}catch{}const u=new URL(location.href);u.searchParams.delete('glb');location.href=u.toString();};
+ $('glbButton').textContent=TRIPO_PREVIEW?'角色模型：Tripo':useGlb?'角色模型：Blender':'角色模型：程序生成';
+ $('glbButton').onclick=()=>{if(TRIPO_PREVIEW){try{localStorage.setItem('gb-tripo','0');}catch{}const u=new URL(location.href);u.searchParams.set('tripo','0');location.href=u.toString();return;}try{localStorage.setItem('gb-tripo','1');}catch{}const u=new URL(location.href);u.searchParams.set('tripo','1');location.href=u.toString();};
 const muteLabel=()=>{$('muteButton').textContent=audio.muted?'声音：关':'声音：开';};
 $('muteButton').onclick=()=>{audio.unlock();audio.setMuted(!audio.muted);muteLabel();$('muteButton').blur();};muteLabel();
 addEventListener('keydown',e=>{if(e.code==='KeyM'&&!e.repeat){audio.unlock();audio.setMuted(!audio.muted);muteLabel();}});
@@ -867,6 +868,7 @@ function animateFighter(p,i,m,dt){
     // Picking the power-up up already warms the blade (pulsing); equipping it turns the whole blade molten gold.
     const swordEquipped=p.weapon==='sword',swordHeld=p.item==='sword',pulse=.5+.5*Math.sin(world.tick*.12);
     for(const material of m.glb.tripoSwordMaterials){material.emissive.set(swordEquipped?'#ffad12':swordHeld?'#ffd27a':'#000000');material.emissiveIntensity=swordEquipped?.75+.25*pulse:swordHeld?.25+.3*pulse:0;}
+    for(const material of m.glb.tripoAuraMaterials){material.emissive.set(swordEquipped||swordHeld?'#ff9a10':'#000000');material.emissiveIntensity=swordEquipped?.22+.08*pulse:swordHeld?.1+.1*pulse:0;}
   }
   // Held by a Tripo fighter: lie on his back across the holder's shoulders, resting on the head, like the
   // crate. The core keeps the opponent chest-high in front of the holder; this is a visual-only override.

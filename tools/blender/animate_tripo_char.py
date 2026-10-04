@@ -183,6 +183,57 @@ def rebind_hands():
 rebind_hands()
 
 
+def purge_far_limb_weights(reach=.09):
+    """The scan's automatic skinning leaves small weights from a limb bone on vertices far away from it: the right toe bone drives the
+    left foot and the fingertips of the right fist, which shows as a long shard when that toe moves. Drop an influence from a leg or
+    arm bone when the vertex is farther than `reach` from that bone's segment (rest pose), then renormalise."""
+    ob = body_mesh
+    limb = set()
+    for side in (RIGHT, LEFT):
+        for key in ('thigh', 'shin', 'foot', 'upper', 'fore', 'wrist'):
+            limb.add(side[key].name)
+        limb |= {b.name for b in side['wrist'].children_recursive}
+        limb |= {b.name for b in side['foot'].children_recursive}
+    seg = {}
+    for b in arm.data.bones:
+        if b.name in limb or not b.name.startswith('Root'):
+            seg[b.name] = (b.head_local.copy(), b.tail_local.copy())
+    far = {n: (reach if n in limb else .3) for n in seg}      # hair strands and trims may hang well away from their bone; limbs may not
+    allseg = {b.name: (b.head_local.copy(), b.tail_local.copy()) for b in arm.data.bones if not b.name.startswith('Root')}
+    groups = {g.index: g.name for g in ob.vertex_groups}
+    pos = {v.index: arm.matrix_world.inverted() @ ob.matrix_world @ v.co for v in ob.data.vertices}
+
+    def dist(p, a, b):
+        ab = b - a
+        t = max(0, min(1, (p - a).dot(ab) / max(ab.length_squared, 1e-9)))
+        return (p - (a + ab * t)).length
+    removed = 0
+    for v in ob.data.vertices:
+        infl = [(groups[g.group], g.weight) for g in v.groups]
+        keep = [(n, w) for n, w in infl if n not in seg or dist(pos[v.index], *seg[n]) <= far[n]]
+        if not keep:
+            # Every influence is a far limb bone (a boot sole skinned 100% to a hand): hand the vertex to the nearest bone of the body.
+            near = min(allseg, key=lambda n: dist(pos[v.index], *allseg[n]))
+            for n, _ in infl:
+                ob.vertex_groups[n].remove([v.index])
+            (ob.vertex_groups.get(near) or ob.vertex_groups.new(name=near)).add([v.index], 1.0, 'REPLACE')
+            removed += len(infl)
+            continue
+        if len(keep) == len(infl):
+            continue
+        total = sum(w for _, w in keep)
+        drop = [n for n, _ in infl if n not in {k for k, _ in keep}]
+        for n in drop:
+            ob.vertex_groups[n].remove([v.index])
+        for n, w in keep:
+            ob.vertex_groups[n].add([v.index], w / total * sum(w2 for _, w2 in infl), 'REPLACE')
+        removed += len(drop)
+    print('PURGED far limb weights', removed)
+
+
+purge_far_limb_weights()
+
+
 def heal_tears(max_stretch=3.0, passes=6):
     """Tripo's automatic weights sometimes bind a vertex to a bone on the far side of a seam: a long hair strand's last
     bone dragging the shoulder, a hip pouch following the thigh. Pose the rig at its extremes, find every edge that is
@@ -789,12 +840,16 @@ bpy.context.scene.frame_set(0)
 bpy.context.scene.frame_start, bpy.context.scene.frame_end = 0, 96
 bpy.context.preferences.filepaths.save_version = 0
 extra = list(WEAPONS)
+if SPEC.get('face') and not NO_FACE:
+    import tripo_face
+    extra += tripo_face.build_face(bpy, arm, body_mesh, SPEC['face'])
 bpy.ops.wm.save_as_mainfile(filepath=str(BLEND))
 bpy.ops.object.select_all(action='DESELECT')
 arm.select_set(True)
 body_mesh.select_set(True)
 for o in extra:
     o.select_set(True)
+
 bpy.context.view_layer.objects.active = arm
 bpy.ops.export_scene.gltf(filepath=str(OUTPUT), export_format='GLB', use_selection=True, export_animations=True, export_animation_mode='ACTIONS',
                           export_force_sampling=True, export_skins=True, export_all_influences=False, export_optimize_animation_size=True, export_yup=True)
