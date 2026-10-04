@@ -24,6 +24,7 @@ export const TRIPO_CHARS={
   guardian:{url:'models/tripo-guardian-animated.glb',scale:3.7,hipX:-.007,...LEG(1.0334),carryBottom:.52},
   gunner:{url:'models/tripo-gunner-animated.glb',scale:3.5,hipX:.061,...LEG(.8436),carryBottom:.4},
   cook:{url:'models/tripo-cook-animated.glb',scale:3.8,hipX:.014,...LEG(1.0986),carryBottom:.58},
+  stormcaller:{url:'models/tripo-stormcaller-animated.glb',scale:3.7,hipX:.033,...LEG(.985),carryBottom:.45},
 };
 export function tripoStride(cfg){const w=2*cfg.walk.amp*cfg.scale/cfg.walk.duty;return {walk:w,carry_walk:w,run:2*cfg.run.amp*cfg.scale/cfg.run.duty};}
 export function configureTripo(g,cfg=TRIPO_CHARS.swordsman){

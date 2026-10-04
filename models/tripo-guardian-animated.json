@@ -2,7 +2,7 @@
   "id": "guardian",
   "style": "swordshield",
   "legScale": 1.0334,
-  "armScale": 1.0844,
+  "armScale": 1.0839,
   "walk": {
     "amp": 0.186,
     "duty": 0.6

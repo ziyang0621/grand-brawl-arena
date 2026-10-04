@@ -61,7 +61,25 @@ def discover(arm):
     assert set(wrists) == {'Right', 'Left'}, 'could not find both wrists (bones with fingers): %s' % {k: v.name for k, v in wrists.items()}
     for side in ('Right', 'Left'):
         w = wrists[side]
-        fore, upper = w.parent, w.parent.parent
+        # Some rigs split the arm into three segments (shoulder, upper, fore, lower arm). Walk up from the wrist to the
+        # clavicle/torso and keep the whole chain: the IK uses the bones nearest the wrist for 'fore' and the rest for
+        # 'upper', and a long segment count must not make the arm look short.
+        arm_chain = []
+        n = w.parent
+        while n is not None and n.head_local.z > floor + .3 and abs(n.head_local.y) > .03:
+            arm_chain.append(n)
+            n = n.parent
+        arm_chain.reverse()                       # shoulder-most first
+        assert len(arm_chain) >= 2, 'arm chain too short on the %s' % side
+        # Spare helper bones hang beside the real chain on some rigs, so a parent walk can stop short of the shoulder.
+        # Judge the arm by the straight distance from the shoulder end of that chain to the wrist: that is its reach.
+        # Pick the two bones that carry the elbow: the pair whose joint is closest to the middle of the arm. Everything
+        # else in the chain (clavicle, extra segments) is rotated with them rather than solved on its own.
+        wrist_pos = w.head_local
+        shoulder_pos = arm_chain[0].head_local
+        mid = (wrist_pos + shoulder_pos) / 2
+        joint = min(range(1, len(arm_chain)), key=lambda i: (arm_chain[i].head_local - mid).length)
+        upper, fore = arm_chain[joint - 1], arm_chain[joint]
         thigh, shin, foot = leg_chain[side][:3]
         rig[side] = {'sign': 1 if side == 'Right' else -1, 'upper': upper, 'fore': fore, 'wrist': w,
                      'clavicle': upper.parent if upper.parent and upper.parent.head_local.z > upper.head_local.z - .02 and abs(upper.parent.head_local.y) < abs(upper.head_local.y) and upper.parent.tail_local.y * upper.head_local.y > 0 else None,
@@ -110,7 +128,8 @@ def _thigh_index(chain, root):
 def measure(rig):
     r = rig['Right']
     leg = r['thigh'].length + r['shin'].length
-    arm = r['upper'].length + r['fore'].length
+    # The reach is measured shoulder -> wrist in the T-pose, so a rig that splits its arm into more bones is not mistaken for a short arm.
+    arm = (r['wrist'].head_local - r['upper'].head_local).length
     hip, ankle = r['thigh'].head_local, r['foot'].head_local
     lateral = abs(ankle.y - hip.y)
     v_rest = hip.z - ankle.z

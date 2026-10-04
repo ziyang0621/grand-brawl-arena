@@ -119,7 +119,7 @@ def keys(T, vals):
 
 
 # ---------------------------------------------------------------- hands: re-skin by distance to the finger bones
-FINGER_REACH, FINGER_TIP, FINGER_SOFT = .05, .7, .0065
+FINGER_REACH, FINGER_TIP, FINGER_SOFT = .05 * SA, .7, .0065 * SA   # tuned on the pirate's hand; scale by this character's arm size
 FINGER_CURL = (18, 28)
 
 
@@ -135,43 +135,114 @@ def rebind_hands():
         t = max(0, min(1, (p - a).dot(ab) / ab.length_squared))
         return (p - (a + ab * t)).length
     total = 0
+    skipped = {'far': 0, 'share': 0}
     for side in (RIGHT, LEFT):
         wrist = side['wrist']
         fingers = list(wrist.children_recursive)
         names = {b.name for b in fingers} | {wrist.name}
         knuckles = [b.head_local for b in wrist.children]
         palm = sum(knuckles, Vector()) / len(knuckles)
+        finger_dir = (palm - wrist.head_local).normalized()
         segs = [(b.name, b.head_local.copy(), b.tail_local + (b.tail_local - b.head_local) * (FINGER_TIP if not b.children else 0)) for b in fingers]
         segs.append((wrist.name, wrist.head_local.copy(), palm))
         groups = {g.name: g for g in ob.vertex_groups}
         for v in ob.data.vertices:
             p = pos[v.index]
             if (p - wrist.head_local).length > .2:
-                continue
-            near = min(seg_dist(p, a, b) for n, a, b in segs if n != wrist.name)
-            if near > FINGER_REACH:
+                skipped['far'] += 1
                 continue
             old = {ob.vertex_groups[g.group].name: g.weight for g in v.groups}
             hand_share = sum(w for n, w in old.items() if n in names)
-            if hand_share < .5:
+            # Past the wrist, in the direction the fingers point, a vertex is hand even if the scan gave most of its
+            # weight to the forearm or a helper bone; before the wrist, only a clear majority counts.
+            beyond = (p - wrist.head_local).dot(finger_dir) > .004 * SA
+            if hand_share < (.15 if beyond else .5):
+                if (p - wrist.head_local).length < .12:
+                    skipped['share'] += 1
                 continue
+            # (an earlier version also required the vertex to be within FINGER_REACH of a finger bone; on a character
+            # whose fingers are thicker than the pirate's that skipped fingertips that still carried a toe's weight)
             ds = [(seg_dist(p, a, b), n) for n, a, b in segs]
             dmin = min(d for d, _ in ds)
             raw = {n: math.exp(-(d - dmin) / FINGER_SOFT) for d, n in ds}
             norm = sum(raw.values())
-            for n in names:
-                if n in groups:
-                    groups[n].remove([v.index])
+            # A hand vertex may carry a few percent of an unrelated bone (a toe, the spine). Whatever it held outside the
+            # hand is dropped and the weight is renormalised onto the hand bones, or it would follow that bone.
+            for g in list(v.groups):
+                ob.vertex_groups[g.group].remove([v.index])
+            hand_share = 1.0
             for n, w in raw.items():
                 w = w / norm * hand_share
                 if w > .02:
                     (groups.get(n) or ob.vertex_groups.new(name=n)).add([v.index], w, 'REPLACE')
             total += 1
-    print('REBOUND hand vertices', total)
+    print('REBOUND hand vertices', total, 'skipped near the wrist for low hand share:', skipped['share'])
     assert total > 300, 'hand vertices not found; inspect the rig before rebinding'
 
 
 rebind_hands()
+
+
+def heal_tears(max_stretch=3.0, passes=6):
+    """Tripo's automatic weights sometimes bind a vertex to a bone on the far side of a seam: a long hair strand's last
+    bone dragging the shoulder, a hip pouch following the thigh. Pose the rig at its extremes, find every edge that is
+    stretched beyond `max_stretch` x, and give the vertices at both ends the average weights of their un-stretched
+    neighbours. Repeats because healing one ring exposes the next."""
+    ob = body_mesh
+    me = ob.data
+    names = {g.index: g.name for g in ob.vertex_groups}
+    groups = {g.name: g for g in ob.vertex_groups}
+    adjacency = [[] for _ in me.vertices]
+    for e in me.edges:
+        a, b = e.vertices
+        adjacency[a].append(b)
+        adjacency[b].append(a)
+
+    def positions():
+        ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        m = ev.to_mesh()
+        p = [v.co.copy() for v in m.vertices]
+        ev.to_mesh_clear()
+        return p
+    arm.data.pose_position = 'REST'
+    update()
+    rest_p = positions()
+    arm.data.pose_position = 'POSE'
+    probe = [('walk', 6), ('walk', 18), ('attack_a', 9), ('heavy', 9), ('guard', 8), ('hurt', 4), ('skill', 16), ('carry', 6)]
+    healed_total = 0
+    for _ in range(passes):
+        torn = set()
+        for clip, frame in probe:
+            if clip not in bpy.data.actions:
+                continue
+            arm.animation_data.action = bpy.data.actions[clip]
+            bpy.context.scene.frame_set(frame)
+            update()
+            cur = positions()
+            for e in me.edges:
+                a, b = e.vertices
+                r0 = (rest_p[a] - rest_p[b]).length
+                if r0 > .008 and (cur[a] - cur[b]).length / r0 > max_stretch:
+                    torn.update((a, b))
+        if not torn:
+            break
+        weights = {i: {names[g.group]: g.weight for g in me.vertices[i].groups} for i in torn}
+        for i in torn:
+            ok = [j for j in adjacency[i] if j not in torn]
+            if not ok:
+                continue
+            blend = {}
+            for j in ok:
+                for g in me.vertices[j].groups:
+                    blend[names[g.group]] = blend.get(names[g.group], 0) + g.weight / len(ok)
+            for g in list(me.vertices[i].groups):
+                ob.vertex_groups[g.group].remove([i])
+            for n, w in blend.items():
+                if w > .02:
+                    groups[n].add([i], w, 'REPLACE')
+        healed_total += len(torn)
+    arm.animation_data.action = None
+    print('HEALED stretched vertices', healed_total)
 
 # ---------------------------------------------------------------- the pose vocabulary (pirate units)
 SPINE_FRONT = Vector((0, 1, 0))
@@ -292,6 +363,8 @@ def pose(name, t):
     if name == 'carry_walk':
         right, left, axis = Vector((.0, .07, .245)), Vector((.0, -.07, .245)), Vector((.0, .6, .8)).normalized()
         body.update(lean=-3, yaw=body['yaw'] * .35, head_yaw=0, roll=body['roll'] * .5)
+    if SPEC['weapon'] == 'pistol' and name not in ATTACK_POWER and name not in ('skill', 'guard', 'carry', 'carry_walk', 'throw', 'toss'):
+        axis = gun_idle_axis(name, axis)
     apply_pose(body, right, left, axis, feet, name)
 
 
@@ -447,11 +520,16 @@ def fist_skill(name, t, body, feet, right, left, axis):
     return right, left, axis
 
 
+def gun_idle_axis(name, axis):
+    """Between shots the gunner carries the pistol with the muzzle pointing up and out, not stuck out in front of him."""
+    return HOLD_AXIS[0].copy() if name in ('idle', 'walk', 'run', 'jump', 'fall', 'land', 'hurt', 'knock') else axis
+
+
 def gun_melee(name, t, body, feet, right, left, axis):
     """Gunner: 'shoot' fires the pistol straight ahead with recoil; the other attacks are quick pistol-whips."""
     T = [0, .23, .41, .7, 1]
     r0, l0 = Vector((.145, .025, -.155)), Vector((.075, -.035, -.19))
-    AIM = Vector((1, 0, .22)).normalized()
+    AIM = Vector((1, 0, .08)).normalized()                                          # level, at the opponent
     if name == 'shoot':
         right = cr(keys(T, [r0, (.16, .05, .06), (.26, .02, .07), (.2, .03, .04), r0]), t)
         axis = cr(keys(T, [AIM, AIM, (.85, 0, .55), (.95, 0, .3), AIM]), t).normalized()     # the muzzle flips up with the recoil
@@ -470,7 +548,7 @@ def gun_skill(name, t, body, feet, right, left, axis):
     up = Vector((.0, 0, 1))
     shots = max(0, math.sin((t - 8 / 28) * math.tau * 4.5)) if t > 8 / 28 and t < 24 / 28 else 0
     right = cr(keys(T, [r0, (.06, .06, .18), (.1, .06, .26), (.1, .06, .27), (.08, .06, .22), r0]), t)
-    axis = (cr(keys(T, [Vector((1, 0, .22)), (.4, 0, .9), (.1, 0, 1), (.1, 0, 1), (.15, 0, 1), Vector((1, 0, .22))]), t) + Vector((.5, 0, -.2)) * shots * .35).normalized()
+    axis = (cr(keys(T, [HOLD_AXIS[0], (.4, 0, .9), (.1, 0, 1), (.1, 0, 1), (.15, 0, 1), HOLD_AXIS[0]]), t) + Vector((.5, 0, -.2)) * shots * .35).normalized()
     left = cr(keys(T, [l0, (.06, -.08, .0), (.08, -.1, .02), (.08, -.1, .02), (.08, -.1, .02), l0]), t)
     wide = cr(keys(T, [0, .6, 1, 1, 1, 0]), t)
     feet[0].y += .05 * wide; feet[1].y -= .05 * wide
@@ -594,17 +672,17 @@ def build_weapons():
                               ([(-.019, -.065), (.019, -.065), (.019, -.05), (-.019, -.05)], .032, 1)], RIGHT['wrist'], [STEEL, GOLD, LEATHER])
     elif kind == 'pistol':   # a chunky flintlock; the barrel (local +Z) points forward in the hand
         make('TripoPistol', [([(-.03, -.085), (.03, -.085), (.036, .0), (-.036, .0)], .05, 1),
-                             ([(-.03, .0), (.03, .0), (.026, .075), (-.026, .075)], .054, 0),
-                             ([(-.018, .075), (.018, .075), (.016, .33), (-.016, .33)], .04, 0),
-                             ([(-.03, .32), (.03, .32), (.03, .35), (-.03, .35)], .056, 2),
-                             ([(-.012, .02), (.012, .02), (.012, .052), (-.012, .052)], .07, 2)],
+                             ([(-.03, .0), (.03, .0), (.026, .06), (-.026, .06)], .054, 0),
+                             ([(-.018, .06), (.018, .06), (.016, .21), (-.016, .21)], .04, 0),
+                             ([(-.03, .2), (.03, .2), (.03, .225), (-.03, .225)], .056, 2),
+                             ([(-.012, .018), (.012, .018), (.012, .045), (-.012, .045)], .07, 2)],
              RIGHT['wrist'], [GUNMETAL, WOOD, GOLD], scale=1.0)
-    elif kind == 'staff':    # a long wooden staff with gold ferrules and a star head
-        make('TripoStaff', [([(-.016, -.32), (.016, -.32), (.016, .62), (-.016, .62)], .032, 0),
-                            ([(-.028, -.34), (.028, -.34), (.028, -.3), (-.028, -.3)], .05, 1),
-                            ([(-.03, .56), (.03, .56), (.026, .62), (-.026, .62)], .056, 1),
-                            ([(0, .74), (.045, .67), (.075, .72), (.05, .64), (.075, .56), (.03, .6), (0, .52), (-.03, .6), (-.075, .56), (-.05, .64), (-.075, .72), (-.045, .67)], .036, 1),
-                            ([(-.02, .12), (.02, .12), (.02, .16), (-.02, .16)], .045, 1)],
+    elif kind == 'staff':    # a staff about as tall as the fighter's shoulders: gold ferrules and a star head
+        make('TripoStaff', [([(-.014, -.17), (.014, -.17), (.014, .46), (-.014, .46)], .028, 0),
+                            ([(-.024, -.185), (.024, -.185), (.024, -.15), (-.024, -.15)], .044, 1),
+                            ([(-.026, .42), (.026, .42), (.022, .47), (-.022, .47)], .05, 1),
+                            ([(0, .6), (.04, .535), (.066, .58), (.045, .51), (.066, .44), (.027, .48), (0, .41), (-.027, .48), (-.066, .44), (-.045, .51), (-.066, .58), (-.04, .535)], .032, 1),
+                            ([(-.018, .1), (.018, .1), (.018, .135), (-.018, .135)], .04, 1)],
              RIGHT['wrist'], [WOOD, GOLD], scale=1.0)
     if SPEC.get('off_hand') == 'buckler':
         # A small round shield on the outside of the left forearm, facing forward and out.
@@ -640,7 +718,7 @@ _fore = pb[RIGHT['fore'].name]
 _dir = (_fore.tail - _fore.head).normalized()
 HOLD_AXIS[0] = (Vector((0, 0, 1)) * .75 + Vector((1, 0, 0)) * .6 - _dir * .15).normalized()
 if SPEC['weapon'] == 'pistol':
-    HOLD_AXIS[0] = Vector((1, 0, .22)).normalized()     # the barrel points at the opponent
+    HOLD_AXIS[0] = Vector((.55, 0, .83)).normalized()    # carried muzzle-up and forward; shooting swings it level (see gun_melee)
 elif SPEC['weapon'] == 'staff':
     HOLD_AXIS[0] = Vector((.2, 0, 1)).normalized()       # the staff stands up in the fist
 pose('idle', 0)
@@ -661,6 +739,8 @@ for name, duration in DURATIONS.items():
     action.use_fake_user = True
     print('BAKED', name, duration)
 
+if '--no-heal' not in sys.argv:
+    heal_tears()
 arm.animation_data.action = bpy.data.actions['idle']
 bpy.context.scene.frame_set(0)
 bpy.context.scene.frame_start, bpy.context.scene.frame_end = 0, 96

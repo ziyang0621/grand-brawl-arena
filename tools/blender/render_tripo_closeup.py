@@ -6,7 +6,8 @@ import bpy
 from mathutils import Vector
 root=Path(__file__).resolve().parents[2]
 tag=sys.argv[sys.argv.index('--tag')+1] if '--tag' in sys.argv else 'cu'
-bpy.ops.wm.open_mainfile(filepath=str(root/'models/tripo-pirate-animated.blend'))
+cid=sys.argv[sys.argv.index('--id')+1] if '--id' in sys.argv else 'pirate'
+bpy.ops.wm.open_mainfile(filepath=str(root/('models/tripo-%s-animated.blend'%cid)))
 arm=next(o for o in bpy.context.scene.objects if o.type=='ARMATURE');scene=bpy.context.scene
 scene.render.engine='CYCLES';scene.cycles.device='CPU';scene.cycles.samples=10
 scene.render.resolution_x=520;scene.render.resolution_y=520
@@ -20,14 +21,18 @@ for o in scene.objects:
 cam=bpy.data.objects.new('c',bpy.data.cameras.new('c'));scene.collection.objects.link(cam);cam.data.type='ORTHO';scene.camera=cam
 out=root/'artifacts/tripo-review';out.mkdir(parents=True,exist_ok=True)
 # (label, clip, frame, focus bone, ortho scale, camera direction from the character)
-shots=[('handR_contact','attack_a',9,'tripo::0_Right_Limb_2',.28,(1,1.2,.5)),
-       ('handR_skill','skill',16,'tripo::0_Right_Limb_2',.28,(.3,1.4,.6)),
-       ('handR_ready','idle',0,'tripo::0_Right_Limb_2',.28,(.8,1.2,.7)),
-       ('handL_throw','throw',8,'tripo::0_Left_Limb_2',.28,(.6,-1.3,.5)),
-       ('handL_idle','idle',0,'tripo::0_Left_Limb_2',.28,(.6,-1.3,.5)),
-       ('handL_walk','walk',6,'tripo::0_Left_Limb_2',.28,(.1,-1.4,.4)),
-       ('armR_heavy','heavy',9,'tripo::0_Right_Limb_1',.7,(.4,1.4,.6)),
-       ('hip_attack','attack_a',9,'tripo::Spine_0',.6,(-.4,1.6,.2))]
+WRIST={'pirate':'tripo::0_Right_Limb_2'}
+import sys as _s
+def find_wrist(side):
+    # farthest-out bone with several children on the requested side
+    best=None
+    for b in arm.data.bones:
+        if len(b.children)>=2 and b.head_local.y*side>.05:
+            if best is None or abs(b.head_local.y)>abs(best.head_local.y):best=b
+    return best.name
+RW,LW=find_wrist(1),find_wrist(-1)
+shots=[('handR_idle','idle',0,RW,.3,(.8,1.2,.7)),('handR_attack','attack_a',5,RW,.3,(.8,1.2,.7)),('handR_heavy','heavy',9,RW,.3,(.8,1.2,.7)),
+       ('handL_attack','attack_a',9,LW,.3,(.6,-1.3,.5)),('handR_guard','guard',8,RW,.3,(.8,1.2,.7))]
 for label,clip,frame,bone,scale,direction in shots:
     arm.animation_data.action=bpy.data.actions[clip];scene.frame_set(frame);bpy.context.view_layer.update()
     target=arm.matrix_world@arm.pose.bones[bone].head

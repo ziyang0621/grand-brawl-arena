@@ -2,7 +2,7 @@
   "id": "brawler",
   "style": "fist",
   "legScale": 0.5545,
-  "armScale": 0.9081,
+  "armScale": 0.8472,
   "walk": {
     "amp": 0.0998,
     "duty": 0.6

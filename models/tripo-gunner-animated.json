@@ -2,7 +2,7 @@
   "id": "gunner",
   "style": "gun",
   "legScale": 0.8436,
-  "armScale": 0.7671,
+  "armScale": 0.9871,
   "walk": {
     "amp": 0.1518,
     "duty": 0.6
