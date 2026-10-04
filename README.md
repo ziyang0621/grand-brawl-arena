@@ -16,9 +16,9 @@ npm test           # node --test tests/*.test.js ，258 项；最近验证与偶
 Node.js 20+。`serve.js` 只公开**白名单**内的文件：新增 `.js` 模块必须加进 `serve.js` 的白名单，否则浏览器会 404。
 调试：URL 加 `?debug=1` 会暴露 `window.__brawl`（world、keys、`run(seconds,fps,render)`、`action(code)`、camera、renderer），截图脚本靠它驱动游戏。触屏设备或 `?touch=1` 显示虚拟按键。
 
-### Tripo 剑士预览（2026-10-03）
+### Tripo 角色（默认外观）
 
-启动服务器后打开 `http://127.0.0.1:4173/three-preview.html?tripo=1&v=83`，全部六个角色使用 Tripo 蒙皮模型（红帆、铁拳、蓝潮、火哨、灶火、云雀）；不带 `?tripo=1` 时仍是原有模型。独立动作检视：`http://127.0.0.1:4173/glb-study.html?m=tripo-pirate`，支持朝向切换、暂停和逐段拖动动作。
+启动服务器后打开 `http://127.0.0.1:4173/three-preview.html`，全部六个角色默认使用 Tripo 蒙皮模型（红帆、铁拳、蓝潮、火哨、灶火、云雀）；加 `?tripo=0` 或点顶部按钮切回原有 Blender 模型。六个角色都有受伤/生气/脸红等表情贴花、强化发光和头顶漫画符号。独立动作检视：`http://127.0.0.1:4173/glb-study.html?m=tripo-pirate`，支持朝向切换、暂停和逐段拖动动作。
 
 本轮修正模型正面校准、转身轴心、手腕绑定的真实刀剑、双骨 IK 步态和按移动距离播放动画。原始 GLB、导出动画 GLB、可编辑 Blender 文件及重建脚本均随仓库保存。重建命令和修改注意事项见 `tools/blender/README.md`，详细根因见 `PROGRESS.md` 最新章节。已完成模型数据检查与 Blender 离线画面检查；网页实玩、手机及双端联机视觉效果仍需人工验收。
 

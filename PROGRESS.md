@@ -707,3 +707,17 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - In-game frame checks: headless canvas grabs can return a stale frame. Stop the page's rAF loop (`window.requestAnimationFrame=()=>0`), step with
   `__brawl.run(dt,120,true)`, then take the CDP screenshot.
 
+## Tripo roster polish: default look, faces, skin cleanup, per-character U
+- Tripo models are now the default look. `?tripo=0` (or the header button, which toggles Tripo and Blender) brings back the older bodies; the choice is remembered in localStorage (`gb-tripo`).
+- Expression decals for all roster characters: `tools/blender/tripo_face.py` projects hurt / closed / angry / sad / four mouths / blush / tear decals onto each face, positioned from pixel
+  coordinates read off a front render (`face` in `tripo_specs.py`; +Y is image right, 0.0005 units per pixel). The cook's left eye is hidden by hair and the stormcaller's left brow
+  by a fringe, so those sides have no decal. Rendered decal check: `scratchpad/decalview.py` pattern (hide all decals, show one state, render the front).
+- Power-up glow: cutlass, pistol barrel and staff glow (`TripoSteel`/`TripoGunmetal`/staff); bare-handed fighters (brawler, cook) glow softly all over. Comic marks float above each model's own head (`g.markY`).
+- Skin cleanup, the real cause of the "one long finger / boot shard": Tripo leaves small weights from a limb or hair bone on vertices far away (right toe bone on the left foot and on the fingertips of the
+  right fist; a hair-strand bone driving a boot sole at 100%). `purge_far_limb_weights()` drops influences farther than .09 (limb bones) or .3 (others) from their bone and hands orphans to the nearest bone.
+  Stretched edges on the brawler fell from 1100+ to 6; the stormcaller's boot shard is gone.
+- Per-character U (`CHARACTERS[id].heavy`: reach, arc, damage, force, launch, lunge): thrust (long, narrow, lunges), shield-and-blade smash (all around), uppercut (launches, juggle),
+  pistol whip (short, big shove), whirlwind kick (all around), staff sweep (longest reach). Tests in `tests/heavy-profiles.test.js`. A lunge on the guardian's U made the CPU bounce off ladders (ai-decks test), so it has none.
+- Audit method that works: contact sheets rendered in Blender (3/4 view, every clip at its key frames, decals hidden) show shards and bad poses far faster than in-game screenshots.
+- Online: snapshots carry the whole world state, so toss/boost/carry visuals follow on the guest; both sides default to Tripo. Not tested on a real phone: models are ~4 MB (pirate 9 MB), ~20k triangles each.
+

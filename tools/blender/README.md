@@ -66,4 +66,7 @@ blender -b --factory-startup --python tools/blender/animate_tripo_char.py -- bra
   whole-body spins are applied by `arena.js` (Red Sail L, cook U).
 - Foot targets in the pose code are absolute in the stance (floor at z = -.4191 in pirate units): add lifts, never assign bare heights.
 - The pirate's jacket is recoloured blue to red by `redden_coat()` in `animate_tripo_pirate.py`.
+- `tripo_face.py` builds the expression decals from the `face` pixel coordinates in `tripo_specs.py` (front render, +Y = image right, 0.0005 units/pixel).
+- `purge_far_limb_weights()` removes far-away limb/hair influences left by the automatic skinning (these cause shards at fingertips and boot soles).
+- Per-character U profiles live in `arena-roster.js` (`heavy`), not in the clips: the clip only has to look like the move.
 
