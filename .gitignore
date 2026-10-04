@@ -4,3 +4,14 @@ artifacts/tripo-review/
 .tripo/
 *.blend1
 models/tripo-*/tripo-out/*/task.json
+# Tripo roster: raw generations are 40 MB+ each; only the rigged low-poly source and the prompts are worth keeping
+models/tripo-roster/*/gen/
+models/tripo-roster/*/lo/
+models/tripo-roster/*/check/
+models/tripo-roster/*/rig-mixamo/
+models/tripo-roster/*/*.log
+models/tripo-roster/*.log
+__pycache__/
+*.pyc
+models/tripo-roster/*/rig/tripo-out/*/task.json
+models/tripo-roster/*/rig/tripo-out/*/rendered_image.webp

@@ -11,7 +11,7 @@ import {crewMate,poseCannonCrew,poseSnowCrew} from './arena-crew.js';
 import {freezeSkinnedGeometry} from './arena-tailoring.js';
 import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
 import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
-import {configureTripo,TRIPO_STRIDE,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
+import {configureTripo,TRIPO_CHARS,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -69,10 +69,10 @@ const GLB_CHARS=Object.fromEntries(['swordsman','guardian','brawler','gunner','c
 const TRIPO_PREVIEW=new URLSearchParams(location.search).get('tripo')==='1';
 const useGlb=(()=>{const q=new URLSearchParams(location.search).get('glb');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-glb')!=='0';}catch{return true;}})();
 function attachGlb(m,charId){
-  const tripo=TRIPO_PREVIEW&&charId==='swordsman',url=tripo?'models/tripo-pirate.glb':GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
+  const tripoCfg=TRIPO_PREVIEW?TRIPO_CHARS[charId]:null,tripo=Boolean(tripoCfg),url=tripo?tripoCfg.url:GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
   loadGlbModel(url).then(model=>{
     if(m.root.parent===null||m.glb)return;
-    const g=instantiate(model,{ink:tripo?.002:.022,preserveMaterials:tripo,inkSkip:n=>/^Tripo(Eyes|Blush|Brow|Mouth|Tear)/.test(n)}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);if(tripo)configureTripo(g);m.body.add(g.root);m.tag.position.y=tripo?4.05:m.tag.position.y*(GLB_SCALE+.06);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
+    const g=instantiate(model,{ink:tripo?.002:.022,preserveMaterials:tripo,inkSkip:n=>/^Tripo(Eyes|Blush|Brow|Mouth|Tear)/.test(n)}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);if(tripo)configureTripo(g,tripoCfg);m.body.add(g.root);m.tag.position.y=tripo?4.05:m.tag.position.y*(GLB_SCALE+.06);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
     for(const child of m.silhouette.children)if(child!==m.guard.root)child.visible=false;
     // weapon effects ride on the new weapon: glow, trail and sparks are re-created in a frame aligned with its long axis
     const weapon=[];g.root.traverse(o=>{if(o.isSkinnedMesh&&(o.name==='Weapon'||tripo&&o.material?.name==='TripoSteel'))weapon.push(o);});
@@ -150,7 +150,7 @@ function driveGlb(m,p,dt,walking){
   else if(p.blocking){name='guard';time=Math.min(enter(name),12*FR24);}
   else if(p.carrying||p.grabbedTarget!==null){
     if(g.tripo&&walking){   // legs keep walking while the load (or the opponent) stays overhead
-      name='carry_walk';enter(name);g.stridePhase=((g.stridePhase||0)+(travelled<2?travelled:0)/TRIPO_STRIDE[name])%1;time=g.stridePhase*WALK_DUR;
+      name='carry_walk';enter(name);g.stridePhase=((g.stridePhase||0)+(travelled<2?travelled:0)/g.stride[name])%1;time=g.stridePhase*WALK_DUR;
     }else{name='carry';time=Math.min(enter(name)*1.5,12*FR24);}
   }
   else if(!p.grounded){
@@ -159,7 +159,7 @@ function driveGlb(m,p,dt,walking){
     else{name='fall';time=enter(name)%(22*FR24);}
   }
   else if((p.landTime||0)>0){name='land';enter(name);time=Math.min((.2-p.landTime)*80,16)*FR24;}
-  else if(walking){name=p.running?'run':'walk';enter(name);const dur=p.running?RUN_DUR:WALK_DUR;if(g.tripo){g.stridePhase=((g.stridePhase||0)+(travelled<2?travelled:0)/TRIPO_STRIDE[name])%1;time=g.stridePhase*dur;}else time=(((p.walk/(Math.PI*2))%1)+1)%1*dur;}
+  else if(walking){name=p.running?'run':'walk';enter(name);const dur=p.running?RUN_DUR:WALK_DUR;if(g.tripo){g.stridePhase=((g.stridePhase||0)+(travelled<2?travelled:0)/g.stride[name])%1;time=g.stridePhase*dur;}else time=(((p.walk/(Math.PI*2))%1)+1)%1*dur;}
   else{enter(name);time=g.t%(96*FR24);}
   g.lastJumps=p.jumps;
   g.set(name,time,{fade:g.tripo&&(p.attackTime>0||hurtish)?.045:.12});
@@ -879,7 +879,7 @@ function animateFighter(p,i,m,dt){
     const from=m.body.rotation.clone();
     m.body.rotation.set(from.x+(lying.x-from.x)*k,from.y+(lying.y-from.y)*k,from.z+(lying.z-from.z)*k);
     const centre=new THREE.Vector3(0,HELD_BODY_CENTRE,0).applyQuaternion(new THREE.Quaternion().setFromEuler(lying));
-    const over=new THREE.Vector3(h.x-centre.x,h.y+tripoCarryHeight(holderModel.glb.root.scale.y)+HELD_BODY_THICKNESS/2-centre.y,h.z-centre.z);
+    const over=new THREE.Vector3(h.x-centre.x,h.y+tripoCarryHeight(holderModel.glb.root.scale.y,holderModel.glb.tripoCfg.carryBottom)+HELD_BODY_THICKNESS/2-centre.y,h.z-centre.z);
     m.root.position.lerp(over,k);
     m.body.position.multiplyScalar(1-k);
   }
@@ -1071,7 +1071,7 @@ function updateVisuals(dt){
   for(const [id,m] of cloudModels)if(!world.clouds.some(c=>c.id===id)){scene.remove(m);m.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});cloudModels.delete(id);}
   while(crateModels.length<world.crates.length){const g=containerModel();scene.add(g);crateModels.push(g);}
   // A Tripo fighter holds the load overhead, resting on the head; everyone else keeps the core's chest-height spot.
-  const carryOverhead=id=>{const f=world.fighters.findIndex(q=>q.id===id);return f>=0&&models[f]?.glb?.tripo?{p:world.fighters[f],h:tripoCarryHeight(models[f].glb.root.scale.y)}:null;};
+  const carryOverhead=id=>{const f=world.fighters.findIndex(q=>q.id===id);return f>=0&&models[f]?.glb?.tripo?{p:world.fighters[f],h:tripoCarryHeight(models[f].glb.root.scale.y,models[f].glb.tripoCfg.carryBottom)}:null;};
   crateModels.forEach((m,i)=>{const c=world.crates[i];if(!c){m.visible=false;return;}m.visible=c.hp>0||c.falling||c.heldBy!==null;setContainerKind(m,c.kind);const over=c.heldBy!==null?carryOverhead(c.heldBy):null;if(over)m.position.set(over.p.x,over.p.y+over.h,over.p.z);else m.position.set(c.x,c.y||0,c.z);m.rotation.z=c.falling?Math.sin(world.tick*.12+i):0;});
   for(const p of world.props||[]){let g=propModels.get(p.id);if(!g){g=containerModel();scene.add(g);propModels.set(p.id,g);}setContainerKind(g,p.kind);const over=p.heldBy!==null?carryOverhead(p.heldBy):null;if(over){g.position.set(over.p.x,over.p.y+over.h,over.p.z);g.rotation.set(0,0,0);}else{g.position.set(p.x,p.y-.45,p.z);g.rotation.x+=dt*4;g.rotation.z+=dt*5;}}for(const [id,g] of propModels)if(!(world.props||[]).some(p=>p.id===id)){scene.remove(g);propModels.delete(id);}
   const theme=THEMES[stage.id];

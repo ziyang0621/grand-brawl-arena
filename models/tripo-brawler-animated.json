@@ -1,0 +1,16 @@
+{
+  "id": "brawler",
+  "style": "fist",
+  "legScale": 0.5545,
+  "armScale": 0.9081,
+  "walk": {
+    "amp": 0.0998,
+    "duty": 0.6
+  },
+  "run": {
+    "amp": 0.1275,
+    "duty": 0.48
+  },
+  "hipHeight": 0.2988,
+  "standLift": 0.0071
+}

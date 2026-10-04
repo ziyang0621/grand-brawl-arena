@@ -1,0 +1,16 @@
+{
+  "id": "cook",
+  "style": "kick",
+  "legScale": 1.0986,
+  "armScale": 1.1763,
+  "walk": {
+    "amp": 0.1977,
+    "duty": 0.6
+  },
+  "run": {
+    "amp": 0.2527,
+    "duty": 0.48
+  },
+  "hipHeight": 0.5488,
+  "standLift": 0.0016
+}

@@ -15,7 +15,7 @@ const files=new Map([
   ['/vendor/THREE-LICENSE.txt','vendor/THREE-LICENSE.txt'],
 ]);
 http.createServer(async(req,res)=>{
-  const path=new URL(req.url,'http://localhost').pathname,file=files.get(path);
+  const path=new URL(req.url,'http://localhost').pathname,tripoModel=path.match(/^\/models\/(tripo-[a-z]+-animated)\.glb$/),file=files.get(path)||(tripoModel?`models/${tripoModel[1]}.glb`:undefined);
   if(!file||!['GET','HEAD'].includes(req.method)){res.writeHead(404);res.end('Not found');return;}
   try{const data=await readFile(new URL(file,import.meta.url));res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.html')?'text/html; charset=utf-8':file.endsWith('.glb')?'model/gltf-binary':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(req.method==='HEAD'?undefined:data);}
   catch{res.writeHead(500);res.end('Unable to load game');}

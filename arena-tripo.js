@@ -10,13 +10,28 @@ export function tossFrame(timeLeft){const k=Math.min(1,Math.max(0,1-timeLeft/TOS
 // A crate/barrel carried overhead rests on the head. Heights are in the rig's armature space (z, metres of
 // the source scan) and are turned into game units with the model's own root scale.
 export const TRIPO_CARRY_BOTTOM=.44,TRIPO_MESH_OFFSET=.499;
-export function tripoCarryHeight(rootScale){return (TRIPO_CARRY_BOTTOM+TRIPO_MESH_OFFSET)*rootScale;}
-export function configureTripo(g){
-  g.root.scale.setScalar(TRIPO_SCALE);
+export function tripoCarryHeight(rootScale,bottom=TRIPO_CARRY_BOTTOM){return (bottom+TRIPO_MESH_OFFSET)*rootScale;}
+// Every Tripo character: its model, game scale, where its hips sit in the rig (so they land on the gameplay origin),
+// its stride (from tools/blender/animate_tripo_char.py: amplitude = .18 / .23 x leg scale) and the rig-space height
+// at which a carried load rests. The scan faces +X; the root turns it to game +Z.
+const LEG=r=>({walk:{amp:.18*r,duty:.6},run:{amp:.23*r,duty:.48}});
+// scale: the root scale that makes the 1-unit-tall scan the character's game height (the pirate, 3.7, stands ~3.1 tall);
+// hipX: where the hips sit in the rig along the forward axis (the root is shifted so they land on the gameplay origin).
+// walk/run amplitudes come from tools/blender/animate_tripo_char.py (models/tripo-<id>-animated.json).
+export const TRIPO_CHARS={
+  swordsman:{url:'models/tripo-pirate.glb',scale:3.7,hipX:-.19,...LEG(1),carryBottom:.44},
+  brawler:{url:'models/tripo-brawler-animated.glb',scale:3.4,hipX:.026,...LEG(.5545),carryBottom:.3},
+  guardian:{url:'models/tripo-guardian-animated.glb',scale:3.7,hipX:-.007,...LEG(1.0334),carryBottom:.52},
+  gunner:{url:'models/tripo-gunner-animated.glb',scale:3.5,hipX:.061,...LEG(.8436),carryBottom:.4},
+  cook:{url:'models/tripo-cook-animated.glb',scale:3.8,hipX:.014,...LEG(1.0986),carryBottom:.58},
+};
+export function tripoStride(cfg){const w=2*cfg.walk.amp*cfg.scale/cfg.walk.duty;return {walk:w,carry_walk:w,run:2*cfg.run.amp*cfg.scale/cfg.run.duty};}
+export function configureTripo(g,cfg=TRIPO_CHARS.swordsman){
+  g.root.scale.setScalar(cfg.scale);
   g.root.rotation.y=-Math.PI/2;
-  // Center the scan's hips (source X=-.19) over the gameplay origin.
-  g.root.position.z=.19*TRIPO_SCALE;
-  g.tripo=true;
+  // Center the scan's hips over the gameplay origin (pirate: source X=-.19).
+  g.root.position.z=-cfg.hipX*cfg.scale;
+  g.tripo=true;g.tripoCfg=cfg;g.stride=tripoStride(cfg);
   g.tripoSwordMaterials=[];
   g.root.getObjectByName('TripoCutlass')?.traverse(o=>{
     if(!o.isMesh||o.userData.ink)return;
