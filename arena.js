@@ -380,7 +380,7 @@ function eventSound(e){
     case 'rockWarn':case 'hazardWarn':case 'waveWarning':P('warn',{k:1});break;
     case 'rockImpact':P('rock');break;
     case 'snowBurst':P('ice');break;
-    case 'shotFire':if(e.style==='slash')P('slashWave');else if(e.style==='shield')P('shieldThrow');else if(e.char==='gunner'||e.heavy)P('sniper');else P(e.style==='bolt'?'zap':'shot',{bolt:e.style==='bolt'});break;
+    case 'shotFire':if(e.style==='wind')P('whirl');else if(e.style==='slash')P('slashWave');else if(e.style==='shield')P('shieldThrow');else if(e.char==='gunner'||e.heavy)P('sniper');else P(e.style==='bolt'?'zap':'shot',{bolt:e.style==='bolt'});break;
     case 'shieldCatch':P('shieldCatch');particles(e,'#8fc7ff',8);break;
     case 'shotHit':P('hit',{level:0});break;
     case 'grab':case 'lift':P('grab');break;
@@ -533,6 +533,7 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
     if(e.kind==='heavy'&&e.by==='brawler'){shakeCam(.22);flash(.2);starBurst(e,2.6,'#ffd266');ringEffect(e,'#ff8a3c',3,.25);speedLines(.7,.3);}
     else if(e.kind==='heavy'&&e.by==='cook'){shakeCam(.14);ringEffect(e,'#ffcf3a',3.2,.3);particles(e,'#ffcf3a',16);}
     else if(e.kind==='heavy'&&e.by==='swordsman'){starBurst(e,1.9,'#fff4c0');ringEffect(e,'#ffae3c',2,.18);}
+    else if(e.kind==='shot'&&e.by==='cook'){particles(e,'#dff1ff',12);ringEffect(e,'#bfe6ff',2.2,.22);}
     else if(e.kind==='shot'&&e.by==='swordsman'){particles(e,'#fff4c0',14);starBurst(e,1.5,'#ffd24a');}
     else if(e.kind==='shot'&&e.by==='guardian'){ringEffect(e,'#8fc7ff',2.4,.22);particles(e,'#8fc7ff',10);}
     else if(e.kind==='shot'&&e.by==='gunner'){shakeCam(.12);flash(.1);starBurst(e,2,'#ffe08a');particles(e,'#ff8a3c',12);}
@@ -1123,7 +1124,9 @@ function updateVisuals(dt){
   world.fighters.forEach((p,i)=>skillAura(p,models[i],dt));
   for(const b of world.bombs){let g=bombModels.get(b.id);if(!g){g=new THREE.Group();const bottle=b.kind==='poison'||b.kind==='virus'||b.kind==='slow';if(bottle){const color=b.kind==='virus'?'#8d55bd':b.kind==='slow'?'#4c9ee8':'#55a866';const glow=b.kind==='virus'?'#d19aff':b.kind==='slow'?'#bde8ff':'#a7f58c';cylinder(.18,.23,.48,color,g,0,0,0);sphere(.16,glow,g,0,.3,0);box(.16,.08,.16,'#e7d1a7',g,0,.28,0);}else{sphere(.26,'#29394b',g,0,0,0);const fuse=box(.055,.23,.055,'#ffd366',g,.06,.3,0);fuse.rotation.z=-.3;sphere(.07,'#fff1a2',g,.1,.42,0);}ink(g,.03);scene.add(g);bombModels.set(b.id,g);}g.position.set(b.x,b.y,b.z);g.rotation.z+=dt*(b.kind==='bomb'?6:3);g.userData.trail=(g.userData.trail||0)-dt;if(g.userData.trail<=0){g.userData.trail=.04;trailBit(b);}}
   for(const [id,m] of bombModels)if(!world.bombs.some(b=>b.id===id)){scene.remove(m);bombModels.delete(id);}
-  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g&&s.style==='slash'){g=new THREE.Group();   // Red Sail's flying slash: a bright crescent lying forward with a wider glow behind it
+  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g&&s.style==='wind'){g=new THREE.Group();   // the cook's leg wind: a wide, pale crescent that spins as it flies
+    const arc=(r,tube,color,op)=>{const m=fxMesh(new THREE.TorusGeometry(r,tube,6,28,Math.PI*1.1),color,g,0,0,0,op);m.rotation.x=Math.PI/2;return m;};arc(1.15,.12,'#ffffff',.85);arc(1.3,.3,'#bfe6ff',.38);arc(.9,.06,'#fff2a0',.8);scene.add(g);shotModels.set(s.id,g);}
+  else if(!g&&s.style==='slash'){g=new THREE.Group();   // Red Sail's flying slash: a bright crescent lying forward with a wider glow behind it
     const arc=(r,tube,color,op)=>{const m=fxMesh(new THREE.TorusGeometry(r,tube,6,28,Math.PI),color,g,0,0,0,op);m.rotation.x=Math.PI/2;return m;};arc(.95,.1,'#fff4c0',.95);arc(1.05,.22,'#ffae3c',.5);arc(.8,.05,'#ffffff',.9);scene.add(g);shotModels.set(s.id,g);}
   else if(!g&&s.style==='shield'){g=new THREE.Group();   // the guardian's boomerang shield: a spinning blue disc with a gold rim
     const disc=fxMesh(new THREE.CylinderGeometry(.62,.62,.12,24),'#4a86c8',g,0,0,0,1,false),rim=fxMesh(new THREE.TorusGeometry(.62,.07,8,28),'#e8d38e',g,0,0,0,1,false);rim.rotation.x=Math.PI/2;fxMesh(new THREE.SphereGeometry(.14,10,8),'#fff4c0',g,0,.1,0,1,false);disc.userData.spin=true;scene.add(g);shotModels.set(s.id,g);}

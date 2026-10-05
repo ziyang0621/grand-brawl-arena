@@ -729,7 +729,11 @@ export function step(w,input={},dt=STEP){
         p.hitDone=true;
         const prj=p.attackType==='heavy'?characterOf(p).heavy?.projectile:null;
         if(prj){   // a thrown U: Red Sail's flying slash and the guardian's boomerang shield travel and pierce (see the shot update below)
-          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,vx:p.fx*prj.speed,vz:p.fz*prj.speed,fx:p.fx,fz:p.fz,life:prj.life,boost:p.attackBoost,damage:prj.damage,force:prj.force,pierce:prj.pierce,boomerang:prj.boomerang||0,age:0,hitIds:[],style:prj.style,speed:prj.speed,slow:prj.slow||0,char:p.char,guardBreak:Boolean(prj.guardBreak),rider:{stun:prj.stun,shock:prj.shock,pull:prj.pull,pullBack:prj.pullBack,slow:prj.pierce?prj.slow:0}});
+          const shared=[];   // a fan of shots hits each target once between them
+          for(const ang of prj.fan||[0]){
+            const c=Math.cos(ang),sn=Math.sin(ang),dx=p.fx*c-p.fz*sn,dz=p.fx*sn+p.fz*c;
+            w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+dx*1.1,y:p.y+1.15,z:p.z+dz*1.1,vx:dx*prj.speed,vz:dz*prj.speed,fx:dx,fz:dz,life:prj.life,boost:p.attackBoost,damage:prj.damage,force:prj.force,pierce:prj.pierce,boomerang:prj.boomerang||0,age:0,hitIds:prj.fan?shared:[],style:prj.style,speed:prj.speed,slow:prj.slow||0,char:p.char,guardBreak:Boolean(prj.guardBreak),rider:{stun:prj.stun,shock:prj.shock,pull:prj.pull,pullBack:prj.pullBack,slow:prj.pierce?prj.slow:0}});
+          }
           emit(w,'shotFire',{id:p.id,char:p.char,heavy:true,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,fx:p.fx,fz:p.fz,style:prj.style});
         }
         if(p.attackType==='shot'){

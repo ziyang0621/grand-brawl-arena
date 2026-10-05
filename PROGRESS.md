@@ -790,3 +790,8 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - The kiter CPUs now only fire inside the shot's real range and hold the far side of that band (`rng = speed x life + 1`), and `isKiter` accepts speed >= 12.
 - AI-vs-AI win rates (12 rounds x 3 stages x every ordered pair): 41-57%. The repo balance test requires 25-70%. AI win rates understate a human kiter (the CPU kites poorly), so the ranged characters are deliberately a little below 50% in the simulation.
 
+## Cook: leg wind
+- The whirlwind kick (melee 11 dmg, reach 3.1, lunge 6) also throws a fan of three piercing wind crescents (-.55, 0, +.55 rad, speed 13, life .42, 7 damage, about 6 units); the three share one `hitIds` array so a target is hit once. New shot style `wind` (pale crescent) and sound/hit sparks for it.
+  `heavy.projectile.fan` is generic: any projectile can be fired as a fan. AI-vs-AI cook win rate stayed at 49%.
+- `tests/arena.test.js` 'AI approaches and can damage the player' failed once in a full run and not in 4 reruns: it uses unseeded randomness.
+

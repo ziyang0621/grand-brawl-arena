@@ -189,3 +189,10 @@ test('terrain interactions: a shock freezes a fighter on ice, the hot spring con
     heavy(w,p,{});let last=null;for(let t=0;t<.7;t+=STEP){step(w,{});if(storm){w.waveTime=3;w.waveDir=1;}const s=w.shots[0];if(s)last=s.x;}return last;};
   assert.ok(drift(true)>drift(false)+.5,'the shot is carried by the wind');
 });
+
+test("the cook's whirlwind kick throws a fan of leg wind that flies about 6 units and hits a target only once",()=>{
+  const wind=duel('cook',q=>Object.assign(q,{x:5,z:0,fx:-1,fz:0}));assert.ok(wind.q.hp<100,'the wind reaches 5 units');
+  assert.ok(wind.q.hp>=100-7-1,'a fan of three hits a target once (7 damage), not three times');
+  const side=duel('cook',q=>Object.assign(q,{x:3.5,z:2.6,fx:-1,fz:0}));assert.ok(side.q.hp<100,'the fan also covers the diagonals');
+  assert.equal(duel('cook',q=>Object.assign(q,{x:8,z:0,fx:-1,fz:0})).q.hp,100,'but not across the arena');
+});
