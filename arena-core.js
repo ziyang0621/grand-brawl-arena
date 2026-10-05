@@ -192,6 +192,7 @@ function beginAttack(w,p,type){
   const actual=!p.grounded&&type==='heavy'?'slam':!p.grounded&&['light','rush','shot'].includes(type)?'air':type;const chained=p.comboWindow>0&&p.attackType==='air';p.attackType=actual;p.combo=actual==='light'?(p.comboWindow>0?(p.combo+1)%3:0):0;p.airCombo=actual==='air'?(chained?Math.min(2,(p.airCombo||0)+1):0):0;p.comboWindow=actual==='light'?.9:actual==='air'?.55:0;
   p.attackTime=['slam','heavy','upper','shieldBash'].includes(actual)?.5:actual==='grab'?.42:actual==='rush'?.4:actual==='dash'?.38:actual==='shot'?.32:.34;
   p.attackCD=actual==='slam'?.55:actual==='grab'?.65:['upper','shieldBash'].includes(actual)?.5:actual==='shot'?.45:actual==='rush'?.42:p.char==='swordsman'?.24:p.char==='brawler'?.22:p.char==='cook'?.26:.3;
+  if(actual==='heavy'&&characterOf(p).heavy?.cd)p.attackCD=characterOf(p).heavy.cd;   // every U has its own recovery: ranged ones are slow to repeat, close ones are quick
   {const jb=actual==='light'?characterOf(p).jab:null;if(jb)p.attackCD=jb.cd[p.combo]??p.attackCD;}
   p.hitDone=false;p.attackConnected=false;if(actual==='slam')p.vy=-14;if(actual==='upper')p.vy=5.5;
   const jabLunge=actual==='light'?characterOf(p).jab?.lunge?.[p.combo]||0:0;
@@ -365,7 +366,7 @@ function climbTo(w,p,goal){
 // The deck a CPU should run to when a wave is coming: the nearest one it can get onto.
 function refuge(w,p){const stage=stageOf(w.stage);let best=null,bd=Infinity;for(const d of stage.platforms){if(d.top<1||d.top>4)continue;const e=edgeOf(d,p.x,p.z),dd=Math.hypot(e.x-p.x,e.z-p.z);if(dd<bd){bd=dd;best=d;}}return bd<11?best:null;}
 // A kiter's U is a fast ranged shot (gunner, storm caller): the CPU keeps its distance and fires it, instead of walking into melee.
-const isKiter=p=>{const h=characterOf(p).heavy;return Boolean(h?.melee===false&&h.projectile&&h.projectile.speed>=13&&!h.projectile.boomerang);};
+const isKiter=p=>{const h=characterOf(p).heavy;return Boolean(h?.melee===false&&h.projectile&&h.projectile.speed>=12&&!h.projectile.boomerang);};
 function ai(w,p,q){
   if(w.training)return {x:0,z:0};
   // Each CPU keeps its own rhythm; identical timers would let the first fighter in the update order always win the trade.
@@ -488,8 +489,9 @@ function ai(w,p,q){
   }
   if(ranged){
     // Kite: hold 4.5-8 units away and keep firing the heavy shot; back off when pressed, close in only to get a shot.
-    if(d>1.2&&d<11&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&due(w,p,hv.projectile?.speed>18?110:130))heavy(w,p,{});
-    const move=d>8?1:d<4.2?-1:0;return {x:p.fx*move+(move===0?-p.fz*.5:0),z:p.fz*move+(move===0?p.fx*.5:0)};
+    const rng=(hv.projectile?.speed||15)*(hv.projectile?.life||.6)+1;   // how far the shot really flies: only fire inside it, and keep to the far side of the band
+    if(d>1.2&&d<rng&&Math.abs(p.y-q.y)<1.4&&w.tick>180&&due(w,p,hv.projectile?.speed>=18?130:150))heavy(w,p,{});
+    const move=d>rng-1.5?1:d<Math.min(4.2,rng-3)?-1:0;return {x:p.fx*move+(move===0?-p.fz*.5:0),z:p.fz*move+(move===0?p.fx*.5:0)};
   }
   if(!danger&&d>(isKiter(q)?3.6:7)&&p.grounded&&!p.running)sprint(p);
   const move=d>1.8?1:d<1.3?-.5:0;return {x:p.fx*move,z:p.fz*move};

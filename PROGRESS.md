@@ -784,3 +784,9 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
   falling shells for the barrage, flame pillars for the flame kick, flash and rings for thunder. Verified in game for stormcaller and guardian level 3.
 - Bug found by the capture run: the new shock status chip called `p.vulnTime.toFixed` eagerly on fighters that had no `vulnTime` (the template string is evaluated even when the chip is off) and threw every frame; `createFighter` now has `vulnTime:0`.
 
+## Balance pass: ranged U vs the cook's U
+- Players found the gunner and storm caller too strong (a fast long-range U they can spam while kiting) and the cook too weak (close-range U). Changes: every U now has its own recovery (`heavy.cd`: swordsman .55, guardian .7, brawler .8, gunner .85, storm caller .9, cook .65; the old default was ~.3, so ranged U could be repeated nearly as fast as J).
+  Shot range is the speed x life: gunner 18 x .6 (about 11 units, was 16), storm caller 12 x .65 (about 8, was 12); damage gunner 11 / bolt 8; the cook's whirlwind kick 14 damage, reach 3.3, lunge 7.
+- The kiter CPUs now only fire inside the shot's real range and hold the far side of that band (`rng = speed x life + 1`), and `isKiter` accepts speed >= 12.
+- AI-vs-AI win rates (12 rounds x 3 stages x every ordered pair): 41-57%. The repo balance test requires 25-70%. AI win rates understate a human kiter (the CPU kites poorly), so the ranged characters are deliberately a little below 50% in the simulation.
+
