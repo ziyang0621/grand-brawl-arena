@@ -125,7 +125,7 @@ function markTexture(kind){
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
 }
 const HELD_BODY_CENTRE=1.55,HELD_BODY_THICKNESS=.9;   // a fighter's middle above his feet, and how deep he is lying down
-const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;
+const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;const CLIMB_RISE=2.2;
 const ATTACK_CLIP=a=>['heavy','upper','slam'].includes(a)?'heavy':['dash','rush','shieldBash'].includes(a)?'dash':a==='shot'?'shoot':a==='grab'?'grab':null;
 function driveGlb(m,p,dt,walking){
   const g=m.glb;if(!g)return;
@@ -139,6 +139,8 @@ function driveGlb(m,p,dt,walking){
   if(p.hp<=0){name='hurt';enter(name);time=10*FR24;}
   else if(g.tripo&&p.knocked>0&&!p.grounded&&p.grabbedBy===null){name='knock';time=enter(name)%(16*FR24);}   // blown through the air: flail
   else if(hurtish){name='hurt';time=Math.min(enter(name)*2,10*FR24);}
+  else if(g.tripo&&p.climbing&&g.actions.climb){   // one cycle (two steps) per CLIMB_RISE of height, so climbing down plays it backwards
+    name='climb';enter(name);const ph=((p.y/CLIMB_RISE)%1+1)%1;time=ph*24*FR24;}
   else if(g.tripo&&p.tossTime>0){name=p.tossTwo?'toss':'throw';enter(name);time=tossFrame(p.tossTime)*FR24;}   // item / crate throw
   else if(p.pendingSkill){name='skill';const held=enter(name);
     // Tripo: crouch and raise the blade over the first quarter second, then hold the charge pose.
@@ -560,7 +562,7 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='energy'&&e.id===localPlayerId)tone(500,.05,'triangle');
   if(e.type==='break'){debris(e,e.kind==='chest'?['#9a5f2e','#e2a93c']:e.kind==='barrel'?['#a86a3c','#7a4a2a','#3d4650']:['#c08a50','#a06a36'],9,{size:.2,speed:5.5,flat:true});announce(`箱子打开：${ITEM_NAMES[e.item]||'道具'}出现`);}
   if(e.type==='pickup'){announce(`捡到 ${ITEM_NAMES[e.item]||'道具'} · 按 K 使用`);tone(620,.12,'triangle');}
-  if(e.type==='ready'){announce(`${WEAPON_NAMES[world.fighters[e.id]?.char]||'强化武器'}发光：攻击 +35%，持续 10 秒（不占道具栏）`);if(e.x!==undefined)ringEffect(e,'#ffd66e',1.5,.45);tone(520,.16,'triangle');}
+  if(e.type==='ready'){announce(`战意水晶：${WEAPON_NAMES[world.fighters[e.id]?.char]||'武器'}发光，攻击 +35%，持续 10 秒（不占道具栏）`);if(e.x!==undefined)ringEffect(e,'#ffd66e',1.5,.45);tone(520,.16,'triangle');}
   if(e.type==='power'){announce('啤酒增幅：攻击 +55%，持续 8 秒！');ringEffect(e,'#ffd66e',1.4,.45);tone(700,.16,'triangle');}
   if(e.type==='poison'){announce('中毒！持续掉血');particles(e,'#8dffac',12);}
   if(e.type==='slow'){announce('减速！');particles(e,'#8ab8ff',12);}
@@ -592,7 +594,7 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='end'){if(world.brawl)banner(e.winner===null?'DRAW':'K.O.','ko',1.6);showResult(e.winner);release();}
 }}
 const WEAPON_NAMES={swordsman:'长剑',guardian:'盾牌',brawler:'拳套',gunner:'火枪',cook:'战靴',stormcaller:'法杖'};
-const ITEM_NAMES={bomb:'炸弹',poison:'毒瓶',virus:'病毒瓶',meat:'肉块',beer:'啤酒',slow:'冰冻瓶',sword:'强化武器'};
+const ITEM_NAMES={bomb:'炸弹',poison:'毒瓶',virus:'病毒瓶',meat:'肉块',beer:'啤酒',slow:'冰冻瓶',sword:'战意水晶'};
 function showResult(winner){
   const multi=world.bestOf>1&&!world.stock&&!world.training;
   $('resultSub').textContent=world.teamMode?`${STAGES[world.stage]?.name||''} · 2v2 组队战`:world.brawl?`${STAGES[world.stage]?.name||''} · 四人乱斗`:multi?`${STAGES[world.stage]?.name||''} · 三局两胜`:STAGES[world.stage]?.name||'';
@@ -604,7 +606,7 @@ function showResult(winner){
   if(world.brawl&&world.ranking){rank.hidden=false;rank.innerHTML='';world.ranking.forEach((id,i)=>{const f=world.fighters[id],li=document.createElement('li');li.style.setProperty('--c',(teamColorOf(f)||SLOT_COLORS[id]));li.innerHTML=`<b>${i+1}</b><img alt="" src="${portraits[f.char]||''}"><span></span><em></em>`;li.querySelector('span').textContent=CHARACTERS[f.char].name;li.querySelector('em').textContent=id===localPlayerId?'YOU':world.teamMode&&f.team===world.fighters[localPlayerId].team?'ALLY':'CPU';rank.append(li);});}else rank.hidden=true;
   if(!$('result').open)$('result').showModal();
 }
-function fighterStatus(p){const states=[];let kind='';const add=(active,text,tone)=>{if(active){states.push(text);if(!kind)kind=tone;}};add(p.poisonTime>0,`中毒 ${p.poisonTime.toFixed(1)}s`,'poison');add(p.virusTime>0,`病毒感染 ${p.virusTime.toFixed(1)}s`,'virus');add(p.slowTime>0,`冻伤减速 ${p.slowTime.toFixed(1)}s`,'ice');add(p.burnTime>0,`炸伤 ${p.burnTime.toFixed(1)}s`,'burn');add(p.weapon==='sword',`强化刀 ${p.attackBoostTime.toFixed(1)}s`,'sword');add(p.attackBoostTime>0&&p.weapon!=='sword',`啤酒强化 ${p.attackBoostTime.toFixed(1)}s`,'beer');return {text:states.join(' · '),kind};}
+function fighterStatus(p){const states=[];let kind='';const add=(active,text,tone)=>{if(active){states.push(text);if(!kind)kind=tone;}};add(p.poisonTime>0,`中毒 ${p.poisonTime.toFixed(1)}s`,'poison');add(p.virusTime>0,`病毒感染 ${p.virusTime.toFixed(1)}s`,'virus');add(p.slowTime>0,`冻伤减速 ${p.slowTime.toFixed(1)}s`,'ice');add(p.burnTime>0,`炸伤 ${p.burnTime.toFixed(1)}s`,'burn');add(p.weapon==='sword',`战意水晶 ${p.attackBoostTime.toFixed(1)}s`,'sword');add(p.attackBoostTime>0&&p.weapon!=='sword',`啤酒强化 ${p.attackBoostTime.toFixed(1)}s`,'beer');return {text:states.join(' · '),kind};}
 function updateStatusBadge(id,p){const el=$(id),status=fighterStatus(p);if(p.pendingSkill){status.text=`${p.skillLevel}级必杀蓄力 ${p.skillWindup.toFixed(1)}s${status.text?' · '+status.text:''}`;status.kind='charge';}if(p.respawnProtection>0){status.text=`重生保护 ${p.respawnProtection.toFixed(1)}s${status.text?' · '+status.text:''}`;}if(el.textContent!==status.text)el.textContent=status.text;el.hidden=!status.text;el.dataset.kind=status.kind;}
 
 // ---- Input ----
@@ -748,7 +750,7 @@ function updateHud(){
   setHud($('p1Tag'),'text',localPlayerId===0?'YOU':'HOST');setHud($('p2Tag'),'text',localPlayerId===1?'YOU':world.online?'FRIEND':world.training?'DUMMY':'CPU');
   const local=world.fighters[localPlayerId],c=characterOf(local);
   setHud($('attackLabel'),'text',`连击 / 移动+J ${c.moveAttack==='shot'?'射击':c.moveAttack==='rush'?'突进拳':c.moveAttack==='shieldBash'?'盾冲':'冲刺斩'}`);
-  setHud($('bombLabel'),'text',local.item?(local.item==='sword'?'装备强化武器':`使用${ITEM_NAMES[local.item]}`):local.carrying?'正举着容器':'先打碎箱子');
+  setHud($('bombLabel'),'text',local.item?(local.item==='sword'?'装备战意水晶':`使用${ITEM_NAMES[local.item]}`):local.carrying?'正举着容器':'先打碎箱子');
   setHud($('skillLabel'),'text',local.pendingSkill?`蓄力 ${local.skillWindup.toFixed(1)}s`:local.energy<1?'能量不足':local.skillCD>0?`${local.skillCD.toFixed(1)}s`:c.skillName);
   $('skillButton').title=`${c.skillName}：L 一级 · Shift+L 二级 · R+L 三级`;
   const status=local.grabbedBy!==null?'被擒抱 · 连按 J/U/I 挣脱':local.grabbedTarget!==null?'已抱住对手 · J 前投 / U 高投':local.carrying?'举着容器 · J前投 / U高投':local.knocked>0?'倒地中':local.blocking?'防御中':local.climbing?'爬梯中':local.poisonTime>0?'中毒 · 禁止闪避':local.virusTime>0?'病毒感染 · 禁止闪避':local.slowTime>0?'冰冻减速 · 禁止闪避':local.terrain==='quicksand'?'陷入流沙 · 减速、跳不高':local.terrain==='ice'?'冰面 · 加速但会打滑':'';
@@ -791,7 +793,8 @@ function updateCamera(dt){
 }
 function animateFighter(p,i,m,dt){
   const c=p.char,facing=Math.atan2(p.fx,p.fz),t=world.tick*STEP;
-  m.root.position.set(p.x,p.y,p.z);
+  const standoff=p.climbing?.4:0;   // the climber hangs a little away from the wall so the body does not sink into the deck
+  m.root.position.set(p.x-p.fx*standoff,p.y,p.z-p.fz*standoff);
   let spin=p.skillTime>0&&!p.pendingSkill&&c==='swordsman'?(1-p.skillTime/.4)*Math.PI*4:0;
   // Tripo cook's U is a whirlwind kick: the WHOLE model turns once (the clip keeps the leg out and the torso square), because
   // spinning only the spine inside the clip twists the chest apart.

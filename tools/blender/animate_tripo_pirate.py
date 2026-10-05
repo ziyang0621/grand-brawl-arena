@@ -534,6 +534,13 @@ def pose(name,t):
         feet[0].z+=.09+.04*math.sin(phase);feet[0].x+=.08+.05*math.sin(phase)
         feet[1].z+=.06+.04*math.sin(phase+math.pi);feet[1].x-=.06+.05*math.sin(phase+math.pi)
         body.update(lean=-28+4*math.sin(phase),roll=6*math.sin(phase*.5),dz=-.02,head_pitch=-16,yaw=8*math.sin(phase))
+    elif name=='climb':
+        # Ladder climb (see animate_tripo_char.py): alternating hands and feet, tied to height by the game.
+        for i in range(2):
+            ph=phase+(0 if i==0 else math.pi);lift=max(0,math.sin(ph))
+            feet[i].x+=.02+.06*lift;feet[i].z+=.14*lift
+        right=Vector((.08,.075,.11+.13*math.sin(phase)));left=Vector((.08,-.075,.11-.13*math.sin(phase)));blade=Vector((.15,-.05,-.98)).normalized()
+        body.update(lean=7,dz=STAND-.035+.008*math.cos(2*phase),dx=.035,roll=3*math.sin(phase),yaw=4*math.sin(phase),head_pitch=-6)
     elif name=='hurt':
         # Snap back fast, then hold most of the recoil while stunned (the game blends out when it ends).
         pulse=min(1,t/.35)*(1-.35*max(0,(t-.35)/.65))
@@ -605,7 +612,7 @@ for poly,i in zip(mesh.polygons,material_ids): poly.material_index=i
 sword.vertex_groups.new(name=HAND).add(list(range(len(verts))),1,'REPLACE')
 sword.modifiers.new('Wrist skin','ARMATURE').object=arm
 
-durations={'carry_walk':24,'knock':16,'throw':18,'toss':18,'idle':96,'walk':24,'run':16,'attack_a':22,'attack_b':22,'heavy':22,'dash':22,'shoot':22,'skill':28,'guard':12,'hurt':10,'jump':18,'fall':22,'land':16,'carry':12,'grab':22}
+durations={'climb':24,'carry_walk':24,'knock':16,'throw':18,'toss':18,'idle':96,'walk':24,'run':16,'attack_a':22,'attack_b':22,'heavy':22,'dash':22,'shoot':22,'skill':28,'guard':12,'hurt':10,'jump':18,'fall':22,'land':16,'carry':12,'grab':22}
 for name,duration in durations.items():
     action=bpy.data.actions.new(name=name);arm.animation_data.action=action
     for frame in range(duration+1):

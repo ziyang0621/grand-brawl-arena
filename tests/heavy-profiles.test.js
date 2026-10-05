@@ -122,3 +122,19 @@ test('every Tripo character ships a lite build (halved textures) next to the ful
     assert.ok(existsSync(full)&&existsSync(lite),id);assert.ok(statSync(lite).size<=statSync(full).size,id+' lite is not larger');
   }
 });
+
+import {laddersOf} from '../arena-roster.js';
+import {createFighter as mkFighter} from '../arena-core.js';
+test('a fighter on a ladder always faces the rungs, also while climbing down, and every Tripo model has a climb clip',()=>{
+  const stage=STAGES.desert,ladder=laddersOf(stage)[0];
+  const p=mkFighter(0,ladder.x,ladder.z-ladder.dz*.6,'brawler');
+  for(let i=0;i<30;i++)stepFighter(p,{x:ladder.dx,z:ladder.dz},STEP,stage);
+  assert.ok(p.y>.5&&p.climbing,'climbed');assert.equal(p.fx,ladder.dx);assert.equal(p.fz,ladder.dz);
+  for(let i=0;i<15;i++)stepFighter(p,{x:-ladder.dx,z:-ladder.dz},STEP,stage);
+  assert.ok(p.climbing,'on the way down');assert.equal(p.fx,ladder.dx,'still facing the ladder, not turned away');
+  for(const id of ['pirate','brawler','guardian','gunner','cook','stormcaller']){
+    const b=readFileSync(new URL(`../models/tripo-${id}-animated.glb`,import.meta.url)),n=b.readUInt32LE(12),j=JSON.parse(b.subarray(20,20+n).toString());
+    assert.ok(j.animations.some(a=>a.name==='climb'),id+' has a climb clip');
+  }
+});
+import {readFileSync} from 'node:fs';

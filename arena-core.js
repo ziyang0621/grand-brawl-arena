@@ -513,7 +513,8 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
   const into=ladder?ix*ladder.dx+iz*ladder.dz:0;
   const climbUp=ladder&&p.knocked<=0&&p.stun<=0&&p.y<ladder.top-.02&&into>.1;
   const climbDown=ladder&&p.knocked<=0&&p.stun<=0&&p.y>0.02&&into<-.1;
-  if(climbUp||climbDown){p.climbing=true;p.x+=(ladder.x-p.x)*Math.min(1,18*dt);p.z+=(ladder.z-p.z)*Math.min(1,12*dt);p.y=clamp(p.y+(climbUp?3.8:-3.8)*dt,0,ladder.top);p.vx=0;p.vz=0;p.vy=0;p.grounded=p.y<=.001||p.y>=ladder.top-.001;p.support=p.y>=ladder.top-.001?'ladder-top':'ladder';if(p.y>=ladder.top-.001){p.y=ladder.top;p.support='ladder-top';}return;}
+  if(climbUp||climbDown){p.climbing=true;p.fx=ladder.dx;p.fz=ladder.dz;   // always face the rungs, also on the way down
+    p.x+=(ladder.x-p.x)*Math.min(1,18*dt);p.z+=(ladder.z-p.z)*Math.min(1,12*dt);p.y=clamp(p.y+(climbUp?3.8:-3.8)*dt,0,ladder.top);p.vx=0;p.vz=0;p.vy=0;p.grounded=p.y<=.001||p.y>=ladder.top-.001;p.support=p.y>=ladder.top-.001?'ladder-top':'ladder';if(p.y>=ladder.top-.001){p.y=ladder.top;p.support='ladder-top';}return;}
   p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.grounded=false;p.support=null;
   if(p.vy<=0){
     let top=0,id='ground';

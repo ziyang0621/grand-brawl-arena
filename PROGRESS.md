@@ -762,3 +762,9 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Phones: `models/tripo-<id>-animated-lite.glb` (textures halved to 1024) load on coarse-pointer touch devices or `?lite=1` (`?lite=0` forces full). The files are only 10-55% smaller (animations dominate the bytes) but GPU texture memory drops ~4x; pirate 8.9 -> 4.0 MB.
   Not tested on a real phone or over a real online match: `lite` and every new shot/event field ride the existing 20 Hz snapshot (shots are plain objects in the world state).
 
+## Ladders and the 战意水晶
+- Rename: the golden power-up is now 战意水晶 everywhere (item name, ready banner, status chip, K label); it is not a sword any more because not everybody carries one.
+- Ladder climbing had no animation at all (the fighter slid up in an idle/fall pose, facing wherever the last input pointed, i.e. away from the rungs on the way down). Now: the core keeps `fx,fz` = the ladder direction while climbing, so a fighter always faces the rungs;
+  every Tripo model has a 24-frame `climb` clip (hands and feet alternate, hand up reaches overhead, opposite knee lifts), played by HEIGHT (`time = (y / CLIMB_RISE) mod 1`, 2.2 units per cycle), so climbing down simply plays it backwards and the hands always match the speed.
+  The climber hangs .4 off the wall in the renderer so the body does not sink into the deck. Verified in game: climbing up at x=-9 (desert) and back down, facing the deck both ways.
+

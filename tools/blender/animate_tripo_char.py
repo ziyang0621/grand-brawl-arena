@@ -433,6 +433,19 @@ def pose(name, t):
         feet[0].z += .09 + .04 * math.sin(phase); feet[0].x += .08 + .05 * math.sin(phase)
         feet[1].z += .06 + .04 * math.sin(phase + math.pi); feet[1].x -= .06 + .05 * math.sin(phase + math.pi)
         body.update(lean=-28 + 4 * math.sin(phase), roll=6 * math.sin(phase * .5), dz=-.02, head_pitch=-16, yaw=8 * math.sin(phase))
+    elif name == 'climb':
+        # Ladder climb, facing the rungs: hands and feet alternate (right hand with left foot), the hand that is up reaches above the head, the
+        # foot that is up lifts its knee to the next rung. One cycle = one rung height; the game ties the time to the fighter's height, so
+        # climbing down plays it backwards. Torso upright and close to the ladder, hips swaying a little.
+        for i, sgn in enumerate((1, -1)):
+            ph = phase + (0 if i == 0 else math.pi)
+            lift = max(0, math.sin(ph))
+            feet[i].x += .02 + .06 * lift
+            feet[i].z += .14 * lift
+        right = Vector((.08, .075, .11 + .13 * math.sin(phase)))
+        left = Vector((.08, -.075, .11 - .13 * math.sin(phase)))
+        axis = Vector((.15, -.05, -.98)).normalized()
+        body.update(lean=7, dz=PIRATE_STAND - .035 + .008 * math.cos(2 * phase), dx=.035, roll=3 * math.sin(phase), yaw=4 * math.sin(phase), head_pitch=-6)
     elif name == 'hurt':
         pulse = min(1, t / .35) * (1 - .35 * max(0, (t - .35) / .65))
         right = Vector((.02, .09, -.16)); left = Vector((.015, -.1, -.16))
@@ -440,7 +453,7 @@ def pose(name, t):
     if name == 'carry_walk':
         right, left, axis = Vector((.0, .07, .245)), Vector((.0, -.07, .245)), Vector((.0, .6, .8)).normalized()
         body.update(lean=-3, yaw=body['yaw'] * .35, head_yaw=0, roll=body['roll'] * .5)
-    if SPEC['weapon'] == 'pistol' and name not in ATTACK_POWER and name not in ('skill', 'guard', 'carry', 'carry_walk', 'throw', 'toss'):
+    if SPEC['weapon'] == 'pistol' and name not in ATTACK_POWER and name not in ('skill', 'guard', 'carry', 'carry_walk', 'throw', 'toss', 'climb'):
         axis = gun_idle_axis(name, axis)
     apply_pose(body, right, left, axis, feet, name)
 
@@ -840,7 +853,7 @@ pose('idle', 0)
 WEAPONS = build_weapons()
 
 # ---------------------------------------------------------------- bake
-DURATIONS = {'carry_walk': 24, 'throw': 18, 'toss': 18, 'knock': 16, 'idle': 96, 'walk': 24, 'run': 16, 'attack_a': 22, 'attack_b': 22, 'heavy': 22,
+DURATIONS = {'climb': 24, 'carry_walk': 24, 'throw': 18, 'toss': 18, 'knock': 16, 'idle': 96, 'walk': 24, 'run': 16, 'attack_a': 22, 'attack_b': 22, 'heavy': 22,
              'dash': 22, 'shoot': 22, 'skill': 28, 'guard': 12, 'hurt': 10, 'jump': 18, 'fall': 22, 'land': 16, 'carry': 12, 'grab': 22}
 def apply_stretch(name, t):
     """Spec 'stretch': the right arm of a rubber-limbed fighter grows along its length during the heavy (bone scale on the upper arm and
