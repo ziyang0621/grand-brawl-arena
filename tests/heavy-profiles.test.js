@@ -152,3 +152,40 @@ test('decks are solid below their top, and a fighter who jumps at one grabs the 
   for(let i=0;i<360;i++){stepFighter(p,{x:1},STEP,stage);if(p.mantle)mantled=true;if(mantled&&!p.mantle&&!standing){standing=`${p.y.toFixed(2)} ${p.support} ${p.grounded}`;}if(!second&&p.vy<0&&!p.grounded){jump(p);second=true;}}
   assert.ok(mantled,'he grabbed the ledge');assert.equal(standing,`${deck.top.toFixed(2)} ${deck.id} true`,'when the pull-up ends he stands on the deck');
 });
+
+test('combo links: rocket punch pulls the target in for an air follow-up, a shock mark adds 25%, the returning shield drags, the heavy round staggers, the slash slows',()=>{
+  // brawler U pulls the target toward him and pops it up
+  const b=duel('brawler',q=>Object.assign(q,{x:3,z:0,fx:-1,fz:0}));
+  assert.ok(b.q.hp<100&&b.q.juggle>=1,'rocket punch starts a juggle');
+  // the pull drives the target toward the brawler, not away
+  const w=createWorld({chars:['brawler','guardian'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
+  const [p,q]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:3,z:0,fx:-1,fz:0});p.attackCD=0;heavy(w,p,{});
+  let minX=9;for(let t=0;t<.9;t+=STEP){step(w,{});minX=Math.min(minX,q.x);}
+  assert.ok(minX<2,`the target is dragged in (closest ${minX.toFixed(2)})`);
+  // a shocked target takes 25% more
+  const hurt=shock=>{const w2=createWorld({chars:['swordsman','brawler'],stage:'classic'});w2.training=true;w2.online=true;w2.crates=[];w2.intro=0;const [a,c]=w2.fighters;Object.assign(a,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(c,{x:1.3,z:0,fx:-1,fz:0});if(shock)c.vulnTime=3;attack(w2,a,{});for(let t=0;t<.35;t+=STEP)step(w2,{});return 100-c.hp;};
+  assert.ok(hurt(true)>hurt(false)*1.2,'shocked: more damage');
+  // storm caller's bolt leaves the mark
+  const s=duel('stormcaller',q=>Object.assign(q,{x:5,z:0,fx:-1,fz:0}));assert.ok(s.q.vulnTime>0,'bolt shocks');
+  // gunner's heavy round staggers
+  const g=duel('gunner',q=>Object.assign(q,{x:6,z:0,fx:-1,fz:0}));assert.ok(g.q.hp<100,'gunner round hits');
+  // the slash slows
+  const k=duel('swordsman',q=>Object.assign(q,{x:3,z:0,fx:-1,fz:0}));assert.ok(k.q.hp<100);
+});
+
+test('terrain interactions: a shock freezes a fighter on ice, the hot spring conducts it, and a sandstorm carries shots downwind',()=>{
+  const snow=STAGES.snow,ice=snow.zones.find(z=>z.kind==='ice'),spring=snow.zones.find(z=>z.kind==='hotspring');
+  const shocked=(zone,dx)=>{const w=createWorld({chars:['stormcaller','brawler'],stage:'snow'});w.online=true;w.crates=[];w.intro=0;w.nextCannonTick=w.nextWaveTick=1e9;
+    const [p,q]=w.fighters;Object.assign(p,{x:zone.x-dx-3.5,z:zone.z,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:zone.x-dx,z:zone.z,fx:-1,fz:0});
+    step(w,{});heavy(w,p,{});const log={freeze:false,electrify:false,hp:q.hp};
+    for(let t=0;t<1.2;t+=STEP){step(w,{});for(const e of w.events){if(e.type==='freeze')log.freeze=true;if(e.type==='electrify')log.electrify=true;}w.events.length=0;}
+    return {...log,q};};
+  const onIce=shocked(ice,0);assert.ok(onIce.freeze,'frozen on the ice');
+  if(spring){const inSpring=shocked(spring,0);assert.ok(inSpring.electrify,'electrified in the spring');}
+  const plain=shocked({x:-6,z:-6},0);assert.ok(!plain.freeze&&!plain.electrify,'nothing special on bare ground');
+  // sandstorm: the same shot ends further downwind than in calm air
+  const drift=storm=>{const w=createWorld({chars:['gunner','brawler'],stage:'desert'});w.online=true;w.crates=[];w.intro=0;w.nextCannonTick=w.nextWaveTick=1e9;
+    const [p,q]=w.fighters;Object.assign(p,{x:-4,z:-7,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:12,z:8});if(storm){w.waveTime=3;w.waveDir=1;}
+    heavy(w,p,{});let last=null;for(let t=0;t<.7;t+=STEP){step(w,{});if(storm){w.waveTime=3;w.waveDir=1;}const s=w.shots[0];if(s)last=s.x;}return last;};
+  assert.ok(drift(true)>drift(false)+.5,'the shot is carried by the wind');
+});

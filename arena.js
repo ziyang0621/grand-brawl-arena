@@ -361,6 +361,7 @@ function crowdReact(e){
     case 'ko':c.cheer(1,3.2);break;
   }
 }
+const P2=(n,e)=>audio.play(n,{x:e.x});
 function eventSound(e){
   crowdReact(e);
   const P=(n,o)=>audio.play(n,{x:e.x,...o});
@@ -490,6 +491,29 @@ function blast(e,scale=1,dark=false){
   debris(e,dark?['#2b2e36','#4a4d58']:['#3a2f2a','#5a4638','#ff8a2a'],10,{size:.16,speed:8,life:1.2});
   scorch(e,1.6*scale);
 }
+// ---- Special moves: a charge aura that grows with the level, a letterbox for the level-3 ultimate, and one signature flourish per move ----
+function letterbox(seconds){const el=$('letterbox');if(!el)return;el.classList.add('on');clearTimeout(letterbox.t);letterbox.t=setTimeout(()=>el.classList.remove('on'),seconds*1000);}
+const AURA={whirlwind:'#ffd24a',shieldQuake:'#80dfff',fistStorm:'#ffcf5a',barrage:'#ff8a3c',flameKick:'#ff8a2a',thunder:'#ffe27a'};
+function skillAura(p,m,dt){
+  const ps=p.pendingSkill;if(!ps){m.auraT=0;return;}
+  m.auraT=(m.auraT||0)+dt;const color=AURA[ps.kind]||'#ffe6a1',lvl=ps.level,at={x:p.x,y:p.y+.1,z:p.z};
+  if(m.auraT>.12/(1+lvl*.4)){m.auraT=0;ringEffect(at,color,1.2+lvl*.5,.28);particles({x:p.x,y:p.y+.4+Math.random()*1.6,z:p.z},color,2+lvl);}
+  if(ps.kind==='thunder'&&Math.random()<.12*lvl){const b=fxMesh(new THREE.CylinderGeometry(.03,.06,6,5),'#fff6b0',scene,p.x+(Math.random()-.5)*2,3,p.z+(Math.random()-.5)*2,.8);effects.push({m:b,life:.1,max:.1});}
+  if(ps.kind==='flameKick'&&Math.random()<.5)particles({x:p.x+(Math.random()-.5)*.8,y:p.y+.2,z:p.z+(Math.random()-.5)*.8},'#ff7a2a',1);
+}
+function skillFinale(e,color){
+  const lv=e.level,at={x:e.x,y:.15,z:e.z};
+  if(e.kind==='whirlwind'){for(let j=0;j<3+lv;j++)ringEffect({...at,y:.3+j*.45},j%2?'#ffffff':'#ffd24a',e.radius*(.5+j*.18),.4+j*.06,j*.05);}
+  else if(e.kind==='shieldQuake'){   // cracks run out of the shield's impact point
+    const n=8+lv*3;for(let j=0;j<n;j++){const a=j/n*Math.PI*2+Math.random()*.2,len=e.radius*(.7+Math.random()*.4);const m=fxMesh(new THREE.BoxGeometry(.14,.05,len),'#e9fbff',scene,e.x+Math.cos(a)*len/2,.12,e.z+Math.sin(a)*len/2,.9);m.rotation.y=-a+Math.PI/2;effects.push({m,life:.7,max:.7});}
+    shakeCam(.2+lv*.05);dust(e.x,.1,e.z,10,e.radius*.5);}
+  else if(e.kind==='fistStorm'){shakeCam(.18+lv*.06);for(let j=0;j<2+lv;j++)ringEffect({...at,y:.2+j*.3},'#ff8a3c',e.radius*(.4+j*.2),.3,j*.08);}
+  else if(e.kind==='barrage'){   // shells fall from the sky onto the target area
+    for(let j=0;j<5+lv*3;j++){const a=Math.random()*Math.PI*2,r=Math.random()*e.radius,x=e.x+Math.cos(a)*r,z=e.z+Math.sin(a)*r;const m=fxMesh(new THREE.CylinderGeometry(.05,.18,3.2,6),'#ffb35a',scene,x,7,z,.9);effects.push({m,life:.25,max:.25,delay:(j+1)*.04,v:new THREE.Vector3(0,-26,0)});m.visible=false;}
+    shakeCam(.12+lv*.04);}
+  else if(e.kind==='flameKick'){for(let j=0;j<4+lv*2;j++){const a=Math.random()*Math.PI*2,r=Math.random()*e.radius*.8,x=e.x+Math.cos(a)*r,z=e.z+Math.sin(a)*r;const m=fxMesh(new THREE.CylinderGeometry(.35,.6,3+Math.random()*2,10),j%2?'#ffd34a':'#ff6a1a',scene,x,1.6,z,.7);effects.push({m,life:.5,max:.5,delay:(j+1)*.05});m.visible=false;}shakeCam(.1+lv*.04);}
+  else if(e.kind==='thunder'){flash(.3);shakeCam(.2+lv*.05);for(let j=0;j<3;j++)ringEffect({...at,y:.1+j*.1},'#bff4ff',e.radius*(.5+j*.25),.35,j*.07);}
+}
 function cutin(e){const c=$('cutin'),ch=CHARACTERS[e.char]||characterOf(world.fighters[e.id]);c.className='';void c.offsetWidth;c.style.setProperty('--cut',ch.color);$('cutinPortrait').src=portraits[e.char]||'';$('cutinName').textContent=ch.skillName;$('cutinLevel').textContent=e.level===3?'LV 3 · 奥义':`LV ${e.level} · 必杀`;c.className='show'+(e.id%2===1?' right':'')+(e.level===3?' lv3':'');}
 function slowMotion(scale,seconds){timeScale=scale;slowUntil=performance.now()+seconds*1000;}
 function focusOn(x,y,z,dist,seconds){focusShot={x,y,z,dist,until:performance.now()+seconds*1000};}
@@ -498,9 +522,13 @@ function stageText(key){return STAGES[world.stage]?.[key]||STAGES.port[key];}
 
 function events(){const batch=world.events.splice(0);if(netRole==='host')netEvents.push(...batch);for(const e of batch){
   eventSound(e);
-  if(e.type==='skillCharge'){cutin(e);announce(e.id===localPlayerId?`${e.level}级必杀蓄力！`:'对手正在蓄力！可闪避或抢先打断');tone(620,.18,'triangle');if(e.level===3){focusOn(e.x,1.4,e.z,11,.7);}}
+  if(e.type==='skillCharge'){cutin(e);if(e.level===3)letterbox(1.6);announce(e.id===localPlayerId?`${e.level}级必杀蓄力！`:'对手正在蓄力！可闪避或抢先打断');tone(620,.18,'triangle');if(e.level===3){focusOn(e.x,1.4,e.z,11,.7);}}
   if(e.type==='skillCancel'){announce('必杀被打断！');starBurst(e,1.3,'#bfe6ff');particles(e,'#fff0bd',8);tone(130,.15,'triangle');}
   if(e.type==='flank'){announce(e.id===localPlayerId?'侧后方受击！转身再防御':'绕过防御！');}
+  if(e.type==='shock'){particles(e,'#8fe0ff',14);starBurst(e,1.8,'#bff4ff');ringEffect(e,'#7fd0ff',2.2,.25);P2('zap',e);announce(e.id===localPlayerId?'触电！下一击伤害 +25%':'触电！下一击伤害 +25%');}
+  if(e.type==='freeze'){starBurst(e,2.4,'#dff6ff');particles(e,'#cdefff',22);ringEffect(e,'#9fdcff',3,.35);P2('ice',e);announce('冰面导电：整个人被冻住！');}
+  if(e.type==='electrify'){starBurst(e,2.4,'#fff6a0');particles(e,'#bff4ff',20);ringEffect(e,'#7fd0ff',3.2,.35);P2('zap',e);shakeCam(.1);announce('温泉导电：额外伤害！');}
+  if(e.type==='pull'){speedLines(.6,.25);particles(e,'#ffb35a',10);ringEffect(e,'#ffb35a',2,.2);P2('rubber',e);}
   if(e.type==='hit'&&!e.guarded&&e.by){   // signature-move hit feel
     if(e.kind==='heavy'&&e.by==='brawler'){shakeCam(.22);flash(.2);starBurst(e,2.6,'#ffd266');ringEffect(e,'#ff8a3c',3,.25);speedLines(.7,.3);}
     else if(e.kind==='heavy'&&e.by==='cook'){shakeCam(.14);ringEffect(e,'#ffcf3a',3.2,.3);particles(e,'#ffcf3a',16);}
@@ -549,6 +577,8 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
     sfx({x:e.x,y:e.y+.6,z:e.z},e.level===3?'轰轰轰!':'轰!!',e.level===3?'#ffe14a':'#ff8a3a',e.level===3?1.6:1.3);if(e.level>=2)speedLines(.35+e.level*.1,.4);
     announce(`${e.level}级 · ${c.skillName}！`);tone(kind==='shieldQuake'?100:500,.3+e.level*.08,kind==='shieldQuake'?'sawtooth':'triangle');
     if(e.level>=2){flash(.2+e.level*.08);focusOn(e.x,1.2,e.z,12,.55);}
+    skillFinale(e,color);
+    if(e.level===3){letterbox(1.3);shakeCam(.3);}
   }
   if(e.type==='wallBounce'||e.type==='bodyCrash'){sfx(e,e.type==='wallBounce'?'哐!':'哗啦!','#ffb03a',1);particles(e,'#d6a564',16);starBurst(e,1.5,'#ffdc8a');announce(e.type==='wallBounce'?'撞栏反弹！':'撞碎箱子！');tone(85,.14,'triangle');}
   if(e.type==='lift'){announce(`举起${e.kind==='barrel'?'木桶':e.kind==='keg'?'火药桶（别让它碎在自己脚边！）':e.kind==='chest'?'宝箱':'木箱'} · J前投 / U高投`);tone(250,.1,'square');}
@@ -611,7 +641,7 @@ function showResult(winner){
   if(world.brawl&&world.ranking){rank.hidden=false;rank.innerHTML='';world.ranking.forEach((id,i)=>{const f=world.fighters[id],li=document.createElement('li');li.style.setProperty('--c',(teamColorOf(f)||SLOT_COLORS[id]));li.innerHTML=`<b>${i+1}</b><img alt="" src="${portraits[f.char]||''}"><span></span><em></em>`;li.querySelector('span').textContent=CHARACTERS[f.char].name;li.querySelector('em').textContent=id===localPlayerId?'YOU':world.teamMode&&f.team===world.fighters[localPlayerId].team?'ALLY':'CPU';rank.append(li);});}else rank.hidden=true;
   if(!$('result').open)$('result').showModal();
 }
-function fighterStatus(p){const states=[];let kind='';const add=(active,text,tone)=>{if(active){states.push(text);if(!kind)kind=tone;}};add(p.poisonTime>0,`中毒 ${p.poisonTime.toFixed(1)}s`,'poison');add(p.virusTime>0,`病毒感染 ${p.virusTime.toFixed(1)}s`,'virus');add(p.slowTime>0,`冻伤减速 ${p.slowTime.toFixed(1)}s`,'ice');add(p.burnTime>0,`炸伤 ${p.burnTime.toFixed(1)}s`,'burn');add(p.weapon==='sword',`战意水晶 ${p.attackBoostTime.toFixed(1)}s`,'sword');add(p.attackBoostTime>0&&p.weapon!=='sword',`啤酒强化 ${p.attackBoostTime.toFixed(1)}s`,'beer');return {text:states.join(' · '),kind};}
+function fighterStatus(p){const states=[];let kind='';const add=(active,text,tone)=>{if(active){states.push(text);if(!kind)kind=tone;}};add(p.poisonTime>0,`中毒 ${p.poisonTime.toFixed(1)}s`,'poison');add(p.virusTime>0,`病毒感染 ${p.virusTime.toFixed(1)}s`,'virus');add(p.slowTime>0,`冻伤减速 ${p.slowTime.toFixed(1)}s`,'ice');add(p.burnTime>0,`炸伤 ${p.burnTime.toFixed(1)}s`,'burn');add(p.vulnTime>0,`触电 ${(p.vulnTime||0).toFixed(1)}s`,'shock');add(p.weapon==='sword',`战意水晶 ${p.attackBoostTime.toFixed(1)}s`,'sword');add(p.attackBoostTime>0&&p.weapon!=='sword',`啤酒强化 ${p.attackBoostTime.toFixed(1)}s`,'beer');return {text:states.join(' · '),kind};}
 function updateStatusBadge(id,p){const el=$(id),status=fighterStatus(p);if(p.pendingSkill){status.text=`${p.skillLevel}级必杀蓄力 ${p.skillWindup.toFixed(1)}s${status.text?' · '+status.text:''}`;status.kind='charge';}if(p.respawnProtection>0){status.text=`重生保护 ${p.respawnProtection.toFixed(1)}s${status.text?' · '+status.text:''}`;}if(el.textContent!==status.text)el.textContent=status.text;el.hidden=!status.text;el.dataset.kind=status.kind;}
 
 // ---- Input ----
@@ -1090,6 +1120,7 @@ function clearGhosts(){for(const g of ghosts){scene.remove(g.wrap);g.material.di
 function updateVisuals(dt){
   ensureStage();audio.music(started&&stage?stage.id:'menu');{const low=Math.min(...world.fighters.filter(f=>f.hp>0).map(f=>f.hp),100),clock=!world.training&&world.time<=15?(15-world.time)/15:0;audio.setTension(started&&!world.ended?Math.max(clock*.8,low<30?(30-low)/30*.9:0):0);}ensureModels();syncPieces();updateGhosts(dt);updateWarnings(dt);updateLandMarks(dt);
   world.fighters.forEach((p,i)=>animateFighter(p,i,models[i],dt));
+  world.fighters.forEach((p,i)=>skillAura(p,models[i],dt));
   for(const b of world.bombs){let g=bombModels.get(b.id);if(!g){g=new THREE.Group();const bottle=b.kind==='poison'||b.kind==='virus'||b.kind==='slow';if(bottle){const color=b.kind==='virus'?'#8d55bd':b.kind==='slow'?'#4c9ee8':'#55a866';const glow=b.kind==='virus'?'#d19aff':b.kind==='slow'?'#bde8ff':'#a7f58c';cylinder(.18,.23,.48,color,g,0,0,0);sphere(.16,glow,g,0,.3,0);box(.16,.08,.16,'#e7d1a7',g,0,.28,0);}else{sphere(.26,'#29394b',g,0,0,0);const fuse=box(.055,.23,.055,'#ffd366',g,.06,.3,0);fuse.rotation.z=-.3;sphere(.07,'#fff1a2',g,.1,.42,0);}ink(g,.03);scene.add(g);bombModels.set(b.id,g);}g.position.set(b.x,b.y,b.z);g.rotation.z+=dt*(b.kind==='bomb'?6:3);g.userData.trail=(g.userData.trail||0)-dt;if(g.userData.trail<=0){g.userData.trail=.04;trailBit(b);}}
   for(const [id,m] of bombModels)if(!world.bombs.some(b=>b.id===id)){scene.remove(m);bombModels.delete(id);}
   for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g&&s.style==='slash'){g=new THREE.Group();   // Red Sail's flying slash: a bright crescent lying forward with a wider glow behind it

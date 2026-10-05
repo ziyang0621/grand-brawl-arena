@@ -49,7 +49,7 @@ header>*{pointer-events:auto}
 .status-badge{display:block;width:max-content;max-width:100%;margin-top:4px;padding:2px 7px;border:2px solid var(--ink);background:var(--cream);color:var(--ink);font-size:10px;font-weight:900;white-space:nowrap}
 .p2 .status-badge{margin-left:auto}
 .status-badge[hidden]{display:none}
-.status-badge[data-kind="poison"]{background:#b9ffbf}.status-badge[data-kind="virus"]{background:#e6c4ff}.status-badge[data-kind="ice"]{background:#cdefff}.status-badge[data-kind="burn"]{background:#ffc9a8}.status-badge[data-kind="sword"]{background:#fff09a}.status-badge[data-kind="beer"]{background:#ffc0b0}.status-badge[data-kind="charge"]{background:#ffe14a}
+.status-badge[data-kind="shock"]{background:#d6f4ff}.status-badge[data-kind="poison"]{background:#b9ffbf}.status-badge[data-kind="virus"]{background:#e6c4ff}.status-badge[data-kind="ice"]{background:#cdefff}.status-badge[data-kind="burn"]{background:#ffc9a8}.status-badge[data-kind="sword"]{background:#fff09a}.status-badge[data-kind="beer"]{background:#ffc0b0}.status-badge[data-kind="charge"]{background:#ffe14a}
 
 /* Bottom special gauges: three cells, the level number is how many are full. */
 .gauges{position:fixed;z-index:3;left:0;right:0;bottom:84px;display:flex;justify-content:space-between;padding:0 18px;pointer-events:none}
@@ -293,3 +293,8 @@ body.brawl #callout{top:112px}
 
 /* Narrow non-touch windows: compact header so it never sits on the portraits and health bars. */
 @media(max-width:760px){body:not(.touch) header{left:6px;right:6px;top:3px}body:not(.touch) .actions{gap:3px;flex-wrap:wrap;justify-content:flex-end}body:not(.touch) .actions button{padding:2px 6px;font-size:10px}body:not(.touch) .hud{top:52px}body:not(.touch) #callout{top:132px}}
+
+#letterbox{position:fixed;inset:0;z-index:2;pointer-events:none}
+#letterbox i{position:absolute;left:0;right:0;height:0;background:#000;transition:height .18s ease-out}
+#letterbox i:first-child{top:0}#letterbox i:last-child{bottom:0}
+#letterbox.on i{height:11vh}

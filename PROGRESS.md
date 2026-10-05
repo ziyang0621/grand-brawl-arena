@@ -775,3 +775,12 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Music: a `menu` theme (the select screen was silent), a lifted B section on every third pass of each song (A A B A), and `setTension()` (low health or the last 15 s of a round): tempo up to +18%, a driving off-beat arpeggio and a kick on the beat.
 - Covered eyes: the cook's left eye (under a bang) and the storm caller's left brow (under a fringe) now get ink-only decals drawn on the hair (`'ink'` as the fifth/fifth entry in `face` of tripo_specs.py), so hurt and angry faces are symmetrical.
 
+## Combo links, special-move showpieces, terrain interactions
+- Combo links (`riders()` in the core; data in each `heavy`/`projectile`): the brawler's rocket punch PULLS the target in and pops it up (juggle 1) so an air J can follow; the storm caller's bolt and third J leave a SHOCK mark (the next hit takes +25%, it fades by .3 per hit);
+  the guardian's shield drags the target toward him on its return leg (`pullBack`); the gunner's heavy round staggers (.32 s stun); Red Sail's slash wave slows (.6 s). Tests: `combo links ...`.
+  Balance after the links: win rates 44-59%; brawler U damage 17 -> 13 and guardian J third 17 -> 19 to compensate.
+- Terrain x shock (`shockTarget()`): on ice the target freezes solid (.9 s stun, slowed 2.2 s), in the hot spring the water conducts the shock (8 damage, .6 s stun). Sandstorm: every shot, bolt and slash wave drifts downwind (3.6 units/s) while the storm blows.
+- Specials: a growing aura while charging (rings, sparks, lightning for thunder, embers for flame), `hitStop` on release, a letterbox for the level-3 ultimate (behind the HUD, z-index 2), and a finale per move: rising rings for the whirlwind, ground cracks and dust for the shield quake, shaking rings for the fist storm,
+  falling shells for the barrage, flame pillars for the flame kick, flash and rings for thunder. Verified in game for stormcaller and guardian level 3.
+- Bug found by the capture run: the new shock status chip called `p.vulnTime.toFixed` eagerly on fighters that had no `vulnTime` (the template string is evaluated even when the chip is off) and threw every frame; `createFighter` now has `vulnTime:0`.
+

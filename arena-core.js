@@ -11,7 +11,7 @@ const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const DUEL_SPAWNS=[[-3.4,2],[3.4,2]],BRAWL_SPAWNS=[[-4.5,2.5],[4.5,2.5],[-4.5,-3],[4.5,-3]];
 const CRATE_SPAWNS=[[-11,-6],[-7,-4],[-2,3],[4,-4],[8,4],[11,-6],[0,5],[-4,-6]];
 export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z-p.z)<=p.d/2+r;}
-export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,team:id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,fx:x<=0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
+export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,team:id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,vulnTime:0,fx:x<=0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
 export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
@@ -118,6 +118,25 @@ function assistAim(w,p,range=4.2){
 export function toggleAim(p){p.aimAssist=p.aimAssist===false;}
 function gainEnergy(w,p,amount){if(!p||!Number.isFinite(p.energy)||!Number.isFinite(p.energyMax))return;const before=p.energy;p.energy=Math.min(p.energyMax,p.energy+amount);if(p.energy!==before)emit(w,'energy',{id:p.id,energy:p.energy,max:p.energyMax});}
 function cancelRecovery(p){p.recoveryBuffer=0;p.recoveryDirection=null;p.recoveryTime=0;p.dodgeTime=0;}
+// A shock mark, and what it does on the stage's terrain: on ice the target freezes solid, in the hot spring the water conducts it (extra damage and a stun).
+function shockTarget(w,q,secs){
+  q.vulnTime=Math.max(q.vulnTime||0,secs);emit(w,'shock',{id:q.id,x:q.x,y:q.y+1.2,z:q.z});
+  if(q.terrain==='ice'&&!q.blocking){q.stun=Math.max(q.stun,.9);q.slowTime=Math.max(q.slowTime||0,2.2);q.vx=q.vz=0;emit(w,'freeze',{id:q.id,x:q.x,y:q.y+1.2,z:q.z});}
+  else if(q.terrain==='hotspring'){q.hp=Math.max(1,q.hp-8);q.stun=Math.max(q.stun,.6);emit(w,'electrify',{id:q.id,x:q.x,y:q.y+1.2,z:q.z});}
+}
+// Rider effects of a signature move, applied after a hit lands: slow, stun, a shock mark (the next hit on a shocked target does +25%) and a pull
+// (the target is dragged toward the attacker and popped up, so the attacker can follow with an air combo).
+function riders(w,src,q,spec,returning){
+  if(!spec||q.hp<=0)return;
+  const r=spec.projectile||spec;
+  if(r.slow&&!q.blocking)q.slowTime=Math.max(q.slowTime||0,r.slow);
+  if(r.stun)q.stun=Math.max(q.stun,r.stun);
+  if(r.shock)shockTarget(w,q,r.shock);
+  if(r.pull||(returning&&r.pullBack)){
+    const dx=src.x-q.x,dz=src.z-q.z,d=Math.hypot(dx,dz);
+    if(d>1.5){const v=(d-1.3)/.45;q.vx=dx/d*v;q.vz=dz/d*v;q.vy=Math.max(q.vy,8.5);q.knocked=Math.max(q.knocked,.75);q.grounded=false;q.juggle=Math.max(q.juggle||0,1);emit(w,'pull',{id:q.id,x:q.x,y:q.y+1.2,z:q.z,fx:dx/d,fz:dz/d});}
+  }
+}
 // Each signature move has its own hit-stop (frames the game freezes on contact); the renderer adds the matching shake and sparks from the 'hit' event's kind/by.
 function hitFeel(p,options){
   const by=p.char||(p.owner>=0?null:null),k=options.kind;
@@ -149,6 +168,7 @@ function hit(w,p,q,damage,force,options={}){
   const wasAirborne=!q.grounded&&q.y>.3;
   // Juggle damage scaling keeps a full launcher combo around a third of the bar.
   if(wasAirborne&&(q.juggle||0)>0&&!options.grab)damage*=Math.max(.45,1-.17*q.juggle);
+  if(q.vulnTime>0){damage*=1.25;q.vulnTime=Math.max(0,q.vulnTime-.3);}   // a shocked fighter takes more
   q.hp=Math.max(0,q.hp-damage);q.hurtTime=.45;q.hurtKind=options.kind||'melee';if(options.kind==='bomb'||options.kind==='flameKick')q.burnTime=1.25;q.vx=fx*force;q.vz=fz*force;q.vy=force*.45;q.grounded=false;q.support=null;q.stun=brokeGuard?.52:.28;q.invuln=.25;
   w.hitStop=Math.max(w.hitStop,options.grab?.08:force>=8?.075:.055,hitFeel(p,options)?.stop||0);emit(w,'impact',{x:q.x,y:q.y+1.1,z:q.z,force,kind:options.kind||'melee'});
   if(options.grab){q.grabbed=2.2;q.grabbedBy=p.id;q.grabEscape=0;q.knocked=0;q.stun=0;q.vx=0;q.vz=0;q.vy=0;p.grabbedTarget=q.id;p.grabHoldTime=2.2;p.grabThrow='forward';}
@@ -266,6 +286,7 @@ function releaseSkill(w,p){
   const {level,radius,damage,force,kind,height}=p.pendingSkill,self=kind==='whirlwind'||kind==='shieldQuake';
   const center=self?{x:p.x,z:p.z}:{x:p.pendingSkill.cx,z:p.pendingSkill.cz},from=self?p:{...center,owner:p.id,fx:p.fx,fz:p.fz};
   p.pendingSkill=null;p.skillWindup=0;p.skillTime=.4;p.invuln=.18;
+  w.hitStop=Math.max(w.hitStop,.05+level*.04);   // a beat of freeze on release, longer for the higher levels
   emit(w,'skill',{id:p.id,char:p.char,x:center.x,y:p.y+.7,z:center.z,casterX:p.x,casterZ:p.z,level,radius,kind});
   for(const q of w.fighters)if(q!==p&&distance(center,q)<radius&&Math.abs(p.y-q.y)<height){const blocked=q.blocking;if(hit(w,from,q,damage,force,{guardBreak:level===3,kind})&&kind==='thunder'&&(!blocked||level===3)){q.slowTime=Math.max(q.slowTime,2.2);emit(w,'slow',{id:q.id,x:q.x,y:q.y+1,z:q.z});}}
   for(const c of w.crates)if(c.hp>0&&distance(center,c)<radius&&Math.abs(p.y-c.y)<2.5)breakCrate(w,c,2);
@@ -480,6 +501,7 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
   if(terrain==='hotspring'&&p.hp>0){p.hp=Math.min(100,p.hp+dt*3.5*(tp.spring??1));p.slowTime=Math.max(0,(p.slowTime||0)-dt*3);}
   p.sink=terrain==='quicksand'?Math.min(1,(p.sink||0)+dt*.8):Math.max(0,(p.sink||0)-dt*3);
   for(const key of ['attackCD','comboWindow','bombCD','skillCD','skillTime','dodgeCD','dodgeTime','stun','invuln','parryWindow'])p[key]=Math.max(0,p[key]-dt);
+  p.vulnTime=Math.max(0,(p.vulnTime||0)-dt);
   p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);p.coyote=p.grounded?.09:Math.max(0,p.coyote-dt);
   if(p.mantle){   // pulling up onto a deck: the fighter is carried from the ledge to the top and cannot act until it is done
     const m=p.mantle;m.t=Math.max(0,m.t-dt);const k=1-m.t/m.T,e=k*k*(3-2*k);
@@ -705,7 +727,7 @@ export function step(w,input={},dt=STEP){
         p.hitDone=true;
         const prj=p.attackType==='heavy'?characterOf(p).heavy?.projectile:null;
         if(prj){   // a thrown U: Red Sail's flying slash and the guardian's boomerang shield travel and pierce (see the shot update below)
-          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,vx:p.fx*prj.speed,vz:p.fz*prj.speed,fx:p.fx,fz:p.fz,life:prj.life,boost:p.attackBoost,damage:prj.damage,force:prj.force,pierce:prj.pierce,boomerang:prj.boomerang||0,age:0,hitIds:[],style:prj.style,speed:prj.speed,slow:prj.slow||0,char:p.char,guardBreak:Boolean(prj.guardBreak)});
+          w.shots.push({id:w.nextShot++,owner:p.id,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,vx:p.fx*prj.speed,vz:p.fz*prj.speed,fx:p.fx,fz:p.fz,life:prj.life,boost:p.attackBoost,damage:prj.damage,force:prj.force,pierce:prj.pierce,boomerang:prj.boomerang||0,age:0,hitIds:[],style:prj.style,speed:prj.speed,slow:prj.slow||0,char:p.char,guardBreak:Boolean(prj.guardBreak),rider:{stun:prj.stun,shock:prj.shock,pull:prj.pull,pullBack:prj.pullBack,slow:prj.pierce?prj.slow:0}});
           emit(w,'shotFire',{id:p.id,char:p.char,heavy:true,x:p.x+p.fx*1.1,y:p.y+1.15,z:p.z+p.fz*1.1,fx:p.fx,fz:p.fz,style:prj.style});
         }
         if(p.attackType==='shot'){
@@ -719,7 +741,7 @@ export function step(w,input={},dt=STEP){
           const dot=((q.x-p.x)*p.fx+(q.z-p.z)*p.fz)/Math.max(.01,d);
           const hv=p.attackType==='heavy'?characterOf(p).heavy:null,jb=p.attackType==='light'?characterOf(p).jab:null;   // each character's U has its own reach, arc, force and launch
           const reach=hv?.reach??(p.attackType==='light'?(p.weapon==='sword'?3.05:2.1):p.weapon==='sword'?3.25:p.attackType==='shieldBash'?2.8:p.attackType==='slam'?2.9:p.attackType==='heavy'?2.85:p.attackType==='upper'?2.55:p.attackType==='dash'?3:p.attackType==='rush'?2.7:p.attackType==='air'?2.7:2.6);
-          if(d<reach&&(dot>(hv?.arc??-.15)||d<.8)){const baseDamage=hv?.damage??(p.attackType==='slam'?21:p.attackType==='heavy'?18:p.attackType==='upper'?16:p.attackType==='shieldBash'?15:p.attackType==='rush'?13:p.attackType==='dash'?12:p.attackType==='air'?(p.airCombo===2?14:9):jb?.dmg?.[p.combo]??(p.combo===2?15:p.combo===1?12:9)),baseForce=hv?.force??(p.attackType==='slam'?12:p.attackType==='heavy'?10:p.attackType==='upper'?9:p.attackType==='shieldBash'?11:p.attackType==='rush'?6.5:p.attackType==='dash'?7:p.attackType==='air'?5.5:jb?.force?.[p.combo]??(p.combo===2?9:p.combo===1?6:4)),styleBoost=characterOf(p).boost[p.attackType]||1;hit(w,p,q,baseDamage*styleBoost*p.attackBoost,baseForce*(p.char==='guardian'&&styleBoost>1?1.12:1),{guardBreak:p.attackType==='heavy'||p.attackType==='slam'||p.attackType==='shieldBash'||(jb?.breakGuard!==undefined&&p.combo===jb.breakGuard),kind:hv?.launch?'upper':p.attackType})&&jb?.slow?.[p.combo]&&(q.slowTime=Math.max(q.slowTime||0,jb.slow[p.combo]));}
+          if(d<reach&&(dot>(hv?.arc??-.15)||d<.8)){const baseDamage=hv?.damage??(p.attackType==='slam'?21:p.attackType==='heavy'?18:p.attackType==='upper'?16:p.attackType==='shieldBash'?15:p.attackType==='rush'?13:p.attackType==='dash'?12:p.attackType==='air'?(p.airCombo===2?14:9):jb?.dmg?.[p.combo]??(p.combo===2?15:p.combo===1?12:9)),baseForce=hv?.force??(p.attackType==='slam'?12:p.attackType==='heavy'?10:p.attackType==='upper'?9:p.attackType==='shieldBash'?11:p.attackType==='rush'?6.5:p.attackType==='dash'?7:p.attackType==='air'?5.5:jb?.force?.[p.combo]??(p.combo===2?9:p.combo===1?6:4)),styleBoost=characterOf(p).boost[p.attackType]||1;if(hit(w,p,q,baseDamage*styleBoost*p.attackBoost,baseForce*(p.char==='guardian'&&styleBoost>1?1.12:1),{guardBreak:p.attackType==='heavy'||p.attackType==='slam'||p.attackType==='shieldBash'||(jb?.breakGuard!==undefined&&p.combo===jb.breakGuard),kind:hv?.launch?'upper':p.attackType}))riders(w,p,q,hv||null);if(jb?.slow?.[p.combo]&&q.hp>0)q.slowTime=Math.max(q.slowTime||0,jb.slow[p.combo]);if(jb?.shock?.[p.combo]&&q.hp>0)shockTarget(w,q,jb.shock[p.combo]);}
         }
         if(p.attackType!=='grab'&&p.attackType!=='shot')for(const c of w.crates)if(c.hp>0&&distance(p,c)<Math.max(2.5,(p.attackType==='heavy'&&characterOf(p).heavy?.reach||0)-.1)&&Math.abs(p.y+.48-c.y)<1.7)breakCrate(w,c,1);
         if(p.attackType!=='grab'&&p.attackType!=='shot')for(const pc of w.pieces){
@@ -762,6 +784,7 @@ export function step(w,input={},dt=STEP){
       w.bombs.splice(i,1);
     }
   }
+  const wind=stageOf(w.stage).waveKind==='sandstorm'&&w.waveTime>0?w.waveDir*3.6:0;
   for(let i=w.shots.length-1;i>=0;i--){
     const s=w.shots[i];s.life-=dt;s.age=(s.age||0)+dt;
     if(s.boomerang){   // out for `boomerang` seconds, then home in on the thrower; each leg can hit a target once
@@ -769,10 +792,10 @@ export function step(w,input={},dt=STEP){
       if(s.age>=s.boomerang&&!s.returning){s.returning=true;s.hitIds=[];}
       if(s.returning&&owner){const dx=owner.x-s.x,dz=owner.z-s.z,d=Math.hypot(dx,dz)||1;s.vx=dx/d*s.speed*1.15;s.vz=dz/d*s.speed*1.15;if(d<.9){w.shots.splice(i,1);emit(w,'shieldCatch',{id:owner.id,x:owner.x,y:owner.y+1.2,z:owner.z});continue;}}
     }
-    s.x+=s.vx*dt;s.z+=s.vz*dt;
+    s.x+=s.vx*dt+wind*dt;s.z+=s.vz*dt;   // a sandstorm carries every shot along with the wind
     const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&!(s.hitIds||[]).includes(q.id)&&distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1);
-    if(target&&s.pierce){hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot',guardBreak:s.guardBreak});s.hitIds.push(target.id);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});}
-    else if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot'})&&s.slow&&!blocked){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
+    if(target&&s.pierce){if(hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot',guardBreak:s.guardBreak}))riders(w,w.fighters.find(f=>f.id===s.owner)||s,target,s.rider,s.returning);s.hitIds.push(target.id);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});}
+    else if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot'})&&!blocked){if(s.slow){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}if(s.rider)riders(w,w.fighters.find(f=>f.id===s.owner)||s,target,s.rider,s.returning);}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
     const shotPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,s)<pc.r+.35&&s.y<pc.h);
     if(shotPiece&&!s.pierce){hurtPiece(w,shotPiece,4*s.boost,{owner:s.owner,x:s.x-s.vx*.05,z:s.z-s.vz*.05});emit(w,'shotHit',{x:s.x,y:s.y,z:s.z});w.shots.splice(i,1);continue;}
     const crate=w.crates.find(c=>c.hp>0&&!c.falling&&c.heldBy===null&&distance(c,s)<.75&&s.y<c.y+1.4);
