@@ -139,6 +139,11 @@ function driveGlb(m,p,dt,walking){
   if(p.hp<=0){name='hurt';enter(name);time=10*FR24;}
   else if(g.tripo&&p.knocked>0&&!p.grounded&&p.grabbedBy===null){name='knock';time=enter(name)%(16*FR24);}   // blown through the air: flail
   else if(hurtish){name='hurt';time=Math.min(enter(name)*2,10*FR24);}
+  else if(g.tripo&&p.mantle&&g.actions.climbTop){   // ledge pull-up
+    name='climbTop';enter(name);time=Math.min(1,1-p.mantle.t/p.mantle.T)*12*FR24;}
+  else if(g.tripo&&p.climbing&&g.actions.climbTop&&Math.min(p.y,(p.ladderTop||9)-p.y)<.55){
+    // stepping on at the bottom or off at the top: the same clip, played by distance to the nearest end (frame 12 = standing)
+    name='climbTop';enter(name);time=Math.min(1,Math.max(0,1-Math.min(p.y,(p.ladderTop||9)-p.y)/.55))*12*FR24;}
   else if(g.tripo&&p.climbing&&g.actions.climb){   // one cycle (two steps) per CLIMB_RISE of height, so climbing down plays it backwards
     name='climb';enter(name);const ph=((p.y/CLIMB_RISE)%1+1)%1;time=ph*24*FR24;}
   else if(g.tripo&&p.tossTime>0){name=p.tossTwo?'toss':'throw';enter(name);time=tossFrame(p.tossTime)*FR24;}   // item / crate throw
@@ -1083,7 +1088,7 @@ function updateGhosts(dt){
 }
 function clearGhosts(){for(const g of ghosts){scene.remove(g.wrap);g.material.dispose();g.baked.forEach(x=>x.dispose());}ghosts.length=0;}
 function updateVisuals(dt){
-  ensureStage();audio.music(started&&stage?stage.id:null);ensureModels();syncPieces();updateGhosts(dt);updateWarnings(dt);updateLandMarks(dt);
+  ensureStage();audio.music(started&&stage?stage.id:'menu');{const low=Math.min(...world.fighters.filter(f=>f.hp>0).map(f=>f.hp),100),clock=!world.training&&world.time<=15?(15-world.time)/15:0;audio.setTension(started&&!world.ended?Math.max(clock*.8,low<30?(30-low)/30*.9:0):0);}ensureModels();syncPieces();updateGhosts(dt);updateWarnings(dt);updateLandMarks(dt);
   world.fighters.forEach((p,i)=>animateFighter(p,i,models[i],dt));
   for(const b of world.bombs){let g=bombModels.get(b.id);if(!g){g=new THREE.Group();const bottle=b.kind==='poison'||b.kind==='virus'||b.kind==='slow';if(bottle){const color=b.kind==='virus'?'#8d55bd':b.kind==='slow'?'#4c9ee8':'#55a866';const glow=b.kind==='virus'?'#d19aff':b.kind==='slow'?'#bde8ff':'#a7f58c';cylinder(.18,.23,.48,color,g,0,0,0);sphere(.16,glow,g,0,.3,0);box(.16,.08,.16,'#e7d1a7',g,0,.28,0);}else{sphere(.26,'#29394b',g,0,0,0);const fuse=box(.055,.23,.055,'#ffd366',g,.06,.3,0);fuse.rotation.z=-.3;sphere(.07,'#fff1a2',g,.1,.42,0);}ink(g,.03);scene.add(g);bombModels.set(b.id,g);}g.position.set(b.x,b.y,b.z);g.rotation.z+=dt*(b.kind==='bomb'?6:3);g.userData.trail=(g.userData.trail||0)-dt;if(g.userData.trail<=0){g.userData.trail=.04;trailBit(b);}}
   for(const [id,m] of bombModels)if(!world.bombs.some(b=>b.id===id)){scene.remove(m);bombModels.delete(id);}

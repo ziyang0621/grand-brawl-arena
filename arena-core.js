@@ -481,6 +481,12 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
   p.sink=terrain==='quicksand'?Math.min(1,(p.sink||0)+dt*.8):Math.max(0,(p.sink||0)-dt*3);
   for(const key of ['attackCD','comboWindow','bombCD','skillCD','skillTime','dodgeCD','dodgeTime','stun','invuln','parryWindow'])p[key]=Math.max(0,p[key]-dt);
   p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);p.coyote=p.grounded?.09:Math.max(0,p.coyote-dt);
+  if(p.mantle){   // pulling up onto a deck: the fighter is carried from the ledge to the top and cannot act until it is done
+    const m=p.mantle;m.t=Math.max(0,m.t-dt);const k=1-m.t/m.T,e=k*k*(3-2*k);
+    p.x=m.sx+(m.ex-m.sx)*e;p.z=m.sz+(m.ez-m.sz)*e;p.y=m.sy+(m.ey-m.sy)*e;p.vx=p.vy=p.vz=0;p.climbing=false;
+    if(m.t<=0){p.y=m.ey;p.grounded=true;p.support=m.deck;p.jumps=0;p.mantle=null;}
+    return;
+  }
   const wantsGuard=Boolean(input.guard);if(wantsGuard&&!p.guardPrev&&p.stun<=0&&p.attackTime<=0)p.parryWindow=.16;p.guardPrev=wantsGuard;
   p.blocking=wantsGuard&&p.stun<=0&&p.attackTime<=0&&p.dodgeTime<=0&&p.grabbedTarget===null&&!p.carrying&&p.skillTime<=0;
   let ix=p.skillTime>0?0:input.x||0,iz=p.skillTime>0?0:input.z||0;const len=Math.hypot(ix,iz);if(len>1){ix/=len;iz/=len;}
@@ -505,7 +511,30 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
     if(Math.abs(p.z+p.vz*dt)>8.5){p.vz*=-.55;bounced=true;}
     if(bounced){p.wallImpact={x:p.x,y:p.y+1,z:p.z};p.vy=Math.max(p.vy,3);}
   }
+  const prevX=p.x,prevZ=p.z;
   p.x=clamp(p.x+p.vx*dt,-14.5,14.5);p.z=clamp(p.z+p.vz*dt,-8.5,8.5);
+  // Decks are solid below their top: a fighter cannot walk or jump up through the side of one. Next to a deck, within reach of its top and pressing
+  // toward it, he grabs the ledge and pulls himself up (the mantle); the ladder is the other way up.
+  for(const deck of stage.platforms){
+    if(p.y>=deck.top-.25)continue;
+    const ex=deck.w/2+.08,ez=deck.d/2+.08,dx=p.x-deck.x,dz=p.z-deck.z;
+    const wasInside=Math.abs(prevX-deck.x)<ex&&Math.abs(prevZ-deck.z)<ez;   // a fighter already inside (spawned or teleported there) is left alone and can walk out
+    if(!wasInside&&Math.abs(dx)<ex&&Math.abs(dz)<ez){
+      const px=ex-Math.abs(dx),pz=ez-Math.abs(dz);
+      if(px<pz){const sg=Math.sign(dx)||1;p.x=deck.x+sg*ex;if(p.vx*sg<0)p.vx=0;}else{const sg=Math.sign(dz)||1;p.z=deck.z+sg*ez;if(p.vz*sg<0)p.vz=0;}
+    }
+    if(!p.grounded&&!p.climbing&&p.knocked<=0&&p.stun<=0&&p.attackTime<=0&&p.skillTime<=0&&!p.carrying&&p.grabbedBy===null&&p.grabbedTarget===null&&p.hp>0&&p.vy<5&&p.y>=deck.top-1.05&&deck.w>1.4&&deck.d>1.4){
+      const ox=Math.max(0,Math.abs(p.x-deck.x)-deck.w/2),oz=Math.max(0,Math.abs(p.z-deck.z)-deck.d/2),near=Math.hypot(ox,oz);
+      const tx=deck.x-p.x,tz=deck.z-p.z,tl=Math.hypot(tx,tz)||1,toward=(ix*tx+iz*tz)/tl;
+      if(near<.4&&toward>.35){
+        const ex2=clamp(p.x,deck.x-deck.w/2+.7,deck.x+deck.w/2-.7),ez2=clamp(p.z,deck.z-deck.d/2+.7,deck.z+deck.d/2-.7);
+        p.fx=tx/tl;p.fz=tz/tl;
+        if(Math.abs(tx)/(deck.w/2)>Math.abs(tz)/(deck.d/2)){p.fx=Math.sign(tx);p.fz=0;}else{p.fx=0;p.fz=Math.sign(tz);}
+        p.mantle={t:.4,T:.4,sx:p.x,sy:p.y,sz:p.z,ex:ex2,ey:deck.top,ez:ez2,deck:deck.id};p.vx=p.vy=p.vz=0;p.running=false;p.mantled=(p.mantled||0)+1;
+        return;
+      }
+    }
+  }
   p.climbing=false;
   if(terrain==='quicksand'&&p.dodgeTime<=0){const dx=zone.x-p.x,dz=zone.z-p.z,d=Math.hypot(dx,dz);if(d>.05){const pull=Math.min(d,1.3*(tp.pull??1)*dt);p.x+=dx/d*pull;p.z+=dz/d*pull;}}
   stage._ladders??=laddersOf(stage);
@@ -513,7 +542,7 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
   const into=ladder?ix*ladder.dx+iz*ladder.dz:0;
   const climbUp=ladder&&p.knocked<=0&&p.stun<=0&&p.y<ladder.top-.02&&into>.1;
   const climbDown=ladder&&p.knocked<=0&&p.stun<=0&&p.y>0.02&&into<-.1;
-  if(climbUp||climbDown){p.climbing=true;p.fx=ladder.dx;p.fz=ladder.dz;   // always face the rungs, also on the way down
+  if(climbUp||climbDown){p.climbing=true;p.fx=ladder.dx;p.fz=ladder.dz;p.ladderTop=ladder.top;   // always face the rungs, also on the way down
     p.x+=(ladder.x-p.x)*Math.min(1,18*dt);p.z+=(ladder.z-p.z)*Math.min(1,12*dt);p.y=clamp(p.y+(climbUp?3.8:-3.8)*dt,0,ladder.top);p.vx=0;p.vz=0;p.vy=0;p.grounded=p.y<=.001||p.y>=ladder.top-.001;p.support=p.y>=ladder.top-.001?'ladder-top':'ladder';if(p.y>=ladder.top-.001){p.y=ladder.top;p.support='ladder-top';}return;}
   p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.grounded=false;p.support=null;
   if(p.vy<=0){

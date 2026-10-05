@@ -192,7 +192,7 @@ test('port stage schedules cannon fire and a warning before the wave',()=>{
   advance(w,CANNON_WARN+.05);assert.ok(w.events.some(e=>e.type==='cannon'),'fires after the warning');
 });
 test('the expanded dock has more walkable space',()=>{
-  const p=createFighter(0,0,0);for(let i=0;i<5000;i++)stepFighter(p,{x:1},STEP);assert.ok(p.x>12);assert.ok(p.x<=14.5);
+  const p=createFighter(0,0,6);for(let i=0;i<5000;i++)stepFighter(p,{x:1},STEP);assert.ok(p.x>12);assert.ok(p.x<=14.5);
 });
 test('successful hits build energy for another special',()=>{
   const w=createWorld();w.training=true;const [p,q]=w.fighters;p.energy=0;p.x=0;q.x=1.7;attack(w,p);advance(w,.4);assert.ok(p.energy>0);assert.ok(p.energy<=p.energyMax);

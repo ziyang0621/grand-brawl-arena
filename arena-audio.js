@@ -12,6 +12,11 @@ const SONGS={
     bass:[0,null,null,0,null,null,0,null,0,null,null,0,null,null,4,null,0,null,null,0,null,null,0,null,3,null,null,2,null,null,1,null],
     mel:[4,null,3,4,null,2,null,1,0,null,1,null,2,null,null,null,4,null,3,4,null,5,null,4,3,null,2,1,0,null,null,null],
     drums:'dum'},
+  // The select screen: a bright, unhurried theme
+  menu:{bpm:104,root:60,scale:[0,2,4,5,7,9,11,12],lead:'triangle',
+    bass:[0,null,null,null,4,null,null,null,5,null,null,null,3,null,null,null,0,null,null,null,4,null,null,null,5,null,4,null,3,null,2,null],
+    mel:[4,null,null,5,7,null,5,null,4,null,2,null,null,null,null,null,5,null,null,4,5,null,7,null,9,null,7,null,5,null,null,null],
+    drums:'soft'},
   snow:{bpm:92,root:67,scale:[0,2,4,5,7,9,11,12],lead:'sine',
     bass:[0,null,null,null,null,null,null,null,4,null,null,null,null,null,null,null,5,null,null,null,null,null,null,null,3,null,null,null,null,null,null,null],
     mel:[7,null,5,null,4,null,2,null,4,null,null,null,5,null,null,null,7,null,9,null,7,null,5,null,4,null,2,null,0,null,null,null],
@@ -19,7 +24,7 @@ const SONGS={
 };
 
 export function createAudio(){
-  let ctx=null,master=null,sfxBus=null,musicBus=null,noise=null,muted=false,song=null,songId=null,timer=null,nextTime=0,step=0,duck=0,sfxCount=0;
+  let ctx=null,master=null,sfxBus=null,musicBus=null,noise=null,muted=false,song=null,songId=null,timer=null,nextTime=0,step=0,duck=0,sfxCount=0,tension=0;
   try{muted=localStorage.getItem('gb-muted')==='1';}catch{}
   const T=()=>ctx.currentTime;
   function unlock(){
@@ -115,13 +120,17 @@ export function createAudio(){
     else if(kind==='t')mk('bandpass',2400,.05,.4,3);
   }
   const PATTERNS={kshs:'k.h.s.h.k.h.s.hk',dum:'D..t.tD.t.D.t.t.',soft:'k.......h.......'};
+  // The loop is 32 steps, but it plays A A B A: the third pass lifts the melody and bass two scale degrees, so a long match does not repeat one bar forever.
+  // `tension` (0..1, low health or the last seconds of a round) speeds the tempo up to 18% and adds a driving off-beat arpeggio.
   function schedule(){
     if(!song||!ctx)return;
-    const sixteenth=60/song.bpm/4;
+    const sixteenth=60/(song.bpm*(1+.18*tension))/4;
     while(nextTime<T()+.35){
-      const i=step%32,degree=song.scale,root=song.root;
-      const b=song.bass[i];if(b!=null)note('triangle',root-12+degree[b%degree.length],nextTime,sixteenth*3.2,.55);
-      const m=song.mel[i];if(m!=null){const len=song.mel.slice(i+1,i+4).findIndex(x=>x!=null);note(song.lead,root+12+degree[m%degree.length],nextTime,sixteenth*(len<0?3:len+1)*.9,song.lead==='sine'?.5:.16);}
+      const i=step%32,degree=song.scale,root=song.root,lift=Math.floor(step/32)%4===2?2:0;
+      const b=song.bass[i];if(b!=null)note('triangle',root-12+degree[(b+(lift&&b%2===0?lift:0))%degree.length],nextTime,sixteenth*3.2,.55);
+      const m=song.mel[i];if(m!=null){const len=song.mel.slice(i+1,i+4).findIndex(x=>x!=null);note(song.lead,root+12+degree[(m+lift)%degree.length],nextTime,sixteenth*(len<0?3:len+1)*.9,song.lead==='sine'?.5:.16);}
+      if(tension>.25&&i%2===1&&songId!=='menu')note('square',root+24+degree[(i*3+lift)%degree.length],nextTime,sixteenth*1.4,.05+.07*tension);
+      if(tension>.5&&i%4===0)drum('k',nextTime,.5*tension);
       const pat=PATTERNS[song.drums]||'';const ch=pat[i%pat.length];if(ch&&ch!=='.')drum(ch==='k'&&song.drums==='dum'?'D':ch,nextTime,song.drums==='soft'?.5:1);
       if(song.drums==='soft'&&i%8===4)note('sine',root+24+degree[(i/4)%degree.length|0],nextTime,.5,.12);
       nextTime+=sixteenth;step++;
@@ -133,8 +142,9 @@ export function createAudio(){
     song=id?SONGS[id]:null;if(!song)return;
     nextTime=T()+.1;step=0;timer=setInterval(schedule,90);schedule();
   }
+  function setTension(v){tension=Math.max(0,Math.min(1,v));}
   function setMuted(v){muted=!!v;try{localStorage.setItem('gb-muted',muted?'1':'0');}catch{}if(master)master.gain.setTargetAtTime(muted?0:.8,T(),.03);}
   // Short dip in the music so a K.O. or a big special cuts through.
   function dip(sec=.8){if(!musicBus)return;const t=T();musicBus.gain.cancelScheduledValues(t);musicBus.gain.setTargetAtTime(.05,t,.03);musicBus.gain.setTargetAtTime(.22,t+sec,.25);}
-  return {unlock,play,music,setMuted,dip,get muted(){return muted;},get ready(){return !!ctx;}};
+  return {unlock,play,music,setMuted,setTension,dip,get muted(){return muted;},get ready(){return !!ctx;}};
 }

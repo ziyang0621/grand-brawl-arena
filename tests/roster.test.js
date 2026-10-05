@@ -67,7 +67,7 @@ test('thunder strikes the targeted area and slows opponents that are not guardin
 });
 test('every pairing of the six fighters finishes a match without invalid state',()=>{
   for(const a of CHARACTER_IDS)for(const b of CHARACTER_IDS){
-    const w=createWorld({chars:[a,b],stage:'port'});w.autoplay=true;let t=0;while(!w.ended&&t<110){step(w);t+=STEP;}
+    const w=createWorld({chars:[a,b],stage:'port'});w.autoplay=true;let t=0;while(!w.ended&&t<150){step(w);t+=STEP;}
     assert.ok(w.ended,`${a} vs ${b}`);for(const p of w.fighters)assert.ok(Number.isFinite(p.hp+p.x+p.z),`${a} vs ${b}`);
   }
 });

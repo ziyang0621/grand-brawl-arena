@@ -768,3 +768,10 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
   every Tripo model has a 24-frame `climb` clip (hands and feet alternate, hand up reaches overhead, opposite knee lifts), played by HEIGHT (`time = (y / CLIMB_RISE) mod 1`, 2.2 units per cycle), so climbing down simply plays it backwards and the hands always match the speed.
   The climber hangs .4 off the wall in the renderer so the body does not sink into the deck. Verified in game: climbing up at x=-9 (desert) and back down, facing the deck both ways.
 
+## Ladder ends, ledge grab, per-state music, covered-eye decals
+- Ladder ends: a `climbTop` clip (12 frames, press down, step up, stand) plays forward in the top .55 of a ladder and backwards in the bottom .55 (`min(y, top - y)` decides the frame), so mounting and dismounting are visible steps instead of a pose switch. The core stores `p.ladderTop`.
+- Solid decks and the mantle: decks used to be walk-through blocks (a fighter rose through the stone). Now crossing the side of a deck below its top is blocked (a fighter already inside, e.g. spawned there, can walk out), and a fighter who is within .4 of a deck, within 1.05 below its top, rising slower than 5 and pressing toward it grabs the ledge: `p.mantle` carries him up over .4 s (smoothstep), he cannot act meanwhile, and the renderer plays `climbTop` by mantle progress.
+  Decks wider/deeper than 1.4 only. The AI benefits (it jumps at deck edges). Test: `decks are solid ... grabs the ledge` (the 3.5-high crow's nest needs a double jump plus the ledge grab). Full-suite caveat: the match-finish test needed more simulated time (150 s) because the new hit-stops lengthen matches.
+- Music: a `menu` theme (the select screen was silent), a lifted B section on every third pass of each song (A A B A), and `setTension()` (low health or the last 15 s of a round): tempo up to +18%, a driving off-beat arpeggio and a kick on the beat.
+- Covered eyes: the cook's left eye (under a bang) and the storm caller's left brow (under a fringe) now get ink-only decals drawn on the hair (`'ink'` as the fifth/fifth entry in `face` of tripo_specs.py), so hurt and angry faces are symmetrical.
+

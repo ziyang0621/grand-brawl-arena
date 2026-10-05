@@ -124,7 +124,7 @@ test('every Tripo character ships a lite build (halved textures) next to the ful
 });
 
 import {laddersOf} from '../arena-roster.js';
-import {createFighter as mkFighter} from '../arena-core.js';
+import {createFighter as mkFighter,jump} from '../arena-core.js';
 test('a fighter on a ladder always faces the rungs, also while climbing down, and every Tripo model has a climb clip',()=>{
   const stage=STAGES.desert,ladder=laddersOf(stage)[0];
   const p=mkFighter(0,ladder.x,ladder.z-ladder.dz*.6,'brawler');
@@ -138,3 +138,17 @@ test('a fighter on a ladder always faces the rungs, also while climbing down, an
   }
 });
 import {readFileSync} from 'node:fs';
+
+test('decks are solid below their top, and a fighter who jumps at one grabs the ledge and pulls himself up',()=>{
+  const stage=STAGES.port,deck=stage.platforms.find(d=>d.id==='crows-nest');   // 3.5 high: out of reach of a single jump
+  // 1. walking into the side of a deck is blocked
+  const w=createFighter(0,deck.x-deck.w/2-1.5,deck.z,'swordsman');
+  for(let i=0;i<300;i++)stepFighter(w,{x:1},STEP,stage);
+  assert.ok(w.x<=deck.x-deck.w/2+.2&&w.y<.1,`blocked at the side (x ${w.x.toFixed(2)})`);
+  // 2. jump at it: he ends up on top
+  const p=createFighter(0,deck.x-deck.w/2-.9,deck.z,'swordsman');
+  for(let i=0;i<10;i++)stepFighter(p,{x:1},STEP,stage);
+  jump(p);let mantled=false,second=false,standing=null;
+  for(let i=0;i<360;i++){stepFighter(p,{x:1},STEP,stage);if(p.mantle)mantled=true;if(mantled&&!p.mantle&&!standing){standing=`${p.y.toFixed(2)} ${p.support} ${p.grounded}`;}if(!second&&p.vy<0&&!p.grounded){jump(p);second=true;}}
+  assert.ok(mantled,'he grabbed the ledge');assert.equal(standing,`${deck.top.toFixed(2)} ${deck.id} true`,'when the pull-up ends he stands on the deck');
+});

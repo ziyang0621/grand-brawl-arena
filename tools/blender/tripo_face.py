@@ -91,6 +91,20 @@ def build_face(bpy, arm, ob, face):
         img.pack()
         return img
 
+    def texture_ink(name, draw, size=128):
+        """An eye drawn as ink only (no skin patch): for an eye that hair falls over, so the mark shows on the hair itself."""
+        img = bpy.data.images.new(name, size, size, alpha=True)
+        buf = [0.0] * (size * size * 4)
+        for y in range(size):
+            for x in range(size):
+                u, v = (x + .5) / size * 2 - 1, (y + .5) / size * 2 - 1
+                ink = draw(u, v)
+                i = (y * size + x) * 4
+                buf[i:i + 4] = [INK[0], INK[1], INK[2], ink]
+        img.pixels = buf
+        img.pack()
+        return img
+
     def seg(u, v, a, b, w):
         ax, ay = a
         bx, by = b
@@ -237,16 +251,27 @@ def build_face(bpy, arm, ob, face):
 
     blush_mat = material('TripoBlush', paint('TripoBlushTex', [lambda u, v: (1, .24, .32, max(0, 1 - math.hypot(u, v * 1.15)) * 1.6)], fill=False, size=64))
     closed_mat = material('TripoEyesClosed', texture('TripoEyesClosedTex', closed))
-    for side, (ex, ey, ew, eh) in face['eyes'].items():
+    for side, spec in face['eyes'].items():
+        ex, ey, ew, eh = spec[:4]
+        covered = len(spec) > 4 and spec[4] == 'ink'      # hair falls over this eye: ink marks only, drawn on the hair
         c = point(ex, ey)
         w, h = ew * PX, eh * PX
+        if covered:
+            decal('TripoEyesHurt', material('TripoEyesHurt' + ('R' if side > 0 else 'L'), texture_ink('TripoHurtTex' + str(side), chevron(side))), c, w, h, .006)
+            decal('TripoEyesClosed', material('TripoEyesClosedInk' + str(side), texture_ink('TripoClosedInk' + str(side), closed)), c, w, h, .006)
+            continue
         decal('TripoEyesHurt', material('TripoEyesHurt' + ('R' if side > 0 else 'L'), texture('TripoHurtTex' + str(side), chevron(side))), c, w, h)
         decal('TripoEyesClosed', closed_mat, c, w, h)
         decal('TripoBlush', blush_mat, point(ex + side * 10, ey + eh * .85), w * .85, h * .5, .005)
         decal('TripoTear', material('TripoTearM' + str(side), tear()), point(ex + side * 6, ey + eh * .6), w * .28, h * .9, .0048)
-    for side, (bx, by, bw, bh) in face['brows'].items():
+    for side, spec in face['brows'].items():
+        bx, by, bw, bh = spec[:4]
+        covered = len(spec) > 4 and spec[4] == 'ink'      # under a fringe: the brow is drawn over the hair, ink only
         for kind in ('angry', 'sad'):
-            decal('TripoBrow' + kind.capitalize(), material('TripoBrow' + kind + str(side), brow(side, kind)), point(bx, by), bw * PX, bh * PX, .0045)
+            k = 1 if side > 0 else -1
+            pts = [(.95 * k, .5), (.0, -.02), (-.9 * k, -.5)] if kind == 'angry' else [(.95 * k, -.5), (.0, .0), (-.9 * k, .5)]
+            tex = paint('TripoBrow' + kind + str(side), [stroke(pts, .3, INK, taper=(.75, 1.15) if kind == 'angry' else (1.1, .75))], fill=not covered)
+            decal('TripoBrow' + kind.capitalize(), material('TripoBrow' + kind + str(side), tex), point(bx, by), bw * PX, bh * PX, .006 if covered else .0045)
     mx, my, mw, mh = face['mouth']
     mc, w = point(mx, my), mw * PX
     for key, builder, fw, fh, hh in (('Shout', mouth_shout, 1.1, .75, 1.15), ('Grit', mouth_grit, 1.0, .32, 1.0), ('Grin', mouth_grin, 1.15, .5, 1.0), ('Frown', mouth_frown, 1.0, .4, 1.0)):
