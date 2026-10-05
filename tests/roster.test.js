@@ -18,10 +18,11 @@ test('brawler rush lunges forward and hits harder than a first jab',()=>{
   const w=duel(['brawler','guardian']);const [p,q]=w.fighters;Object.assign(p,{x:0,z:2,fx:1,fz:0});Object.assign(q,{x:2.4,z:2});
   attack(w,p,{x:1});assert.equal(p.attackType,'rush');assert.ok(p.vx>8);advance(w,.3,{x:1});assert.ok(100-q.hp>=13);
 });
-test('only the guardian turns move+U into a shield bash',()=>{
-  for(const [char,type] of [['guardian','shieldBash'],['brawler','heavy'],['gunner','heavy'],['swordsman','heavy']]){
-    const w=duel([char,'swordsman']);heavy(w,w.fighters[0],{x:1});assert.equal(w.fighters[0].attackType,type);
+test('move+U is the same U as plain U for everybody (the guardian throws his shield either way); his shield bash is move+J',()=>{
+  for(const char of ['guardian','brawler','gunner','swordsman']){
+    const w=duel([char,'swordsman']);heavy(w,w.fighters[0],{x:1});assert.equal(w.fighters[0].attackType,'heavy',char);
   }
+  const w=duel(['guardian','swordsman']);attack(w,w.fighters[0],{x:1});assert.equal(w.fighters[0].attackType,'shieldBash');
 });
 test('brawler special lands ahead of the caster, gunner barrage lands on the target',()=>{
   const w=duel(['brawler','guardian']);const [p,q]=w.fighters;Object.assign(p,{x:0,z:2,fx:1,fz:0});Object.assign(q,{x:1.6,z:2});

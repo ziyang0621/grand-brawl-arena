@@ -210,7 +210,7 @@ function unableToAct(w,p){return w.ended||w.intro>0||w.roundOver>0||p.hp<=0||p.r
 function throwGrabbed(w,p,high=false){const target=w.fighters.find(q=>q.id===p.grabbedTarget);if(!target)return false;releaseGrab(w,p,target,high);return true;}
 function struggle(w,p){if(p.grabbedBy===null)return false;p.grabEscape=(p.grabEscape||0)+1;if(p.grabEscape>=3){const holder=w.fighters.find(f=>f.id===p.grabbedBy);releaseGrab(w,holder,p,false,true);}return true;}
 export function attack(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,false);return;}if(p.carrying){throwCarried(w,p,false);return;}if(p.comboWindow>0&&['light','dash','air'].includes(p.attackType)){p.comboQueued=true;p.comboInput={...input};return;}const moving=Math.hypot(input.x||0,input.z||0)>.5;beginAttack(w,p,p.grounded&&moving?characterOf(p).moveAttack:'light');}
-export function heavy(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,true);return;}if(p.carrying){throwCarried(w,p,true);return;}beginAttack(w,p,p.grounded&&(input.z||0)<-.5?'upper':p.char==='guardian'&&Math.hypot(input.x||0,input.z||0)>.5?'shieldBash':'heavy');}
+export function heavy(w,p,input={}){if(p.grabbedBy!==null){struggle(w,p);return;}if(p.grabbedTarget!==null){throwGrabbed(w,p,true);return;}if(p.carrying){throwCarried(w,p,true);return;}beginAttack(w,p,p.grounded&&(input.z||0)<-.5?'upper':'heavy');}   // U is the same move with or without a direction; the guardian's shield bash is move+J
 export function grab(w,p,input={}){
   if(w.ended||p.hp<=0||p.respawnTimer>0)return;
   if(p.grabbedBy!==null){struggle(w,p);return;}
@@ -463,7 +463,7 @@ function ai(w,p,q){
   // Melee CPUs close a gap with their movement attack instead of walking into a stream of shots.
   const ranged=isRanged;
   if(!ranged&&d>3.4&&d<7&&p.grounded&&Math.abs(p.y-q.y)<1.4&&w.tick>120&&due(w,p,70)){
-    if(p.char==='guardian')heavy(w,p,{x:p.fx,z:p.fz});else attack(w,p,{x:p.fx,z:p.fz});
+    attack(w,p,{x:p.fx,z:p.fz});
   }
   if(ranged){
     // Kite: hold 4.5-8 units away and keep firing the heavy shot; back off when pressed, close in only to get a shot.
