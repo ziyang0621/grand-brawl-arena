@@ -81,3 +81,44 @@ test("the gunner's and the storm caller's U are ranged shots; the cook's whirlwi
   const j=(()=>{const w=createWorld({chars:['cook','brawler'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;const [p,q]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:3.1,z:0});attack(w,p,{});for(let t=0;t<.6;t+=STEP)step(w,{});return q.hp;})();
   assert.equal(j,100,'while J does not');
 });
+
+function strike(char,hits,foe='brawler'){
+  const w=createWorld({chars:[char,foe],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
+  const [p,q]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:1.3,z:0,fx:-1,fz:0});q.blocking=false;
+  const log=[];
+  for(let i=0;i<hits;i++){q.invuln=0;q.knocked=0;q.stun=0;q.hurtTime=0;q.x=1.3;q.z=0;q.hp=100;q.slowTime=0;p.attackCD=0;p.comboWindow=p.comboWindow||0;
+    attack(w,p,{});for(let t=0;t<.33&&q.hp===100;t+=STEP)step(w,{});log.push({dmg:100-q.hp,slow:q.slowTime,cd:p.attackCD,type:p.attackType,combo:p.combo});
+    for(let t=0;t<.05;t+=STEP)step(w,{});}
+  return log;
+}
+test('every character has its own J string: the brawler is fastest, the guardian slowest, the storm caller shocks on the third hit',()=>{
+  const cdOf=c=>CHARACTERS[c].jab.cd[0];
+  assert.ok(cdOf('brawler')<cdOf('swordsman')&&cdOf('swordsman')<=cdOf('guardian'),'cooldowns: brawler < swordsman <= guardian');
+  const third=char=>{const w=createWorld({chars:[char,'brawler'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
+    const [p,q]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:1.3,z:0,fx:-1,fz:0});q.blocking=false;
+    p.attackType='light';p.combo=1;p.comboWindow=.5;p.comboQueued=true;p.comboInput={};p.attackTime=0;p.attackCD=0;
+    for(let t=0;t<.4;t+=STEP)step(w,{});return {p,q};};
+  const st=third('stormcaller');assert.equal(st.p.combo,2);assert.ok(st.q.slowTime>0,'the third strike shocks');
+  assert.ok(third('brawler').q.hp<100);
+  for(const id of CHARACTER_IDS)assert.ok(CHARACTERS[id].jab&&CHARACTERS[id].jab.name,id);
+});
+test('CPUs use their own range: kiters shoot a standing foe from afar, a melee CPU pokes with U between J and U range',()=>{
+  const idle=chars=>{const w=createWorld({chars,stage:'classic'});w.autoplay=true;w.crates=[];w.intro=0;w.nextCannonTick=w.nextWaveTick=1e9;return w;};
+  for(const char of ['gunner','stormcaller']){
+    const w=idle([char,'swordsman']);Object.assign(w.fighters[0],{x:-6,z:0});Object.assign(w.fighters[1],{x:6,z:0});
+    let shots=0;const seen=new Set();
+    for(let t=0;t<12&&!w.ended;t+=STEP){step(w,{});for(const s of w.shots)if(!seen.has(s.id)&&s.owner===0){seen.add(s.id);shots++;}Object.assign(w.fighters[1],{hp:100,x:6,z:0,vx:0,vz:0,attackTime:0});}
+    assert.ok(shots>=3,`${char} fires its U at a distant foe (${shots})`);
+  }
+  const w=idle(['swordsman','guardian']);Object.assign(w.fighters[1],{x:0,z:0});Object.assign(w.fighters[0],{x:-2.9,z:0});let u=0;
+  for(let t=0;t<8&&!w.ended;t+=STEP){step(w,{});if(w.fighters[0].attackType==='heavy'&&w.fighters[0].attackTime>.45)u++;Object.assign(w.fighters[0],{x:-2.9,z:0,vx:0,vz:0});Object.assign(w.fighters[1],{hp:100,x:0,z:0,vx:0,vz:0,attackTime:0});}
+  assert.ok(u>0,'the swordsman uses U from just outside J range');
+});
+
+import {existsSync,statSync} from 'node:fs';
+test('every Tripo character ships a lite build (halved textures) next to the full one, for phones',()=>{
+  for(const id of ['pirate','brawler','guardian','gunner','cook','stormcaller']){
+    const full=new URL(`../models/tripo-${id}-animated.glb`,import.meta.url),lite=new URL(`../models/tripo-${id}-animated-lite.glb`,import.meta.url);
+    assert.ok(existsSync(full)&&existsSync(lite),id);assert.ok(statSync(lite).size<=statSync(full).size,id+' lite is not larger');
+  }
+});

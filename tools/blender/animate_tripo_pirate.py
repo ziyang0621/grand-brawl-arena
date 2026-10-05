@@ -631,3 +631,11 @@ bpy.ops.export_scene.gltf(filepath=str(OUTPUT),export_format='GLB',use_selection
     export_animations=True,export_animation_mode='ACTIONS',export_force_sampling=True,
     export_skins=True,export_all_influences=False,export_optimize_animation_size=True,export_yup=True)
 print('EXPORTED',OUTPUT)
+# ---- lite build for phones: the same model with every big texture halved (2048 -> 1024), about a quarter of the texture memory
+for img in bpy.data.images:
+    if img.type == 'IMAGE' and img.size[0] >= 2048 and img.name not in ('Render Result', 'Viewer Node'):
+        img.scale(1024, 1024)
+bpy.ops.export_scene.gltf(filepath=str(OUTPUT).replace('-animated.glb', '-animated-lite.glb'), export_format='GLB', use_selection=True, export_animations=True, export_animation_mode='ACTIONS',
+                          export_force_sampling=True, export_skins=True, export_all_influences=False, export_optimize_animation_size=True, export_yup=True)
+print('EXPORTED LITE')
+

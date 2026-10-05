@@ -71,4 +71,5 @@ blender -b --factory-startup --python tools/blender/animate_tripo_char.py -- bra
 - Per-character U profiles live in `arena-roster.js` (`heavy`), not in the clips: the clip only has to look like the move.
 - `render_tripo_portraits.py` renders the HUD/select-card busts (`models/portraits/`). Re-run it after changing a character's look.
 - `merge_weights` (spec) folds a helper bone's weights into a leg bone.
+- Each export also writes `*-animated-lite.glb` (textures >= 2048 px scaled to 1024) for phones; `serve.js` routes both.
 

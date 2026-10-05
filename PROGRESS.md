@@ -752,3 +752,13 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Gunner U 重型狙击 (speed 21, 15 dmg, force 8) and storm caller U 雷球 (slow bolt, 12 dmg, slows 1.4 s) are `heavy.projectile` shots with `melee:false`; the game plays the `shoot` clip for them (`driveGlb`), the shot spawns at the usual heavy hit frame.
 - Cook U reach 3.5 with a 7-unit lunge, so he travels while he spins (hit up to 3.6 in a measured sweep; limbs reach ~1.7 from the body, the rest is the lunge and the spin). J still stops at 2.1.
 
+## J strings, CPU range play, move sounds, hit feel, lite models
+- `CHARACTERS[id].jab` (dmg/force/cooldown/lunge per hit of the 3-hit string, `breakGuard` index, per-hit `slow`): brawler fastest, guardian slowest with a guard-breaking third hit,
+  cook lunges, gunner's third is a heavy point-blank shove, stormcaller's third shocks. Caveat: a slower guardian J (cd .34) and a lunging third hit made the desert CPU bounce on the ladder (ai-decks test), so it is .3/.3/.4 with no lunge.
+- CPU: `isKiter()` (gunner, storm caller: ranged heavy projectile) retreats from 4.2 and fires; everyone else pokes with U in the band between J reach (2.1) and the U's own range, and still uses move+J to close from 3.4+.
+  Because the kiters are unreliable under pressure (their windup is interrupted), balance is tuned by AI-vs-AI win rates (all six within 44-56% over 8 rounds x 3 stages; `/tmp/wr.mjs` pattern: every ordered pair, 8 matches). The shield throw breaks guard (`guardBreak` on the shot).
+- Sounds: new synthesised SFX per move (`slashWave`, `shieldThrow`, `shieldCatch`, `rubber`, `sniper`, `zap`, `whirl`) and a `jabSwing` per character; events carry `char`.
+- Hit feel: `hitFeel()` in the core gives the brawler's rocket punch a .13 s freeze, the cook .1, the gunner's round .1; `arena.js` adds matching shake, stars, rings and colour (event fields `kind`, `by`).
+- Phones: `models/tripo-<id>-animated-lite.glb` (textures halved to 1024) load on coarse-pointer touch devices or `?lite=1` (`?lite=0` forces full). The files are only 10-55% smaller (animations dominate the bytes) but GPU texture memory drops ~4x; pirate 8.9 -> 4.0 MB.
+  Not tested on a real phone or over a real online match: `lite` and every new shot/event field ride the existing 20 Hz snapshot (shots are plain objects in the world state).
+

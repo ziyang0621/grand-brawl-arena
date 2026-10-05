@@ -63,3 +63,7 @@ export function tripoExpression(s){
   if(!e.eyes&&s.blink)e.eyes='closed';
   return e;
 }
+
+// Phones and tablets (or ?lite=1) load the lite builds: the same models with halved textures. ?lite=0 forces the full ones.
+export const TRIPO_LITE=(()=>{try{const q=new URLSearchParams(location.search).get('lite');if(q!==null)return q!=='0';return (navigator.maxTouchPoints||0)>0&&matchMedia('(pointer:coarse)').matches;}catch{return false;}})();
+export const tripoUrl=cfg=>TRIPO_LITE?cfg.url.replace(/(-animated)?\.glb$/,'-animated-lite.glb'):cfg.url;

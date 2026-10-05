@@ -51,6 +51,24 @@ export function createAudio(){
     parry(d){osc('triangle',1400,1380,.25,.25,d);osc('square',2100,2050,.2,.1,d);hiss('highpass',5000,3000,.08,.3,d);osc('sine',900,600,.3,.15,d,T(),.03);},
     guardBreak(d){hiss('bandpass',2200,300,.25,.7,d,0,2);osc('sawtooth',260,60,.3,.3,d);osc('square',1500,200,.12,.15,d);},
     whoosh(d,o){const h=o.heavy?1.5:1;hiss('bandpass',500,2600*h,.14*h,.38,d,0,1.3);},
+    // Per-character move sounds: Red Sail's slash wave, the guardian's spinning shield, the brawler's rubber arm, the gunner's heavy round,
+    // the cook's whirlwind, the storm caller's thunder ball, and a swing sound for each character's J.
+    slashWave(d){hiss('bandpass',900,5200,.22,.5,d,0,2.4);osc('sawtooth',500,1700,.2,.14,d);osc('triangle',1800,2600,.18,.08,d,T(),.03);},
+    shieldThrow(d){hiss('bandpass',600,2400,.2,.3,d,0,3);for(let i=0;i<4;i++)osc('triangle',1500+i*60,1400+i*40,.1,.07,d,T(),i*.07);osc('sine',220,140,.2,.25,d);},
+    shieldCatch(d){osc('square',900,700,.09,.2,d);osc('triangle',1400,900,.12,.15,d);hiss('highpass',4000,2500,.05,.3,d);osc('sine',150,80,.1,.5,d);},
+    rubber(d){osc('sine',140,600,.18,.4,d);osc('triangle',300,1200,.12,.12,d,T(),.02);osc('sine',80,40,.22,.7,d,T(),.16);hiss('lowpass',1200,200,.15,.3,d,.15);},
+    sniper(d){hiss('highpass',3500,900,.08,.7,d);hiss('lowpass',2400,120,.28,.8,d);osc('sine',180,35,.3,.7,d);osc('sawtooth',900,200,.12,.15,d);},
+    zap(d){for(let i=0;i<5;i++)osc('sawtooth',1800-i*210+((i%2)*300),900,.06,.1,d,T(),i*.03);hiss('highpass',5000,2500,.15,.25,d);osc('sine',300,600,.14,.15,d);},
+    whirl(d){hiss('bandpass',300,1800,.45,.5,d,0,1.1);hiss('bandpass',1800,500,.35,.4,d,.2,1.1);osc('sine',200,420,.5,.1,d);},
+    jabSwing(d,o){
+      const k=o.char;
+      if(k==='brawler'){hiss('bandpass',700,1500,.08,.4,d,0,1.5);osc('sine',130,80,.07,.3,d);}
+      else if(k==='cook'){hiss('bandpass',1200,2800,.1,.35,d,0,2);osc('triangle',700,400,.07,.1,d);}
+      else if(k==='gunner'){hiss('bandpass',600,1200,.09,.3,d,0,1.4);osc('square',320,180,.06,.1,d);}
+      else if(k==='guardian'){hiss('bandpass',350,1800,.15,.45,d,0,1.3);osc('triangle',240,150,.1,.2,d);}
+      else if(k==='stormcaller'){hiss('bandpass',900,2400,.11,.3,d,0,2);osc('triangle',1500,2300,.1,.07,d);}
+      else hiss('bandpass',500,2600,.14,.38,d,0,1.3);
+    },
     jump(d){osc('square',260,540,.12,.1,d);osc('sine',180,320,.1,.12,d);},
     airJump(d){osc('triangle',520,980,.14,.12,d);hiss('highpass',3000,6000,.1,.12,d);},
     land(d,o){const v=Math.min(1,(o.power||.4));hiss('lowpass',700,90,.1+v*.1,.4*v+.15,d);osc('sine',90,40,.12,.5*v+.1,d);},

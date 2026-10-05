@@ -11,7 +11,7 @@ import {crewMate,poseCannonCrew,poseSnowCrew} from './arena-crew.js';
 import {freezeSkinnedGeometry} from './arena-tailoring.js';
 import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
 import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
-import {configureTripo,TRIPO_CHARS,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
+import {configureTripo,TRIPO_CHARS,tripoUrl,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -72,7 +72,7 @@ const TRIPO_PREVIEW=(()=>{const q=new URLSearchParams(location.search).get('trip
 if(TRIPO_PREVIEW)for(const id of Object.keys(TRIPO_CHARS))portraits[id]=`models/portraits/tripo-${id==='swordsman'?'pirate':id}.png`;
 const useGlb=(()=>{const q=new URLSearchParams(location.search).get('glb');if(q!==null)return q!=='0';try{return localStorage.getItem('gb-glb')!=='0';}catch{return true;}})();
 function attachGlb(m,charId){
-  const tripoCfg=TRIPO_PREVIEW?TRIPO_CHARS[charId]:null,tripo=Boolean(tripoCfg),url=tripo?tripoCfg.url:GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
+  const tripoCfg=TRIPO_PREVIEW?TRIPO_CHARS[charId]:null,tripo=Boolean(tripoCfg),url=tripo?tripoUrl(tripoCfg):GLB_CHARS[charId];if((!useGlb&&!tripo)||!url)return;
   loadGlbModel(url).then(model=>{
     if(m.root.parent===null||m.glb)return;
     const g=instantiate(model,{ink:tripo?.002:.022,preserveMaterials:tripo,inkSkip:n=>/^Tripo(Eyes|Blush|Brow|Mouth|Tear)/.test(n)}),st=STATURE[charId]||[1,1,1];g.root.scale.set(st[0]*GLB_SCALE,st[1]*GLB_SCALE,st[2]*GLB_SCALE);if(tripo)configureTripo(g,tripoCfg);m.body.add(g.root);m.tag.position.y=tripo?4.05:m.tag.position.y*(GLB_SCALE+.06);g.state='';g.t=0;g.blinkAt=2+Math.random()*3;g.blink=0;
@@ -362,8 +362,9 @@ function eventSound(e){
     case 'guard':P('block');break;
     case 'parry':P('parry');audio.dip(.5);break;
     case 'guardBreak':P('guardBreak');break;
-    case 'slash':P('whoosh',{heavy:['slam','heavy','upper'].includes(e.attackType)});break;
-    case 'heavy':case 'shieldBash':P('whoosh',{heavy:true});break;
+    case 'slash':if(e.attackType==='light'||e.attackType==='air')P('jabSwing',{char:e.char});else P('whoosh',{heavy:['slam','heavy','upper'].includes(e.attackType)});break;
+    case 'heavy':P(({swordsman:'slashWave',guardian:'shieldThrow',brawler:'rubber',gunner:'whoosh',cook:'whirl',stormcaller:'whoosh'})[e.char]||'whoosh',{heavy:true});break;
+    case 'shieldBash':P('whoosh',{heavy:true});break;
     case 'launch':P('launch');break;
     case 'spike':P('spike');break;
     case 'groundBounce':P('land',{power:.9});break;
@@ -371,8 +372,8 @@ function eventSound(e){
     case 'rockWarn':case 'hazardWarn':case 'waveWarning':P('warn',{k:1});break;
     case 'rockImpact':P('rock');break;
     case 'snowBurst':P('ice');break;
-    case 'shotFire':if(e.style==='slash'||e.style==='shield')P('whoosh',{heavy:true});else P('shot',{bolt:e.style==='bolt'});break;
-    case 'shieldCatch':P('hit',{level:0});particles(e,'#8fc7ff',8);break;
+    case 'shotFire':if(e.style==='slash')P('slashWave');else if(e.style==='shield')P('shieldThrow');else if(e.char==='gunner'||e.heavy)P('sniper');else P(e.style==='bolt'?'zap':'shot',{bolt:e.style==='bolt'});break;
+    case 'shieldCatch':P('shieldCatch');particles(e,'#8fc7ff',8);break;
     case 'shotHit':P('hit',{level:0});break;
     case 'grab':case 'lift':P('grab');break;
     case 'throwHit':P('hit',{level:2});break;
@@ -493,6 +494,15 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='skillCharge'){cutin(e);announce(e.id===localPlayerId?`${e.level}级必杀蓄力！`:'对手正在蓄力！可闪避或抢先打断');tone(620,.18,'triangle');if(e.level===3){focusOn(e.x,1.4,e.z,11,.7);}}
   if(e.type==='skillCancel'){announce('必杀被打断！');starBurst(e,1.3,'#bfe6ff');particles(e,'#fff0bd',8);tone(130,.15,'triangle');}
   if(e.type==='flank'){announce(e.id===localPlayerId?'侧后方受击！转身再防御':'绕过防御！');}
+  if(e.type==='hit'&&!e.guarded&&e.by){   // signature-move hit feel
+    if(e.kind==='heavy'&&e.by==='brawler'){shakeCam(.22);flash(.2);starBurst(e,2.6,'#ffd266');ringEffect(e,'#ff8a3c',3,.25);speedLines(.7,.3);}
+    else if(e.kind==='heavy'&&e.by==='cook'){shakeCam(.14);ringEffect(e,'#ffcf3a',3.2,.3);particles(e,'#ffcf3a',16);}
+    else if(e.kind==='heavy'&&e.by==='swordsman'){starBurst(e,1.9,'#fff4c0');ringEffect(e,'#ffae3c',2,.18);}
+    else if(e.kind==='shot'&&e.by==='swordsman'){particles(e,'#fff4c0',14);starBurst(e,1.5,'#ffd24a');}
+    else if(e.kind==='shot'&&e.by==='guardian'){ringEffect(e,'#8fc7ff',2.4,.22);particles(e,'#8fc7ff',10);}
+    else if(e.kind==='shot'&&e.by==='gunner'){shakeCam(.12);flash(.1);starBurst(e,2,'#ffe08a');particles(e,'#ff8a3c',12);}
+    else if(e.kind==='shot'&&e.by==='stormcaller'){particles(e,'#8fe0ff',16);starBurst(e,1.6,'#bff4ff');ringEffect(e,'#7fd0ff',2,.2);}
+  }
   if(e.type==='hit'){comboHit(e);if(e.damage>=18){shakeCam(.14);speedLines(.5,.3);focusOn(e.x,e.y,e.z,12.5,.22);}if(e.guarded)sfx(e,'铛!','#bfe6ff',.8);else sfx(e,e.damage>=18?pick(['轰!!','嘭嘭!!','砰!!!']):e.damage>=10?pick(['砰!!','嘭!','哐!']):pick(['啪!','咚!','砰!']),e.damage>=18?SFX_COLORS[2]:pick(SFX_COLORS.slice(0,2)),e.damage>=18?1.25:e.damage>=10?1:.8);starBurst(e,e.damage>=18?2.1:1.4);particles(e,'#ffe898',8);const tag=label(String(Math.round(e.damage)),e.damage>=18?'#ff6a3a':'#ffe14a',72);tag.position.set(e.x+.3,e.y+1,e.z);tag.scale.set(1.3,.5,1);scene.add(tag);effects.push({m:tag,life:.6,max:.6,v:new THREE.Vector3(0,2.2,0),sprite:true});tone(e.damage>=18?85:120,.1,'sawtooth');}
   if(e.type==='impact'){particles(e,e.kind==='bomb'?'#ff7048':e.force>=8?'#ffd266':'#fff0a6',e.force>=8?22:12);ringEffect(e,e.kind==='bomb'?'#ff7048':e.force>=8?'#ffd266':'#fff0a6',e.force>=8?2.2:1.5,.18);if(e.force>=10){flash(.18);shakeCam(.1);}}
   if(e.type==='slash'){
