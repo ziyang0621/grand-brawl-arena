@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,step,jump,STEP,EDGE,SWALLOW_TIME} from '../arena-core.js';
+import {createWorld,step,jump,STEP,EDGE,SWALLOW_TIME,makeCrates} from '../arena-core.js';
 import {STAGES} from '../arena-roster.js';
 
 const quiet=(stage,chars=['swordsman','brawler'])=>{const w=createWorld({stage,chars});w.online=true;w.remoteInput={x:0,z:0};w.crates=[];w.pieces=[];w.intro=0;w.nextCannonTick=w.nextWaveTick=w.nextMonsterTick=w.nextSupplyTick=1e9;return w;};
@@ -83,4 +83,27 @@ test('the crowd throws a supply crate now and then, one at a time, and it disapp
   assert.ok(sup&&w.crates.length===before+1,'a supply crate was thrown');
   const c=w.crates.find(c=>c.supply);for(let t=0;t<2;t+=STEP)step(w,{});assert.ok(!c.falling&&c.y<1,'it landed');
   c.hp=0;step(w,{});assert.ok(!w.crates.some(c=>c.supply),'a broken supply crate is gone for good');
+});
+
+import {heavy,grab,bomb,attack} from '../arena-core.js';
+test('stage items: the anchor is heavy to carry and hits hard, the sand bottle opens a pit that disappears, the snowball grows as it rolls',()=>{
+  // anchor (port)
+  const w=quiet('port');w.crates=makeCrates(STAGES.port).filter(c=>c.kind==='anchor');const [p,q]=w.fighters;const a=w.crates.find(c=>c.kind==='anchor');assert.ok(a,'the port has an anchor');
+  Object.assign(p,{x:a.x-1,z:a.z,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:a.x+5,z:a.z,fx:-1,fz:0});
+  for(let i=0;i<20;i++)step(w,{});
+  attack(w,p,{});for(let t=0;t<.6;t+=STEP)step(w,{});assert.ok(a.hp>5000,'melee cannot break an anchor');
+  grab(w,p,{});step(w,{});assert.equal(a.heldBy,p.id,'he lifted it');assert.ok(p.carryHeavy);
+  const x0=p.x;for(let t=0;t<.5;t+=STEP)step(w,{x:1,z:0});assert.ok(p.x-x0<2.2,`carrying it slows him (moved ${(p.x-x0).toFixed(2)})`);
+  Object.assign(q,{x:p.x+6,z:p.z});q.hp=100;const px=p.x;attack(w,p,{});for(let t=0;t<1.4;t+=STEP){step(w,{});q.x=px+6;}
+  assert.ok(q.hp<=100-24,`a thrown anchor hits for 26 (${q.hp})`);
+  // sand bottle (desert)
+  const d=quiet('desert');const [m,n]=d.fighters;Object.assign(n,{x:-12,z:-6});Object.assign(m,{x:-3,z:6,fx:1,fz:0});m.item='trap';
+  const pits=d.zones.length;bomb(d,m);for(let t=0;t<2&&d.zones.length===pits;t+=STEP)step(d,{});
+  const trap=d.zones.find(z=>z.trap);assert.ok(trap&&trap.kind==='quicksand','a trap pit opened');assert.equal(d.zones[0],trap,'on top of the other zones');
+  for(let t=0;t<7.2;t+=STEP)step(d,{});assert.ok(!d.zones.some(z=>z.trap),'it closed again after 7 seconds');
+  // snowball (snow)
+  const s=quiet('snow');const [u,v]=s.fighters;Object.assign(u,{x:-8,z:2,fx:1,fz:0});Object.assign(v,{x:6,z:2});u.item='rollball';
+  bomb(s,u);for(let t=0;t<.2;t+=STEP)step(s,{});const ball=s.cannonballs.find(c=>c.kind==='rollball');const early=ball.size;
+  let hurt=null;for(let t=0;t<3&&!hurt;t+=STEP){step(s,{});if(v.hp<100)hurt=100-v.hp;v.x=6;}
+  assert.ok(ball.size>early,'it grew while rolling');assert.ok(hurt>10,`a grown snowball hurts (${hurt})`);
 });

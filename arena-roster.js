@@ -37,6 +37,7 @@ export const STAGES={
     zones:[{kind:'spring',x:-7.5,z:5.6,r:.95},{kind:'spring',x:7.5,z:5.6,r:.95}],
     crates:[[-6,3],[6,3],[0,-2.4]],
     kegs:[[-2.8,4.4],[2.8,4.4]],
+    anchors:[[0,1.8]],
     topLoot:[{deck:'crows-nest',kind:'chest'},{deck:'cargo-left',kind:'barrel'}],
     pieces:[{kind:'mast',x:-10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5},{kind:'mast',x:10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5}]},
   desert:{look:'stone',edge:true,monster:'sandworm',name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴 · 喷火口',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
