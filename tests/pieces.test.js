@@ -7,7 +7,7 @@ const quiet=(stage='port',chars)=>{const w=createWorld({stage,...(chars?{chars}:
 
 test('every stage has set pieces clear of spawns, decks and terrain',()=>{
   for(const id of STAGE_IDS){
-    const w=createWorld({stage:id});assert.ok(w.pieces.length>=2,id);
+    const w=createWorld({stage:id});assert.ok(w.pieces.length>=1,id);
     for(const pc of w.pieces){
       for(const [x,z] of [[-3.4,2],[3.4,2],[-4.5,2.5],[4.5,2.5],[-4.5,-3],[4.5,-3]])assert.ok(Math.hypot(pc.x-x,pc.z-z)>pc.r+1,`${id} piece near spawn ${x},${z}`);
       for(const d of STAGES[id].platforms)assert.ok(Math.abs(pc.x-d.x)>d.w/2+pc.r||Math.abs(pc.z-d.z)>d.d/2+pc.r,`${id} piece inside ${d.id}`);

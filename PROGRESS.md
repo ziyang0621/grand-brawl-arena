@@ -807,3 +807,8 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Gotchas: `serve.js` has a file whitelist (a new module must be added or the page fails to load: the first capture run showed `__brawl is not defined`); JSON snapshots drop `undefined` keys so `initialZones` only sets `r0/w0/d0` when defined (the snapshot determinism tests compare the deep-equal).
 - Verified in the browser for all three stages: warning patch, new hole / pit, a monster striking, a fighter blown off the east edge. Not checked on a phone or online.
 
+## Decluttering
+- The stages felt crowded after the rework, so: one ground crate fewer on every stage (2 each), port 1 powder keg (was 2), one set piece fewer per stage (port 1 mast, desert 1 pillar, snow 1 ice column), the anchor moved off the centre to (-3.4, 4.6),
+  monsters every 22-35 s (was 12-18; first at 30 s) and crowd supplies every 45-65 s, and none while 3 or more loose crates are already on the floor.
+- Tests adapted: set pieces >= 1 per stage; the keg chain test adds its second keg itself.
+

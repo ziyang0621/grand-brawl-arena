@@ -42,7 +42,8 @@ test('the snow hot spring heals fighters and thaws the chill',()=>{
   assert.equal(zoneAt(STAGES.snow,z.x,z.z).kind,'hotspring');
 });
 test('powder kegs explode when broken, hurt people nearby and set off their neighbours',()=>{
-  const w=live('port');const kegs=w.crates.filter(c=>c.kind==='keg');assert.equal(kegs.length,2);
+  const w=live('port');let kegs=w.crates.filter(c=>c.kind==='keg');assert.equal(kegs.length,1,'one keg on the floor (the stage is deliberately uncluttered)');
+  w.crates.push({...kegs[0],id:99,home:{x:kegs[0].x+2,z:kegs[0].z},x:kegs[0].x+2});kegs=w.crates.filter(c=>c.kind==='keg');   // a second one, for the chain
   const [a,b]=kegs;b.x=a.x+2;b.z=a.z;
   w.crates.forEach(c=>{if(c.kind!=='keg')c.hp=0;});
   const p=w.fighters[0];Object.assign(p,{x:a.x-1,z:a.z,y:0,fx:1,fz:0});Object.assign(w.fighters[1],{x:-13,z:-6});

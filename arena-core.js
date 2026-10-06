@@ -19,7 +19,7 @@ function dynStage(w){const b=stageOf(w.stage);b._ladders??=laddersOf(b);const d=
 export const SWALLOW_TIME=2.1;
 export const EDGE={x:14.5,zFront:8.5,zBack:-8.5,fall:-3.4,damage:25};
 const outside=(x,z)=>Math.abs(x)>EDGE.x+.05||z>EDGE.zFront+.05;
-export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),zones:initialZones(options.stage||'classic'),monsters:[],nextMonster:0,nextMonsterTick:2400,nextSupply:0,nextSupplyTick:3300,stageStep:0,nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),zones:initialZones(options.stage||'classic'),monsters:[],nextMonster:0,nextMonsterTick:3600,nextSupply:0,nextSupplyTick:6000,stageStep:0,nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
 export const CANNON_WARN=1.5,SNOWBALL_WARN=1.6;
@@ -619,7 +619,7 @@ function settle(w,dt){
 function nextRound(w){
   w.roundNo++;w.time=w.roundTime;w.roundWinner=null;w.hitStop=0;
   w.fighters=w.fighters.map(p=>{const n=createFighter(p.id,p.id===0?-3.4:3.4,2,p.char);n.team=p.team;n.energy=Math.max(1,p.energy);n.aimAssist=p.aimAssist;return n;});
-  w.zones=initialZones(w.stage);w.chg={};w.monsters=[];w.stageStep=0;w.nextMonsterTick=w.tick+2400;w.nextSupplyTick=w.tick+3300;
+  w.zones=initialZones(w.stage);w.chg={};w.monsters=[];w.stageStep=0;w.nextMonsterTick=w.tick+3600;w.nextSupplyTick=w.tick+6000;
   w.bombs=[];w.shots=[];w.clouds=[];w.props=[];w.cannonballs=[];w.ventCycle={};w.ventWarned={};w.pickups=[];w.pieces=makePieces(stageOf(w.stage));
   for(const c of w.crates)if(c.heldBy!==null){c.heldBy=null;c.falling=true;c.dropSpeed=0;}
   Object.assign(w,{nextCannonTick:w.tick+900,nextWaveTick:w.tick+2400,waveWarning:0,waveTime:0,wavePending:false,intro:1.8});
@@ -696,7 +696,7 @@ function updateMonsters(w,dt){
       w.monsters.push({id:w.nextMonster++,kind,x,z,r:spec.r,phase:'warn',t:spec.warn,struck:false});
       emit(w,'monsterWarn',{kind,x,y:.14,z,r:spec.r,delay:spec.warn});
     }
-    w.nextMonsterTick=w.tick+Math.round((1450+Math.random()*900));
+    w.nextMonsterTick=w.tick+Math.round(2700+Math.random()*1500);
   }
   for(let i=w.monsters.length-1;i>=0;i--){
     const m=w.monsters[i];m.t-=dt;
@@ -712,7 +712,7 @@ function updateMonsters(w,dt){
 // ---- The crowd throws supplies: now and then a spectator tosses a chest (or a barrel) into the arena. One at a time. ----
 function updateSupply(w){
   if(w.training||w.ended||w.tick<w.nextSupplyTick)return;
-  if(w.crates.some(c=>c.supply&&c.hp>0)){w.nextSupplyTick=w.tick+600;return;}
+  if(w.crates.some(c=>c.supply&&c.hp>0)||w.crates.filter(c=>c.hp>0&&!c.home).length>=3){w.nextSupplyTick=w.tick+900;return;}   // not while the floor is already busy
   const stage=stageOf(w.stage),spots=[];
   for(let x=-11;x<=11;x+=2.2)for(let z=-5;z<=6;z+=2.2)if(!stage.platforms.some(d=>supported(x,z,d,.9))&&!zoneAt(dynStage(w),x,z)&&!w.crates.some(c=>c.hp>0&&distance(c,{x,z})<1.4))spots.push([x,z]);
   if(spots.length){
@@ -720,7 +720,7 @@ function updateSupply(w){
     w.crates.push({id,kind,x,z,y:9.2,hp:1,falling:true,dropSpeed:0,heldBy:null,respawnTick:0,supply:true,floor:.48});
     emit(w,'supply',{id,x,z,kind,side:x<0?-1:1});emit(w,'crateDrop',{id,x,z,kind});
   }
-  w.nextSupplyTick=w.tick+Math.round(2800+Math.random()*1000);
+  w.nextSupplyTick=w.tick+Math.round(5400+Math.random()*2400);
 }
 function updateStageHazards(w,dt){
   for(let i=w.zones.length-1;i>=0;i--){const z=w.zones[i];if(z.life!==undefined){z.life-=dt;if(z.life<=0){w.zones.splice(i,1);emit(w,'zoneGone',{id:z.id});}}}
