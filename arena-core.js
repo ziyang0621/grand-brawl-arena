@@ -679,7 +679,7 @@ function applyStageChange(w,c,i){
   }else if(c.op==='growKind'){
     for(const z of w.zones)if(z.kind===c.kind&&z.r!==undefined)z.r=Math.min(z.r*c.factor,4.4);
   }
-  emit(w,'stageChange',{index:i,op:c.op,id:c.id,text:c.text});
+  emit(w,'stageChange',{index:i,op:c.op,id:c.id,text:c.text,kind:c.kind||c.zone?.kind||'water',x:c.zone?.x,z:c.zone?.z,w:c.zone?.w,d:c.zone?.d,r:c.zone?.r});
 }
 // ---- Stage monsters: every 12-18 s something big takes a swing at the floor. A marked circle, a 1.6 s warning, then a slam that damages and launches everyone in it
 // (sideways, so near the edge it is a ring-out), then the monster lingers briefly and withdraws. Port: a sea-monster tentacle. Desert: a sandworm out of a quicksand pit.

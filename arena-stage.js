@@ -244,17 +244,37 @@ function buildVents(g,layout){
     }
   };
 }
+// A quicksand pit: a rim, a darker bed, swirling arcs and an eye. Built for the stage's pits and for pits that appear during a match (a thrown trap, a new sinkhole).
+function makePit(g,z,anim){
+  const pit=new THREE.Group();pit.position.set(z.x,.1,z.z);g.add(pit);
+  const rim=cylinder(z.r,z.r,.04,'#c98c45',pit,0,0,0,32);rim.userData.noInk=true;rim.castShadow=false;
+  const bed=cylinder(z.r*.8,z.r*.8,.05,'#a4692d',pit,0,.006,0,32);bed.userData.noInk=true;bed.castShadow=false;
+  const swirl=new THREE.Group();pit.add(swirl);
+  for(let i=0;i<3;i++){const arc=new THREE.Mesh(new THREE.TorusGeometry(z.r*(.28+i*.2),.035,6,40,Math.PI*1.3),new THREE.MeshBasicMaterial({color:'#8a5a28'}));arc.rotation.x=-Math.PI/2;arc.rotation.z=i*2.1;arc.position.y=.04;swirl.add(arc);}
+  const eye=cylinder(z.r*.18,z.r*.18,.06,'#7a4c1f',pit,0,.01,0,20);eye.userData.noInk=true;
+  anim.push(time=>{swirl.rotation.y=-time*.9;});
+  return pit;
+}
+// A hole through the floor into the sea (a deck blown open, an ice sheet cracked): water, a foam rim and a few broken boards or ice shards around it.
+function makeHole(g,z,theme,anim){
+  const grp=new THREE.Group();grp.position.set(z.x,.13,z.z);g.add(grp);
+  const w=z.w,d=z.d;
+  const rim=box(w+.5,.05,d+.5,theme.plankAlt||'#c29258',grp,0,-.02,0);rim.userData.noInk=true;rim.castShadow=false;
+  const water=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshBasicMaterial({color:theme.water}));water.rotation.x=-Math.PI/2;water.position.y=.03;water.userData.noInk=true;grp.add(water);
+  const deep=new THREE.Mesh(new THREE.PlaneGeometry(w*.7,d*.7),new THREE.MeshBasicMaterial({color:'#1b6f9e',transparent:true,opacity:.65}));deep.rotation.x=-Math.PI/2;deep.position.y=.04;deep.userData.noInk=true;grp.add(deep);
+  const foam=new THREE.Mesh(new THREE.PlaneGeometry(w*.9,d*.9),new THREE.MeshBasicMaterial({color:theme.foam,transparent:true,opacity:.4,depthWrite:false}));foam.rotation.x=-Math.PI/2;foam.position.y=.05;foam.userData.noInk=true;grp.add(foam);
+  for(let i=0;i<14;i++){
+    const side=i%4,t=(i*.37)%1,px=side<2?(t-.5)*w:(side===2?-1:1)*(w/2+.15),pz=side<2?(side===0?-1:1)*(d/2+.15):(t-.5)*d;
+    const plank=box(.55+(i%3)*.2,.07,.16,theme.plank,grp,px,.08,pz);plank.rotation.y=i*1.3;plank.rotation.z=(i%3-1)*.35;plank.userData.noInk=true;
+  }
+  anim.push(time=>{foam.material.opacity=.3+.15*Math.sin(time*2.3+z.x);deep.scale.setScalar(1+.04*Math.sin(time*1.7));});
+  return grp;
+}
 function terrain(g,layout,anim){
-  const springs=[];
-  for(const z of layout.zones){
+  const springs=[],pits=new Map();
+  for(const [zi,z] of layout.zones.entries()){
     if(z.kind==='quicksand'){
-      const pit=new THREE.Group();pit.position.set(z.x,.1,z.z);g.add(pit);
-      const rim=cylinder(z.r,z.r,.04,'#c98c45',pit,0,0,0,32);rim.userData.noInk=true;rim.castShadow=false;
-      const bed=cylinder(z.r*.8,z.r*.8,.05,'#a4692d',pit,0,.006,0,32);bed.userData.noInk=true;bed.castShadow=false;
-      const swirl=new THREE.Group();pit.add(swirl);
-      for(let i=0;i<3;i++){const arc=new THREE.Mesh(new THREE.TorusGeometry(z.r*(.28+i*.2),.035,6,40,Math.PI*1.3),new THREE.MeshBasicMaterial({color:'#8a5a28'}));arc.rotation.x=-Math.PI/2;arc.rotation.z=i*2.1;arc.position.y=.04;swirl.add(arc);}
-      const eye=cylinder(z.r*.18,z.r*.18,.06,'#7a4c1f',pit,0,.01,0,20);eye.userData.noInk=true;
-      anim.push(time=>{swirl.rotation.y=-time*.9;});
+      pits.set('z'+zi,{pit:makePit(g,z,anim),r0:z.r});
     }else if(z.kind==='ice'){
       const sheet=box(z.w,.05,z.d,'#b4e4ff',g,z.x,.1,z.z);sheet.userData.noInk=true;sheet.castShadow=false;
       const edge=box(z.w+.14,.03,z.d+.14,'#f4fbff',g,z.x,.085,z.z);edge.userData.noInk=true;edge.castShadow=false;
@@ -277,7 +297,7 @@ function terrain(g,layout,anim){
     }
   }
   anim.push((time,dt)=>springs.forEach(s=>{s.squash=Math.max(0,s.squash-dt*3);s.bed.position.y=.4-Math.sin(s.squash*Math.PI)*.25;}));
-  return springs;
+  return {springs,pits};
 }
 
 const DRESSING={
@@ -336,12 +356,32 @@ export function buildStage(stageId){
   const clouds=[];for(let i=0;i<9;i++)clouds.push(puffCloud(g,-60+i*15,14+(i%3)*4,-55-(i%2)*10,1.2+(i%3)*.5));
   anim.push((time,dt)=>clouds.forEach((c,i)=>{c.position.x+=dt*(.4+(i%3)*.15);if(c.position.x>70)c.position.x=-70;}));
   arenaFloor(g,t,layout,anim);
-  const springs=terrain(g,layout,anim);
+  const {springs,pits}=terrain(g,layout,anim);
+  const dynZones=new Map();   // zones that appear during a match (holes, trap pits, new pits), by id
   (DRESSING[stageId]||DRESSING.port)(g,t,anim);
   const crowd=addCrowd(g,stageId,anim);
   const ventFx=buildVents(g,layout);
   ink(g,.07,'#1a1d24',.25);
-  return {group:g,theme:t,ventFx,crowd,update(time,dt){for(const f of anim)f(time,dt);},bounce(x,z){const s=springs.find(s=>Math.hypot(s.x-x,s.z-z)<1.6);if(s)s.squash=1;}};
+  // Keep the meshes in step with the world's live zones: pits grow with their radius, new holes and pits appear, expired ones go away.
+  function syncZones(zones){
+    const live=new Set();
+    for(const z of zones||[]){
+      live.add(z.id);
+      const base=pits.get(z.id);
+      if(base){base.pit.scale.setScalar(z.r/base.r0);continue;}
+      let d=dynZones.get(z.id);
+      if(!d){
+        const grp=z.kind==='water'?makeHole(g,z,t,anim):z.kind==='quicksand'?makePit(g,z,anim):null;
+        if(!grp)continue;
+        d={grp,r0:z.r,w0:z.w,d0:z.d};dynZones.set(z.id,d);ink(grp,.05,'#1a1d24',.25);d.born=performance.now();
+      }
+      const pop=Math.min(1,(performance.now()-d.born)/350),e=1-Math.pow(1-pop,3);
+      if(z.kind==='water'){d.grp.scale.set(z.w/d.w0*e,1,z.d/d.d0*e);}
+      else d.grp.scale.setScalar(z.r/(d.r0||z.r)*e);
+    }
+    for(const [id,d] of dynZones)if(!live.has(id)){g.remove(d.grp);d.grp.traverse(o=>{if(o.isMesh){if(!o.userData.ink)o.geometry.dispose();}});dynZones.delete(id);}
+  }
+  return {group:g,theme:t,ventFx,crowd,syncZones,update(time,dt){for(const f of anim)f(time,dt);},bounce(x,z){const s=springs.find(s=>Math.hypot(s.x-x,s.z-z)<1.6);if(s)s.squash=1;}};
 }
 export function disposeStage(stage){
   stage.group.parent?.remove(stage.group);

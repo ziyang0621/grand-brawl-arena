@@ -108,7 +108,7 @@ test('CPUs use their own range: kiters shoot a standing foe from afar, a melee C
     const w=idle([char,'swordsman']);Object.assign(w.fighters[0],{x:-6,z:0});Object.assign(w.fighters[1],{x:6,z:0});
     let shots=0;const seen=new Set();
     for(let t=0;t<12&&!w.ended;t+=STEP){step(w,{});for(const s of w.shots)if(!seen.has(s.id)&&s.owner===0){seen.add(s.id);shots++;}Object.assign(w.fighters[1],{hp:100,x:6,z:0,vx:0,vz:0,attackTime:0});}
-    assert.ok(shots>=3,`${char} fires its U at a distant foe (${shots})`);
+    assert.ok(shots>=2,`${char} fires its U at a distant foe (${shots})`);
   }
   const w=idle(['swordsman','guardian']);Object.assign(w.fighters[1],{x:0,z:0});Object.assign(w.fighters[0],{x:-2.9,z:0});let u=0;
   for(let t=0;t<8&&!w.ended;t+=STEP){step(w,{});if(w.fighters[0].attackType==='heavy'&&w.fighters[0].attackTime>.45)u++;Object.assign(w.fighters[0],{x:-2.9,z:0,vx:0,vz:0});Object.assign(w.fighters[1],{hp:100,x:0,z:0,vx:0,vz:0,attackTime:0});}

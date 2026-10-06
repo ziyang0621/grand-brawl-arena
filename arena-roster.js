@@ -27,7 +27,7 @@ export const STAGES={
   // Each stage is its own structure: a ship's deck with a raised stern, a stepped desert ziggurat, a lopsided snow hill.
   port:{look:'ship',edge:true,monster:'tentacle',name:'风车港',sub:'船尾高台 · 炮击 · 巨浪 · 火药桶',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
     changes:[
-      {at:38,warn:3,op:'hole',id:'hole-a',zone:{x:0,z:3.6,w:4.6,d:2.8},text:'甲板被炮弹击穿！掉进海里要扣血'},
+      {at:38,warn:3,op:'hole',id:'hole-a',zone:{x:0,z:2.8,w:4.6,d:2.8},text:'甲板被炮弹击穿！掉进海里要扣血'},
       {at:70,warn:3,op:'grow',id:'hole-a',zone:{w:8.4,d:3.6},text:'破洞在扩大！'}],
     platforms:[
       {id:'quarterdeck',x:0,z:-6.2,w:24,d:3.2,top:1.5,style:'ship',ladders:[{side:'front',at:-8},{side:'front',at:8}]},
@@ -58,8 +58,8 @@ export const STAGES={
     pieces:[{kind:'pillar',x:-3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5},{kind:'pillar',x:3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5}]},
   snow:{look:'snow',edge:true,monster:'yeti',name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩 · 温泉',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
     changes:[
-      {at:34,warn:3,op:'hole',id:'crack-a',zone:{x:-1.9,z:4.9,w:2.6,d:2.2},text:'冰面裂开了！掉进冰窟窿要扣血'},
-      {at:60,warn:3,op:'hole',id:'crack-b',zone:{x:3.6,z:4.4,w:2.6,d:2.4},text:'冰面又裂开一处！'},
+      {at:34,warn:3,op:'hole',id:'crack-a',zone:{x:-1.9,z:4.1,w:2.6,d:2.2},text:'冰面裂开了！掉进冰窟窿要扣血'},
+      {at:60,warn:3,op:'hole',id:'crack-b',zone:{x:3.6,z:3.7,w:2.6,d:2.4},text:'冰面又裂开一处！'},
       {at:82,warn:3,op:'grow',id:'crack-a',zone:{w:5.6,d:3.2},text:'裂口在扩大！'}],
     platforms:[
       {id:'snow-hill',x:-9.5,z:-3.6,w:7,d:5,top:2.8,style:'hill',ladder:'front',ladderAt:-1.5},

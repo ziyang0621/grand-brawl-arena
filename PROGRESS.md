@@ -795,3 +795,15 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
   `heavy.projectile.fan` is generic: any projectile can be fired as a fan. AI-vs-AI cook win rate stayed at 49%.
 - `tests/arena.test.js` 'AI approaches and can damage the player' failed once in a full run and not in 4 reruns: it uses unseeded randomness.
 
+## Stage rework: open edges, changing stages, monsters, crowd supplies, stage items
+- **Open edges** (`stage.edge`, the three real stages; `classic` keeps its walls so the old tests are unchanged): the ends and the front of the arena have no wall, only the back wall bounces. A fighter who is knocked, thrown or already over the lip can leave the floor; walking and jumping stop at it
+  (`exposed` in `stepFighter`). Beyond the lip there is no floor; at y < -3.4 he has fallen: `ringOut()` takes 25 health and puts him back at his spawn with 1.8 s invulnerability (a fighter who was already down is quietly put back). One emergency hop (`jump()` while knocked and over the edge, once per fall) can save him.
+- **Dynamic zones**: `w.zones` is world state (a copy of the stage's, ids `z0..`), seen through `dynStage(w)`, so the stage can change and the guest just renders them. New kind `water` (a hole: ground contact = ring-out), quicksand swallows after `SWALLOW_TIME` 2.1 s (`p.sinkTime`).
+- **Stage changes** (`STAGES[id].changes`, run by the round clock, off in training): port 38 s a deck hole (warned 3 s earlier) that widens at 70 s; desert quicksand grows at 28 s and 72 s and a new pit opens at 50 s; snow two ice cracks at 34 s and 60 s that widen at 82 s. Whatever stood in a new hole falls (crates are removed, pickups too).
+- **Monsters** (`updateMonsters`, `stage.monster`): every 12-18 s a tentacle (port), sandworm (desert, from the nearest pit) or yeti fist (snow) marks a circle (1.6-1.7 s), slams (15-16 damage, force 10-12 outward) and withdraws. `arena-monsters.js` renders them; the circle pulses during the warning. One at a time, none in training.
+- **Crowd supply** (`updateSupply`): about every 25-35 s a chest or barrel (55/45) drops into an open spot, one at a time, and disappears for good once broken.
+- **Stage items**: the port anchor (`stage.anchors`, a crate kind with 9999 hp: only carried (speed 3.2) and thrown: 26 damage, force 14, a landing shockwave), desert barrels and chests also drop the sand bottle (`trap`: a 7 s quicksand pit where it lands on the ground, at most three), snow drops the snowball (`rollball`: grows from .5 to 1.7 as it rolls, 7 + 9 x size damage).
+  The AI does not try to break anchors, climbs out of quicksand after .8 s (and hops after 1.1 s), and steers around water holes.
+- Gotchas: `serve.js` has a file whitelist (a new module must be added or the page fails to load: the first capture run showed `__brawl is not defined`); JSON snapshots drop `undefined` keys so `initialZones` only sets `r0/w0/d0` when defined (the snapshot determinism tests compare the deep-equal).
+- Verified in the browser for all three stages: warning patch, new hole / pit, a monster striking, a fighter blown off the east edge. Not checked on a phone or online.
+
