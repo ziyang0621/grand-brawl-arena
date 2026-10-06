@@ -12,7 +12,14 @@ const DUEL_SPAWNS=[[-3.4,2],[3.4,2]],BRAWL_SPAWNS=[[-4.5,2.5],[4.5,2.5],[-4.5,-3
 const CRATE_SPAWNS=[[-11,-6],[-7,-4],[-2,3],[4,-4],[8,4],[11,-6],[0,5],[-4,-6]];
 export function supported(x,z,p,r=0){return Math.abs(x-p.x)<=p.w/2+r&&Math.abs(z-p.z)<=p.d/2+r;}
 export function createFighter(id,x,z,char=DEFAULT_CHARS[id===1?1:0]){return {id,team:id,char:CHARACTERS[char]?char:DEFAULT_CHARS[id===1?1:0],x,y:0,z,spawnX:x,spawnZ:z,vx:0,vy:0,vz:0,respawnTimer:0,lives:1,climbing:false,vulnTime:0,fx:x<=0?1:-1,fz:0,hp:100,grounded:true,jumps:0,jumpBuffer:0,coyote:0,attackTime:0,attackCD:0,attackType:'light',combo:0,comboWindow:0,comboQueued:false,comboInput:null,hitDone:false,landTime:0,skillTime:0,skillLevel:1,skillCD:0,energy:1,energyMax:3,bombCD:0,dodgeCD:0,dodgeTime:0,stun:0,invuln:0,hurtTime:0,hurtKind:'melee',burnTime:0,virusTime:0,blocking:false,guardPrev:false,parryWindow:0,knocked:0,grabbed:0,grabbedBy:null,grabbedTarget:null,grabEscape:0,grabThrow:'forward',grabHoldTime:0,carrying:null,item:null,weapon:null,attackBoost:1,attackBoostTime:0,poisonTime:0,poisonTick:0,slowTime:0,walk:0,support:'ground'};}
-export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+// Terrain zones are world state (a copy of the stage's), so the stage can change during a match: holes open, quicksand spreads, thrown traps appear.
+const initialZones=id=>stageOf(id).zones.map((z,i)=>{const o={...z,id:z.id??'z'+i};if(z.r!==undefined)o.r0=z.r;if(z.w!==undefined){o.w0=z.w;o.d0=z.d;}return o;});
+// The stage as the simulation sees it right now: the static decks and rules plus this world's live zones.
+function dynStage(w){const b=stageOf(w.stage);b._ladders??=laddersOf(b);const d=Object.create(b);d.zones=w.zones||b.zones;return d;}
+export const SWALLOW_TIME=2.1;
+export const EDGE={x:14.5,zFront:8.5,zBack:-8.5,fall:-3.4,damage:25};
+const outside=(x,z)=>Math.abs(x)>EDGE.x+.05||z>EDGE.zFront+.05;
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),zones:initialZones(options.stage||'classic'),monsters:[],nextMonster:0,nextMonsterTick:2400,nextSupplyTick:3300,stageStep:0,nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
 export const CANNON_WARN=1.5,SNOWBALL_WARN=1.6;
@@ -86,6 +93,10 @@ export function predictBomb(w,b){
 }
 export function jump(p,input={}){
   if(p.hp<=0||p.grabbedBy!==null||p.grabbedTarget!==null||p.carrying||p.skillTime>0)return;
+  if(p.knocked>0&&!p.grounded&&!p.edgeSave&&p.hp>0&&p.y>-2.6&&(Math.abs(p.x)>EDGE.x||p.z>EDGE.zFront)){
+    // Over the edge but not yet gone: one emergency hop back toward the floor.
+    p.edgeSave=true;p.vy=11.5;p.vx=Math.abs(p.x)>EDGE.x?-Math.sign(p.x)*7:p.vx;p.vz=p.z>EDGE.zFront?-7:p.vz;p.knocked=Math.max(p.knocked,.5);p.edgeSaved=(p.edgeSaved||0)+1;return;
+  }
   if(p.knocked>0){
     if(!p.grounded&&p.vy<0&&p.poisonTime<=0&&p.virusTime<=0&&p.slowTime<=0){
       const x=Number.isFinite(input.x)?input.x:0,z=Number.isFinite(input.z)?input.z:0,len=Math.hypot(x,z);
@@ -376,6 +387,7 @@ function ai(w,p,q){
   const hazards=[...w.clouds.filter(c=>c.life>0&&Math.abs(p.y+1-c.y)<2.8),
     ...w.bombs.filter(b=>b.kind==='bomb'&&b.life<.65&&Math.abs(p.y+1-b.y)<2.8).map(b=>({...b,radius:3})),
     ...w.cannonballs.filter(c=>c.kind==='rock').map(c=>({x:c.x,z:c.z,radius:1.8})),
+    ...(w.zones||[]).filter(z=>z.kind==='water').map(z=>({x:z.x,z:z.z,radius:Math.max(z.w||0,z.d||0)/2*.8+.4,y:0,life:1})),
     ...(stageOf(w.stage).vents||[]).filter(v=>ventState(v,w.tick).phase!=='idle'&&p.y<1.4).map(v=>({x:v.x,z:v.z,radius:v.r})),
     ...w.pieces.filter(pc=>pc.state==='falling').flatMap(pc=>pc.fall==='burst'?[{x:pc.x,z:pc.z,radius:pc.length}]:[.25,.55,.85].map(k=>({x:pc.x+pc.dir.x*pc.length*k,z:pc.z+pc.dir.z*pc.length*k,radius:1.9})))];
   const danger=hazards.some(h=>distance(p,h)<h.radius+.6);
@@ -396,8 +408,8 @@ function ai(w,p,q){
     }
   }
   // Wade out of quicksand unless the opponent is already in reach.
-  const sand=p.terrain==='quicksand'?zoneAt(stageOf(w.stage),p.x,p.z):null;
-  if(sand&&d>2.4){const dx=p.x-sand.x,dz=p.z-sand.z,l=Math.hypot(dx,dz)||1;return {x:dx/l,z:dz/l};}
+  const sand=p.terrain==='quicksand'?zoneAt(dynStage(w),p.x,p.z):null;
+  if(sand&&(d>2.4||p.sinkTime>.8)){if(p.sinkTime>1.1&&p.grounded&&due(w,p,30))jump(p);const dx=p.x-sand.x,dz=p.z-sand.z,l=Math.hypot(dx,dz)||1;return {x:dx/l,z:dz/l};}
   const stageDef=stageOf(w.stage);
   // Stage knowledge a human would use. Hot spring: retreat there to heal when hurt and nobody is on top of us.
   const spa=stageDef.zones.find(z=>z.kind==='hotspring');
@@ -497,8 +509,13 @@ function ai(w,p,q){
   const move=d>1.8?1:d<1.3?-.5:0;return {x:p.fx*move,z:p.fz*move};
 }
 export function stepFighter(p,input,dt,stage=STAGES.classic){
+  const open=Boolean(stage.edge);   // the stage has open edges (a fall is possible)
   // Terrain only applies on the ground floor: quicksand slows and drags, ice speeds up and slides.
   const zone=p.y<.05&&p.support==='ground'?zoneAt(stage,p.x,p.z):null,terrain=zone?.kind||null;p.terrain=terrain;
+  if(terrain==='water'&&p.hp>0&&!p.fell&&p.support==='ground')p.fell='water';
+  p.sinkTime=terrain==='quicksand'&&p.hp>0?(p.sinkTime||0)+dt:Math.max(0,(p.sinkTime||0)-dt*2);
+  if(p.sinkTime>SWALLOW_TIME&&!p.fell)p.fell='sand';
+  if(open&&p.y<EDGE.fall&&!p.fell)p.fell='edge';
   const tp=characterOf(p).terrain||{};   // each character copes with the stage terrain differently (see CHARACTERS[id].terrain)
   if(terrain==='hotspring'&&p.hp>0){p.hp=Math.min(100,p.hp+dt*3.5*(tp.spring??1));p.slowTime=Math.max(0,(p.slowTime||0)-dt*3);}
   p.sink=terrain==='quicksand'?Math.min(1,(p.sink||0)+dt*.8):Math.max(0,(p.sink||0)-dt*3);
@@ -529,14 +546,19 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
   // Airborne knockback must survive until landing, rather than becoming walking friction.
   if(p.knocked>0){const drag=Math.exp(-(p.grounded?(terrain==='ice'?1.1:5):1.2)*dt);p.vx*=drag;p.vz*=drag;}
   p.wallImpact=null;
+  // Open edges (sea, sand, ice): the two ends and the front of the arena have no wall, so a hard enough knock sends a fighter over; only the back wall bounces.
   if(p.knocked>0&&Math.hypot(p.vx,p.vz)>4){
     let bounced=false;
-    if(Math.abs(p.x+p.vx*dt)>14.5){p.vx*=-.55;bounced=true;}
-    if(Math.abs(p.z+p.vz*dt)>8.5){p.vz*=-.55;bounced=true;}
+    if(!open&&Math.abs(p.x+p.vx*dt)>14.5){p.vx*=-.55;bounced=true;}
+    if(open?p.z+p.vz*dt<EDGE.zBack:Math.abs(p.z+p.vz*dt)>8.5){p.vz*=-.55;bounced=true;}
     if(bounced){p.wallImpact={x:p.x,y:p.y+1,z:p.z};p.vy=Math.max(p.vy,3);}
   }
   const prevX=p.x,prevZ=p.z;
-  p.x=clamp(p.x+p.vx*dt,-14.5,14.5);p.z=clamp(p.z+p.vz*dt,-8.5,8.5);
+  if(open){
+    // Only a fighter who is being knocked, thrown or already over the edge may leave the floor; walking and jumping stop at a lip.
+    const exposed=p.knocked>0||p.thrownTime>0||outside(prevX,prevZ);
+    p.x=clamp(p.x+p.vx*dt,exposed?-26:-EDGE.x,exposed?26:EDGE.x);p.z=clamp(p.z+p.vz*dt,EDGE.zBack,exposed?18:EDGE.zFront);
+  }else{p.x=clamp(p.x+p.vx*dt,-14.5,14.5);p.z=clamp(p.z+p.vz*dt,-8.5,8.5);}
   // Decks are solid below their top: a fighter cannot walk or jump up through the side of one. Next to a deck, within reach of its top and pressing
   // toward it, he grabs the ledge and pulls himself up (the mantle); the ladder is the other way up.
   for(const deck of stage.platforms){
@@ -570,9 +592,9 @@ export function stepFighter(p,input,dt,stage=STAGES.classic){
     p.x+=(ladder.x-p.x)*Math.min(1,18*dt);p.z+=(ladder.z-p.z)*Math.min(1,12*dt);p.y=clamp(p.y+(climbUp?3.8:-3.8)*dt,0,ladder.top);p.vx=0;p.vz=0;p.vy=0;p.grounded=p.y<=.001||p.y>=ladder.top-.001;p.support=p.y>=ladder.top-.001?'ladder-top':'ladder';if(p.y>=ladder.top-.001){p.y=ladder.top;p.support='ladder-top';}return;}
   p.vy-=GRAVITY*dt;p.y+=p.vy*dt;p.grounded=false;p.support=null;
   if(p.vy<=0){
-    let top=0,id='ground';
+    let top=open&&outside(p.x,p.z)&&!(Math.abs(p.x)<=EDGE.x+.28&&p.z<=EDGE.zFront+.28)?-99:0,id='ground';   // no floor beyond the edge lip
     for(const deck of stage.platforms)if(supported(p.x,p.z,deck,.28)&&oldY>=deck.top-.45&&p.y<=deck.top&&deck.top>top){top=deck.top;id=deck.id;}
-    if(p.y<=top){p.y=top;p.landVy=p.vy;p.vy=0;p.grounded=true;p.jumps=0;p.airCombo=0;p.support=id;if(oldY>top+.12)p.landTime=.2;
+    if(p.y<=top){p.edgeSave=false;p.y=top;p.landVy=p.vy;p.vy=0;p.grounded=true;p.jumps=0;p.airCombo=0;p.support=id;if(oldY>top+.12)p.landTime=.2;
       // Springboard nets throw anyone who touches them back into the air.
       if(id==='ground'&&p.grabbedBy===null&&zoneAt(stage,p.x,p.z)?.kind==='spring'){p.vy=17;p.grounded=false;p.support=null;p.jumps=1;p.sprung=true;}}
   }
@@ -582,12 +604,13 @@ function settle(w,dt){
   for(const p of w.fighters){
     for(const key of ['hurtTime','attackTime','skillTime','throwTime','thrownTime','recoveryTime'])p[key]=Math.max(0,(p[key]||0)-dt);
     p.blocking=false;p.knocked=p.hp<=0?Math.max(p.knocked,.5):Math.max(0,p.knocked-dt);
-    stepFighter(p,{x:0,z:0},dt,stageOf(w.stage));
+    stepFighter(p,{x:0,z:0},dt,dynStage(w));
   }
 }
 function nextRound(w){
   w.roundNo++;w.time=w.roundTime;w.roundWinner=null;w.hitStop=0;
   w.fighters=w.fighters.map(p=>{const n=createFighter(p.id,p.id===0?-3.4:3.4,2,p.char);n.team=p.team;n.energy=Math.max(1,p.energy);n.aimAssist=p.aimAssist;return n;});
+  w.zones=initialZones(w.stage);w.monsters=[];w.stageStep=0;w.nextMonsterTick=w.tick+2400;w.nextSupplyTick=w.tick+3300;
   w.bombs=[];w.shots=[];w.clouds=[];w.props=[];w.cannonballs=[];w.ventCycle={};w.ventWarned={};w.pickups=[];w.pieces=makePieces(stageOf(w.stage));
   for(const c of w.crates)if(c.heldBy!==null){c.heldBy=null;c.falling=true;c.dropSpeed=0;}
   Object.assign(w,{nextCannonTick:w.tick+900,nextWaveTick:w.tick+2400,waveWarning:0,waveTime:0,wavePending:false,intro:1.8});
@@ -674,6 +697,20 @@ function updateStageHazards(w,dt){
     for(const p of w.fighters)if(p.hp>0&&p.grabbedBy===null&&(wave==='sandstorm'||p.y<.7)){p.vx+=w.waveDir*push*dt;p.x=clamp(p.x+(wave==='sandstorm'?w.waveDir*1.2*dt:0),-14.5,14.5);}
   }
 }
+// A fighter who fell (off the edge, into a water hole, swallowed by quicksand) loses health and, if still alive, comes back at his spawn point.
+function ringOut(w,p){
+  const kind=p.fell;p.fell=null;
+  if(p.respawnTimer>0)return;
+  if(p.hp<=0){   // an already-down fighter washed over the edge is just put back on the floor, quietly
+    const sx=zoneAt(dynStage(w),p.spawnX,p.spawnZ)?.kind==='water'?0:p.spawnX;Object.assign(p,{x:sx,y:0,z:p.spawnZ,vx:0,vy:0,vz:0,grounded:true,support:'ground',knocked:1});return;
+  }
+  emit(w,'ringOut',{id:p.id,kind,x:clamp(p.x,-15.5,15.5),y:kind==='edge'?-1.4:.1,z:clamp(p.z,-9,10)});
+  p.hp=Math.max(0,p.hp-EDGE.damage);
+  dropHeld(w,p);cancelRecovery(p);cancelSkill(w,p);
+  let sx=p.spawnX,sz=p.spawnZ;
+  if(zoneAt(dynStage(w),sx,sz)?.kind==='water'){sx=0;sz=1.5;}
+  Object.assign(p,{x:sx,y:0,z:sz,vx:0,vy:0,vz:0,grounded:true,support:'ground',knocked:p.hp<=0?1:0,stun:.45,invuln:p.hp<=0?0:1.8,hurtTime:0,dodgeTime:0,attackTime:0,sinkTime:0,sink:0,mantle:null,climbing:false,edgeSave:false,juggle:0});
+}
 export function step(w,input={},dt=STEP){
   if(w.ended)return;
   if(w.hitStop>0){w.hitStop=Math.max(0,w.hitStop-dt);return;}
@@ -704,9 +741,9 @@ export function step(w,input={},dt=STEP){
     if(w.brawl&&p.hp<=0){
       // Eliminated fighters stay down for the rest of the round; the survivors keep fighting.
       if(!p.eliminated){p.eliminated=true;(w.out??=[]).push(p.id);p.poisonTime=p.virusTime=p.slowTime=p.burnTime=0;emit(w,'eliminated',{id:p.id,x:p.x,y:p.y+1,z:p.z,left:w.fighters.filter(q=>q.hp>0).length});}
-      p.attackTime=0;p.skillTime=0;p.knocked=1;stepFighter(p,{x:0,z:0,guard:false},dt,stageOf(w.stage));p.blocking=false;continue;
+      p.attackTime=0;p.skillTime=0;p.knocked=1;stepFighter(p,{x:0,z:0,guard:false},dt,dynStage(w));p.blocking=false;continue;
     }
-    if(p.knocked>0){const wasAirborne=!p.grounded;p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt,stageOf(w.stage));p.blocking=false;
+    if(p.knocked>0){const wasAirborne=!p.grounded;p.attackTime=0;p.skillTime=0;stepFighter(p,{x:0,z:0,guard:false},dt,dynStage(w));p.blocking=false;
       if(wasAirborne&&p.grounded&&p.spiked){p.spiked=false;p.juggle=0;p.vy=6.5;p.grounded=false;p.recoveryBuffer=0;p.invuln=Math.max(p.invuln,.45);p.knocked=Math.max(p.knocked,.6);w.hitStop=Math.max(w.hitStop,.05);emit(w,'groundBounce',{id:p.id,x:p.x,y:p.y+.2,z:p.z});continue;}
       if(p.grounded)p.juggle=0;
       if(wasAirborne&&p.grounded&&p.recoveryBuffer>0&&p.hp>0){
@@ -720,7 +757,7 @@ export function step(w,input={},dt=STEP){
       if(Math.hypot(p.vx,p.vz)>4)for(const c of w.crates)if(c.hp>0&&!c.falling&&c.heldBy===null&&distance(p,c)<1&&Math.abs(p.y-c.y)<1.2){breakCrate(w,c,1);emit(w,'bodyCrash',{id:p.id,x:c.x,y:c.y+.6,z:c.z});}
       p.knocked=Math.max(0,p.knocked-dt);if(p.knocked===0&&!p.grounded)p.knocked=.01;else if(p.knocked===0){p.invuln=.35;emit(w,'wakeup',{id:p.id,x:p.x,y:p.y+1,z:p.z});}continue;}
     const human=p.id===0&&!w.autoplay,foe=w.online||human?null:aiTarget(w,p),controls=human?input:(w.online?w.remoteInput:foe?ai(w,p,foe):{x:0,z:0});
-    stepFighter(p,controls,dt,stageOf(w.stage));
+    stepFighter(p,controls,dt,dynStage(w));
     p.landTime=Math.max(0,(p.landTime||0)-dt);
     if(p.attackTime>0){
       p.attackTime=Math.max(0,p.attackTime-dt);
@@ -768,6 +805,7 @@ export function step(w,input={},dt=STEP){
     const lift=clamp((2.2-holder.grabHoldTime)/.25,0,1),smooth=lift*lift*(3-2*lift);
     p.x=holder.x+holder.fx*.72;p.z=holder.z+holder.fz*.72;p.y=holder.y+.15+1.05*smooth;p.fx=holder.fx;p.fz=holder.fz;
   }}
+  for(const p of w.fighters)if(p.fell)ringOut(w,p);
   collidePieces(w);
   for(let i=0;i<w.fighters.length;i++)for(let j=i+1;j<w.fighters.length;j++){
     const a=w.fighters[i],b=w.fighters[j],d=distance(a,b),inGrab=a.grabbedTarget===b.id||b.grabbedTarget===a.id;

@@ -9,7 +9,7 @@ export const CHARACTERS={
   brawler:{quote:'哈哈！拳头说话最痛快！',name:'铁拳',title:'水手拳师',color:'#2e9b57',accent:'#ff8a3c',skin:'#d99a6c',hair:'#f0e6c8',speed:7.1,moveAttack:'rush',skill:'fistStorm',skillName:'铁拳暴风连打',
     blurb:'近身连打最痛，抓投更强',heavy:{name:'橡皮火箭拳',reach:3.3,cd:.8,arc:.8,damage:10,force:9,stretch:true,pull:true},grab:{name:'铁拳抱摔',reach:1.8,damage:16,speed:1,throwDamage:10},terrain:{sand:.55,pull:.85,sandJump:.7,spring:1.3},jab:{name:'疾风连拳',dmg:[6,6,10],force:[3,3,8],cd:[.17,.17,.27],lunge:[1,1,3]},boost:{light:1.15,rush:1.1,grab:1.25}},
   gunner:{quote:'瞄准完毕——百发百中！',name:'火哨',title:'炮手狙击',color:'#e0a21c',accent:'#6b3fa0',skin:'#f0c49a',hair:'#8a3b1e',speed:8,moveAttack:'dash',skill:'barrage',skillName:'火哨流星弹幕',
-    blurb:'移动+J 冲刺攻击，弹幕瞄准对手',heavy:{name:'重型狙击',melee:false,reach:3,cd:.85,projectile:{style:'ball',speed:18,life:.6,damage:11,force:5,stun:.28}},grab:{name:'近身击发',reach:1.9,damage:9,speed:1.4,throwDamage:7},terrain:{ice:1.4,iceAccel:2.5,iceFriction:.5},jab:{name:'贴身连击',dmg:[7,7,12],force:[4,4,12],cd:[.3,.3,.4],lunge:[0,0,0]},boost:{}},
+    blurb:'移动+J 冲刺攻击，弹幕瞄准对手',heavy:{name:'重型狙击',melee:false,reach:3,cd:.95,projectile:{style:'ball',speed:18,life:.6,damage:10,force:5,stun:.25}},grab:{name:'近身击发',reach:1.9,damage:9,speed:1.4,throwDamage:7},terrain:{ice:1.4,iceAccel:2.5,iceFriction:.5},jab:{name:'贴身连击',dmg:[7,7,12],force:[4,4,12],cd:[.3,.3,.4],lunge:[0,0,0]},boost:{}},
 };
 CHARACTERS.cook={quote:'饭要好好吃，架也要好好打。',name:'灶火',title:'踢技厨师',color:'#3a3f4c',accent:'#ffcf3a',skin:'#f3c9a0',hair:'#f2d46a',speed:7.7,moveAttack:'dash',skill:'flameKick',skillName:'灶火烈焰踢',
   blurb:'脚下功夫最快，烈焰踢会点燃对手',heavy:{name:'旋风腿',reach:3.1,arc:-1.01,damage:11,force:9,lunge:6,cd:.7,projectile:{style:'wind',speed:13,life:.42,damage:7,force:5,pierce:true}},grab:{name:'踢飞',reach:2.1,damage:11,speed:1.25,throwDamage:6},terrain:{sand:.58,pull:.8,sandJump:.75,iceAccel:4,iceFriction:.25},jab:{name:'连环踢',dmg:[6,7,9],force:[4,5,8],cd:[.26,.26,.34],lunge:[2,2,4]},boost:{dash:1.05,air:1.05}};
@@ -25,7 +25,7 @@ export const SLOT_COLORS=['#ffd24a','#5fd8ff','#ff7ac8','#8dff7a'],SLOT_LABELS=[
 // front edge of every deck, so they are derived rather than listed.
 export const STAGES={
   // Each stage is its own structure: a ship's deck with a raised stern, a stepped desert ziggurat, a lopsided snow hill.
-  port:{look:'ship',name:'风车港',sub:'船尾高台 · 炮击 · 巨浪 · 火药桶',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
+  port:{look:'ship',edge:true,name:'风车港',sub:'船尾高台 · 炮击 · 巨浪 · 火药桶',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
     platforms:[
       {id:'quarterdeck',x:0,z:-6.2,w:24,d:3.2,top:1.5,style:'ship',ladders:[{side:'front',at:-8},{side:'front',at:8}]},
       {id:'crows-nest',x:0,z:-6.2,w:3.6,d:2.6,top:3.5,style:'nest',ladder:false},
@@ -36,7 +36,7 @@ export const STAGES={
     kegs:[[-2.8,4.4],[2.8,4.4]],
     topLoot:[{deck:'crows-nest',kind:'chest'},{deck:'cargo-left',kind:'barrel'}],
     pieces:[{kind:'mast',x:-10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5},{kind:'mast',x:10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5}]},
-  desert:{look:'stone',name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴 · 喷火口',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
+  desert:{look:'stone',edge:true,name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴 · 喷火口',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
     platforms:[
       {id:'tier-1',x:0,z:-3.6,w:7.6,d:4.4,top:1.1,style:'stone',ladders:[{side:'front',at:-2.6},{side:'front',at:2.6}]},
       {id:'tier-2',x:0,z:-4.1,w:4.8,d:3,top:2.2,style:'stone',ladder:false},
@@ -48,7 +48,7 @@ export const STAGES={
     crates:[[-3.5,5.5],[3.5,5.5],[-12,-.5]],
     topLoot:[{deck:'tier-3',kind:'chest'},{deck:'ruin-low',kind:'barrel'}],
     pieces:[{kind:'pillar',x:-3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5},{kind:'pillar',x:3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5}]},
-  snow:{look:'snow',name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩 · 温泉',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
+  snow:{look:'snow',edge:true,name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩 · 温泉',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
     platforms:[
       {id:'snow-hill',x:-9.5,z:-3.6,w:7,d:5,top:2.8,style:'hill',ladder:'front',ladderAt:-1.5},
       {id:'igloo',x:8.2,z:-4.8,w:4,d:3,top:1.4,style:'igloo',ladder:'front'},

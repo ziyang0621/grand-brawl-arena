@@ -58,7 +58,7 @@ test('three CPUs and an idle player finish a brawl on every stage without NaN or
     // Keep the human slot busy: it wanders so the CPUs have something to chase.
     let t=0;while(!w.ended&&t<80){step(w,{x:Math.sin(t),z:Math.cos(t*.7)});t+=STEP;}
     assert.ok(w.ended,`${stage} did not end`);
-    for(const p of w.fighters){assert.ok(Number.isFinite(p.x+p.y+p.z+p.hp),`${stage} NaN`);assert.ok(Math.abs(p.x)<=14.6&&Math.abs(p.z)<=8.6);}
+    for(const p of w.fighters){assert.ok(Number.isFinite(p.x+p.y+p.z+p.hp),`${stage} NaN`);assert.ok(Math.abs(p.x)<=27&&p.z<=19&&p.z>=-8.6&&p.y>-8,`${stage} fighter far outside the arena`);}
     assert.ok(w.winner===null||w.fighters[w.winner].hp>0);
   }
 });
