@@ -47,3 +47,40 @@ test('standing in quicksand too long swallows you; leaving it in time resets the
   Object.assign(p2,{x:0,z:6});for(let t=0;t<1.5;t+=STEP)step(w2,{});
   assert.ok(p2.sinkTime<.1&&p2.hp===100,'the sink clock is back to zero');
 });
+
+test('stage changes: a warning first, then a hole opens, quicksand grows, a new pit appears; a round restart resets them',()=>{
+  const run=(stage,seconds)=>{const w=createWorld({stage,chars:['swordsman','brawler'],roundTime:120});w.online=true;w.remoteInput={x:0,z:0};w.crates=[];w.pieces=[];w.intro=0;w.nextCannonTick=w.nextWaveTick=w.nextMonsterTick=w.nextSupplyTick=1e9;Object.assign(w.fighters[0],{x:-12,z:-6});Object.assign(w.fighters[1],{x:12,z:-6});
+    const log=[];for(let t=0;t<seconds;t+=STEP){step(w,{});for(const e of w.events){if(e.type==='stageWarn'||e.type==='stageChange')log.push([e.type,e.op,+(w.roundTime-w.time).toFixed(0)]);}w.events.length=0;for(const p of w.fighters)p.hp=100;}return {w,log};};
+  const port=run('port',45);
+  assert.deepEqual(port.log.map(l=>l[0]+':'+l[1]),['stageWarn:hole','stageChange:hole'],'port: warned, then holed');
+  assert.ok(port.log[0][2]<port.log[1][2],'the warning comes first');
+  const hole=port.w.zones.find(z=>z.kind==='water');assert.ok(hole&&hole.dyn,'a water hole is in the zone list');
+  assert.equal(port.w.zones[0].kind,'water','dynamic zones take priority over the static ones underneath');
+  const desert=run('desert',55);const sand=desert.w.zones.filter(z=>z.kind==='quicksand');
+  assert.ok(sand.length===4,`a fourth pit appeared (${sand.length})`);assert.ok(desert.w.zones.find(z=>z.kind==='quicksand'&&z.id==='z0').r>STAGES.desert.zones[0].r*1.3,'the first pit grew');
+  const snow=run('snow',40);assert.ok(snow.w.zones.some(z=>z.kind==='water'),'the ice cracked');
+  // training has no stage changes
+  const t=createWorld({stage:'port',chars:['swordsman','brawler']});t.training=true;t.intro=0;for(let i=0;i<120*60;i++){step(t,{});}
+  assert.ok(!t.zones.some(z=>z.kind==='water'),'no holes in training');
+});
+
+test('a stage monster warns, then slams: damage and a launch away from its centre; one at a time; none in training',()=>{
+  for(const [stage,kind] of [['port','tentacle'],['desert','sandworm'],['snow','yeti']]){
+    const w=createWorld({stage,chars:['swordsman','brawler']});w.online=true;w.remoteInput={x:0,z:0};w.crates=[];w.pieces=[];w.intro=0;w.nextCannonTick=w.nextWaveTick=w.nextSupplyTick=1e9;w.nextMonsterTick=1;
+    const [p,q]=w.fighters;Object.assign(p,{x:0,z:2});Object.assign(q,{x:-12,z:-6});
+    let warn=null,strike=null,seen=0;
+    for(let t=0;t<4;t+=STEP){step(w,{});for(const e of w.events){if(e.type==='monsterWarn')warn??=e;if(e.type==='monsterStrike')strike??=e;}w.events.length=0;seen=Math.max(seen,w.monsters.length);
+      if(warn&&!strike){p.x=warn.x;p.z=warn.z+.01;p.hp=100;}}   // stand in the marked circle
+    assert.equal(warn?.kind,kind,stage+' warns');assert.ok(strike,stage+' strikes');assert.ok(strike.x===warn.x&&strike.z===warn.z,'it hits where it warned');
+    assert.ok(p.hp<100,`${stage}: the slam hurt (${p.hp})`);assert.equal(seen,1,'one monster at a time');
+  }
+  const t=createWorld({stage:'port',chars:['swordsman','brawler']});t.training=true;t.intro=0;t.nextMonsterTick=1;for(let i=0;i<600;i++)step(t,{});assert.equal(t.monsters.length,0,'no monsters in training');
+});
+test('the crowd throws a supply crate now and then, one at a time, and it disappears once broken',()=>{
+  const w=createWorld({stage:'snow',chars:['swordsman','brawler']});w.online=true;w.remoteInput={x:0,z:0};w.pieces=[];w.intro=0;w.nextCannonTick=w.nextWaveTick=w.nextMonsterTick=1e9;w.nextSupplyTick=1;
+  Object.assign(w.fighters[0],{x:-12,z:-6});Object.assign(w.fighters[1],{x:12,z:-6});
+  const before=w.crates.length;let sup=null;for(let t=0;t<1&&!sup;t+=STEP){step(w,{});sup=w.events.find(e=>e.type==='supply');w.events.length=0;}
+  assert.ok(sup&&w.crates.length===before+1,'a supply crate was thrown');
+  const c=w.crates.find(c=>c.supply);for(let t=0;t<2;t+=STEP)step(w,{});assert.ok(!c.falling&&c.y<1,'it landed');
+  c.hp=0;step(w,{});assert.ok(!w.crates.some(c=>c.supply),'a broken supply crate is gone for good');
+});

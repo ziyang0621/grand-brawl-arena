@@ -19,7 +19,7 @@ function dynStage(w){const b=stageOf(w.stage);b._ladders??=laddersOf(b);const d=
 export const SWALLOW_TIME=2.1;
 export const EDGE={x:14.5,zFront:8.5,zBack:-8.5,fall:-3.4,damage:25};
 const outside=(x,z)=>Math.abs(x)>EDGE.x+.05||z>EDGE.zFront+.05;
-export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),zones:initialZones(options.stage||'classic'),monsters:[],nextMonster:0,nextMonsterTick:2400,nextSupplyTick:3300,stageStep:0,nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
+export function createWorld(options={}){const chars=options.chars||DEFAULT_CHARS,brawl=chars.length>2,teams=options.teams||chars.map((_,i)=>i),bestOf=options.bestOf||1,roundTime=options.roundTime||120;return {rngState:(Math.random()*4294967296)>>>0,brawl,teamMode:brawl&&new Set(teams).size<chars.length,teams,time:roundTime,roundTime,tick:0,hitStop:0,training:false,online:false,stock:false,ended:false,winner:null,stage:options.stage||'classic',bestOf,roundNo:1,wins:chars.map(()=>0),intro:options.intro||0,roundOver:0,roundWinner:null,remoteInput:{x:0,z:0,guard:false},fighters:chars.slice(0,4).map((c,i)=>Object.assign(createFighter(i,...(brawl?BRAWL_SPAWNS:DUEL_SPAWNS)[i],c),{team:teams[i]})),bombs:[],shots:[],nextShot:0,clouds:[],props:[],cannonballs:[],events:[],pickups:[],pieces:makePieces(stageOf(options.stage||'classic')),crates:makeCrates(stageOf(options.stage||'classic')),zones:initialZones(options.stage||'classic'),monsters:[],nextMonster:0,nextMonsterTick:2400,nextSupply:0,nextSupplyTick:3300,stageStep:0,nextBomb:0,nextCloud:0,nextProp:0,nextCannon:0,nextCannonTick:900,nextWaveTick:2400,waveWarning:0,waveTime:0,waveDir:1,wavePending:false};}
 function emit(w,type,data){w.events.push({type,...data});}
 // ---- Destructible set pieces: masts, pillars and ice columns block movement until they are broken. ----
 export const CANNON_WARN=1.5,SNOWBALL_WARN=1.6;
@@ -320,7 +320,7 @@ function dropLoot(w,kind,x,z,fromY=0){
   if(kind==='keg'){kegBlast(w,x,fromY,z);return null;}
 const types=LOOT[kind]||LOOT.crate,item=types[Math.floor(Math.random()*types.length)],y=floorAt(stageOf(w.stage),x,z,fromY);emit(w,'break',{x,y:y+.7,z,item,kind});w.pickups.push({type:item,x,y,z,life:24});return item;}
 function breakCrate(w,c,n){if(c.hp<=0||c.falling||c.heldBy!==null)return;c.hp=Math.max(0,c.hp-n);if(c.hp<=0){dropLoot(w,c.kind,c.x,c.z,c.y);c.respawnTick=w.tick+Math.round((10+Math.random()*7)/STEP);}}
-function updateCrates(w,dt){for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=c.home?[c.home.x,c.home.z]:(open[Math.floor(Math.random()*open.length)]||[0,5]);c.x=x;c.z=z;c.y=(c.floor??.48)+8.5;if(!c.home)c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=(c.floor??.48)){c.y=c.floor??.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
+function updateCrates(w,dt){if(w.crates.some(c=>c.supply&&c.hp<=0))w.crates=w.crates.filter(c=>!(c.supply&&c.hp<=0));for(const c of w.crates){if(c.heldBy!==null){const p=w.fighters.find(p=>p.id===c.heldBy);if(p){c.x=p.x+p.fx*.3;c.z=p.z+p.fz*.3;c.y=p.y+2.15;}continue;}if(c.hp<=0&&!c.falling&&c.respawnTick&&w.tick>=c.respawnTick){const open=CRATE_SPAWNS.filter(([x,z])=>!stageOf(w.stage).platforms.some(d=>supported(x,z,d,.6))),[x,z]=c.home?[c.home.x,c.home.z]:(open[Math.floor(Math.random()*open.length)]||[0,5]);c.x=x;c.z=z;c.y=(c.floor??.48)+8.5;if(!c.home)c.kind=['barrel','crate','chest'][Math.floor(Math.random()*3)];c.hp=1;c.falling=true;c.dropSpeed=0;emit(w,'crateDrop',{id:c.id,x,z,kind:c.kind});}if(c.falling){c.dropSpeed=(c.dropSpeed||0)+24*dt;c.y-=c.dropSpeed*dt;if(c.y<=(c.floor??.48)){c.y=c.floor??.48;c.falling=false;emit(w,'crateLand',{id:c.id,x:c.x,y:c.y,z:c.z,kind:c.kind});}}}}
 // CPU decisions fire on their own jittered timers (from a seeded stream) rather than a shared global beat,
 // so no seat gets to act first in every exchange.
 function rnd(w){w.rngState=(Math.imul(w.rngState||12345,1664525)+1013904223)>>>0;return w.rngState/4294967296;}
@@ -610,7 +610,7 @@ function settle(w,dt){
 function nextRound(w){
   w.roundNo++;w.time=w.roundTime;w.roundWinner=null;w.hitStop=0;
   w.fighters=w.fighters.map(p=>{const n=createFighter(p.id,p.id===0?-3.4:3.4,2,p.char);n.team=p.team;n.energy=Math.max(1,p.energy);n.aimAssist=p.aimAssist;return n;});
-  w.zones=initialZones(w.stage);w.monsters=[];w.stageStep=0;w.nextMonsterTick=w.tick+2400;w.nextSupplyTick=w.tick+3300;
+  w.zones=initialZones(w.stage);w.chg={};w.monsters=[];w.stageStep=0;w.nextMonsterTick=w.tick+2400;w.nextSupplyTick=w.tick+3300;
   w.bombs=[];w.shots=[];w.clouds=[];w.props=[];w.cannonballs=[];w.ventCycle={};w.ventWarned={};w.pickups=[];w.pieces=makePieces(stageOf(w.stage));
   for(const c of w.crates)if(c.heldBy!==null){c.heldBy=null;c.falling=true;c.dropSpeed=0;}
   Object.assign(w,{nextCannonTick:w.tick+900,nextWaveTick:w.tick+2400,waveWarning:0,waveTime:0,wavePending:false,intro:1.8});
@@ -646,7 +646,75 @@ function finishRound(w,defeated){
 // Stage hazards: each map pairs a projectile hazard with a sweeping hazard.
 //  port: side cannon + tide wave (damages low fighters) | desert: marked rockfall + sandstorm
 //  (pushes everyone, even airborne, no damage) | snow: rolling snowball (chills) + avalanche.
+// Scheduled stage changes (STAGES[id].changes): a warning a few seconds ahead, then holes open, quicksand grows or a new pit appears. They run on the round clock,
+// so every client and every rematch sees the same sequence. Off in training.
+function updateStageChanges(w){
+  const list=stageOf(w.stage).changes;if(!list||w.training||w.ended)return;
+  const elapsed=w.roundTime-w.time;w.chg??={};
+  list.forEach((c,i)=>{
+    const st=w.chg[i]??={warned:false,done:false};
+    if(!st.warned&&elapsed>=c.at-c.warn){st.warned=true;const z=c.zone||{};emit(w,'stageWarn',{index:i,op:c.op,kind:c.kind||z.kind||'water',x:z.x,z:z.z,w:z.w,d:z.d,r:z.r,delay:c.warn,text:c.text});}
+    if(!st.done&&elapsed>=c.at){st.done=true;applyStageChange(w,c,i);}
+  });
+}
+function applyStageChange(w,c,i){
+  const rect=z=>({x:z.x,z:z.z,hw:(z.w??z.r*2)/2,hd:(z.d??z.r*2)/2});
+  if(c.op==='hole'||c.op==='add'){
+    const z={kind:c.op==='hole'?'water':c.zone.kind,...c.zone,id:c.id||'chg'+i,dyn:true};if(z.r!==undefined)z.r0=z.r;if(z.w!==undefined){z.w0=z.w;z.d0=z.d;}
+    w.zones.unshift(z);
+    if(z.kind==='water'){const R=rect(z);   // whatever stood there falls in
+      for(const cr of w.crates)if(cr.hp>0&&!cr.falling&&cr.heldBy===null&&cr.y<1&&Math.abs(cr.x-R.x)<R.hw&&Math.abs(cr.z-R.z)<R.hd){cr.hp=0;cr.respawnTick=w.tick+Math.round(14/STEP);}
+      w.pickups=w.pickups.filter(h=>!(h.y<1&&Math.abs(h.x-R.x)<R.hw&&Math.abs(h.z-R.z)<R.hd));}
+  }else if(c.op==='grow'){
+    const z=w.zones.find(o=>o.id===c.id);if(z){if(c.zone.w!==undefined){z.w=c.zone.w;z.d=c.zone.d;}if(c.zone.r!==undefined)z.r=c.zone.r;}
+  }else if(c.op==='growKind'){
+    for(const z of w.zones)if(z.kind===c.kind&&z.r!==undefined)z.r=Math.min(z.r*c.factor,4.4);
+  }
+  emit(w,'stageChange',{index:i,op:c.op,id:c.id,text:c.text});
+}
+// ---- Stage monsters: every 12-18 s something big takes a swing at the floor. A marked circle, a 1.6 s warning, then a slam that damages and launches everyone in it
+// (sideways, so near the edge it is a ring-out), then the monster lingers briefly and withdraws. Port: a sea-monster tentacle. Desert: a sandworm out of a quicksand pit.
+// Snow: a yeti's fist. ----
+const MONSTER={tentacle:{r:2.3,damage:15,force:11,warn:1.6},sandworm:{r:2.5,damage:16,force:10,warn:1.7},yeti:{r:2.2,damage:16,force:12,warn:1.6}};
+function updateMonsters(w,dt){
+  const kind=stageOf(w.stage).monster;if(!kind||w.training||w.ended)return;
+  const spec=MONSTER[kind];
+  if(w.tick>=w.nextMonsterTick&&!w.monsters.length){
+    const pool=w.fighters.filter(p=>p.hp>0&&p.y<1),target=pool[Math.floor(Math.random()*pool.length)];
+    if(target){
+      let x=clamp(target.x+(Math.random()-.5)*1.4,-12.8,12.8),z=clamp(target.z+(Math.random()-.5)*1.4,-7.2,7.4);
+      if(kind==='sandworm'){const pits=w.zones.filter(zn=>zn.kind==='quicksand');if(pits.length){const pit=pits.reduce((a,b)=>Math.hypot(a.x-target.x,a.z-target.z)<Math.hypot(b.x-target.x,b.z-target.z)?a:b);x=pit.x;z=pit.z;}}
+      w.monsters.push({id:w.nextMonster++,kind,x,z,r:spec.r,phase:'warn',t:spec.warn,struck:false});
+      emit(w,'monsterWarn',{kind,x,y:.14,z,r:spec.r,delay:spec.warn});
+    }
+    w.nextMonsterTick=w.tick+Math.round((1450+Math.random()*900));
+  }
+  for(let i=w.monsters.length-1;i>=0;i--){
+    const m=w.monsters[i];m.t-=dt;
+    if(m.phase==='warn'&&m.t<=0){
+      m.phase='strike';m.t=.9;m.struck=true;emit(w,'monsterStrike',{kind:m.kind,x:m.x,y:0,z:m.z,r:m.r});
+      for(const p of w.fighters)if(p.hp>0&&p.y<1.6&&distance(p,m)<m.r){const d=Math.max(.01,distance(p,m)),fx=d>.05?(p.x-m.x)/d:1,fz=d>.05?(p.z-m.z)/d:0;hit(w,{owner:-1,x:m.x,z:m.z,fx,fz},p,spec.damage,spec.force,{kind:'monster'});}
+      for(const c of w.crates)if(c.hp>0&&!c.falling&&c.heldBy===null&&c.y<1&&distance(c,m)<m.r)breakCrate(w,c,2);
+      for(const pc of w.pieces)if(pc.state==='standing'&&distance(pc,m)<m.r+pc.r)hurtPiece(w,pc,45,{owner:-1,x:m.x,z:m.z});
+    }else if(m.phase==='strike'&&m.t<=0){m.phase='retreat';m.t=.5;}
+    else if(m.phase==='retreat'&&m.t<=0)w.monsters.splice(i,1);
+  }
+}
+// ---- The crowd throws supplies: now and then a spectator tosses a chest (or a barrel) into the arena. One at a time. ----
+function updateSupply(w){
+  if(w.training||w.ended||w.tick<w.nextSupplyTick)return;
+  if(w.crates.some(c=>c.supply&&c.hp>0)){w.nextSupplyTick=w.tick+600;return;}
+  const stage=stageOf(w.stage),spots=[];
+  for(let x=-11;x<=11;x+=2.2)for(let z=-5;z<=6;z+=2.2)if(!stage.platforms.some(d=>supported(x,z,d,.9))&&!zoneAt(dynStage(w),x,z)&&!w.crates.some(c=>c.hp>0&&distance(c,{x,z})<1.4))spots.push([x,z]);
+  if(spots.length){
+    const [x,z]=spots[Math.floor(Math.random()*spots.length)],kind=Math.random()<.55?'chest':'barrel',id=100+w.nextSupply++;
+    w.crates.push({id,kind,x,z,y:9.2,hp:1,falling:true,dropSpeed:0,heldBy:null,respawnTick:0,supply:true,floor:.48});
+    emit(w,'supply',{id,x,z,kind,side:x<0?-1:1});emit(w,'crateDrop',{id,x,z,kind});
+  }
+  w.nextSupplyTick=w.tick+Math.round(2800+Math.random()*1000);
+}
 function updateStageHazards(w,dt){
+  updateStageChanges(w);updateMonsters(w,dt);updateSupply(w);
   const stage=stageOf(w.stage),kind=stage.cannonKind;
   if(!w.training&&w.tick>=w.nextCannonTick){
     const pool=w.fighters.filter(p=>p.hp>0),target=(pool.length?pool:w.fighters)[Math.floor(Math.random()*(pool.length||w.fighters.length))],side=Math.random()<.5?-1:1;

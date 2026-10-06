@@ -25,7 +25,10 @@ export const SLOT_COLORS=['#ffd24a','#5fd8ff','#ff7ac8','#8dff7a'],SLOT_LABELS=[
 // front edge of every deck, so they are derived rather than listed.
 export const STAGES={
   // Each stage is its own structure: a ship's deck with a raised stern, a stepped desert ziggurat, a lopsided snow hill.
-  port:{look:'ship',edge:true,name:'风车港',sub:'船尾高台 · 炮击 · 巨浪 · 火药桶',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
+  port:{look:'ship',edge:true,monster:'tentacle',name:'风车港',sub:'船尾高台 · 炮击 · 巨浪 · 火药桶',wave:'巨浪',cannon:'港口炮击',waveKind:'tide',cannonKind:'cannon',
+    changes:[
+      {at:38,warn:3,op:'hole',id:'hole-a',zone:{x:0,z:3.6,w:4.6,d:2.8},text:'甲板被炮弹击穿！掉进海里要扣血'},
+      {at:70,warn:3,op:'grow',id:'hole-a',zone:{w:8.4,d:3.6},text:'破洞在扩大！'}],
     platforms:[
       {id:'quarterdeck',x:0,z:-6.2,w:24,d:3.2,top:1.5,style:'ship',ladders:[{side:'front',at:-8},{side:'front',at:8}]},
       {id:'crows-nest',x:0,z:-6.2,w:3.6,d:2.6,top:3.5,style:'nest',ladder:false},
@@ -36,7 +39,11 @@ export const STAGES={
     kegs:[[-2.8,4.4],[2.8,4.4]],
     topLoot:[{deck:'crows-nest',kind:'chest'},{deck:'cargo-left',kind:'barrel'}],
     pieces:[{kind:'mast',x:-10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5},{kind:'mast',x:10.5,z:-1.6,r:.6,h:7,hp:70,fall:'topple',length:6.5}]},
-  desert:{look:'stone',edge:true,name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴 · 喷火口',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
+  desert:{look:'stone',edge:true,monster:'sandworm',name:'沙之王都',sub:'阶梯金字塔 · 流沙 · 落石 · 沙暴 · 喷火口',wave:'沙暴',cannon:'落石',waveKind:'sandstorm',cannonKind:'rockfall',
+    changes:[
+      {at:28,warn:2.5,op:'growKind',kind:'quicksand',factor:1.35,text:'流沙在扩大！'},
+      {at:50,warn:2.5,op:'add',id:'pit-c',zone:{kind:'quicksand',x:0,z:-.4,r:1.5},text:'中央塌陷出一个新流沙坑！'},
+      {at:72,warn:2.5,op:'growKind',kind:'quicksand',factor:1.3,text:'流沙又在扩大！'}],
     platforms:[
       {id:'tier-1',x:0,z:-3.6,w:7.6,d:4.4,top:1.1,style:'stone',ladders:[{side:'front',at:-2.6},{side:'front',at:2.6}]},
       {id:'tier-2',x:0,z:-4.1,w:4.8,d:3,top:2.2,style:'stone',ladder:false},
@@ -48,7 +55,11 @@ export const STAGES={
     crates:[[-3.5,5.5],[3.5,5.5],[-12,-.5]],
     topLoot:[{deck:'tier-3',kind:'chest'},{deck:'ruin-low',kind:'barrel'}],
     pieces:[{kind:'pillar',x:-3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5},{kind:'pillar',x:3.8,z:-.3,r:.8,h:5,hp:90,fall:'topple',length:5.5}]},
-  snow:{look:'snow',edge:true,name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩 · 温泉',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
+  snow:{look:'snow',edge:true,monster:'yeti',name:'冬樱雪岛',sub:'不对称雪山 · 冰湖 · 雪球 · 雪崩 · 温泉',wave:'雪崩',cannon:'滚地雪球',waveKind:'avalanche',cannonKind:'snowball',
+    changes:[
+      {at:34,warn:3,op:'hole',id:'crack-a',zone:{x:-1.9,z:4.9,w:2.6,d:2.2},text:'冰面裂开了！掉进冰窟窿要扣血'},
+      {at:60,warn:3,op:'hole',id:'crack-b',zone:{x:3.6,z:4.4,w:2.6,d:2.4},text:'冰面又裂开一处！'},
+      {at:82,warn:3,op:'grow',id:'crack-a',zone:{w:5.6,d:3.2},text:'裂口在扩大！'}],
     platforms:[
       {id:'snow-hill',x:-9.5,z:-3.6,w:7,d:5,top:2.8,style:'hill',ladder:'front',ladderAt:-1.5},
       {id:'igloo',x:8.2,z:-4.8,w:4,d:3,top:1.4,style:'igloo',ladder:'front'},
