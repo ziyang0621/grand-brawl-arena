@@ -227,6 +227,6 @@ test('three-life mode respawns after losing a life',()=>{
   const w=createWorld();w.stock=true;w.fighters[0].lives=3;w.fighters[0].hp=0;w.fighters[0].knocked=.8;w.fighters[0].attackTime=.3;step(w);assert.equal(w.fighters[0].lives,2);assert.ok(w.fighters[0].respawnTimer>0);advance(w,1);assert.equal(w.fighters[0].hp,100);assert.equal(w.fighters[0].respawnTimer,0);assert.equal(w.fighters[0].knocked,0);assert.equal(w.fighters[0].attackTime,0);
 });
 test('AI approaches and can damage the player; zero health ends round',()=>{
-  const w=createWorld();advance(w,8);assert.ok(w.fighters[0].hp<100);
+  const w=createWorld();advance(w,16);assert.ok(w.fighters[0].hp<100);   // unseeded randomness: allow time for the first strike
   w.fighters[0].hp=0;step(w);assert.equal(w.ended,true);assert.equal(w.winner,1);
 });
