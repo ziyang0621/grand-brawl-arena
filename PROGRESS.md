@@ -822,3 +822,7 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
   The AI uses it from up to 7 units. The old flying crescent (chest-high, 3 units) is gone for Red Sail; the cook's leg wind still uses the `wind` style.
 - AI-vs-AI win rates after this: swordsman 61%, cook 63%, stormcaller 35%: the swordsman and cook are a little high and the stormcaller low (to revisit).
 
+## Red Sail's ground slash is a red shark fin
+- The wide black bar was too wide and too hard to read; the 鹰眼斩 wind is now a narrow red dorsal fin (an extruded triangle, tip leaning back, a pale wake under it) with red scars on the floor; the hit radius shrank from .95 to .6 so what you see is what hits (sidestepping works as well as jumping).
+- Bug found by the capture: the generic `rotation.y = atan2(vx, vz)` for shots ran after the fin's own heading and turned it edge-on; shots with their own heading are now excluded from it.
+

@@ -937,7 +937,7 @@ export function step(w,input={},dt=STEP){
       if(s.returning&&owner){const dx=owner.x-s.x,dz=owner.z-s.z,d=Math.hypot(dx,dz)||1;s.vx=dx/d*s.speed*1.15;s.vz=dz/d*s.speed*1.15;if(d<.9){w.shots.splice(i,1);emit(w,'shieldCatch',{id:owner.id,x:owner.x,y:owner.y+1.2,z:owner.z});continue;}}
     }
     s.x+=s.vx*dt+wind*dt;s.z+=s.vz*dt;   // a sandstorm carries every shot along with the wind
-    const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&!(s.hitIds||[]).includes(q.id)&&(s.ground?distance(q,s)<.95&&q.y<.9:distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1));
+    const target=w.fighters.find(q=>q.id!==s.owner&&q.team!==w.fighters[s.owner]?.team&&q.hp>0&&q.respawnTimer<=0&&!(s.hitIds||[]).includes(q.id)&&(s.ground?distance(q,s)<.6&&q.y<.9:distance(q,s)<.75&&Math.abs(q.y+1.1-s.y)<1.1));
     if(target&&s.pierce){if(hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot',guardBreak:s.guardBreak}))riders(w,w.fighters.find(f=>f.id===s.owner)||s,target,s.rider,s.returning);s.hitIds.push(target.id);emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});}
     else if(target){const blocked=target.blocking;if(hit(w,s,target,(s.damage??6)*s.boost,s.force??3.5,{kind:'shot'})&&!blocked){if(s.slow){target.slowTime=Math.max(target.slowTime,s.slow);emit(w,'slow',{id:target.id,x:target.x,y:target.y+1,z:target.z});}if(s.rider)riders(w,w.fighters.find(f=>f.id===s.owner)||s,target,s.rider,s.returning);}emit(w,'shotHit',{x:s.x,y:s.y,z:s.z,style:s.style});w.shots.splice(i,1);continue;}
     const shotPiece=w.pieces.find(pc=>pc.state==='standing'&&distance(pc,s)<pc.r+.35&&s.y<pc.h);
