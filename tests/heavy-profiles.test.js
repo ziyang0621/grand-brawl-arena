@@ -17,16 +17,17 @@ test('every character has a distinct heavy profile',()=>{
   for(const id of CHARACTER_IDS){const h=CHARACTERS[id].heavy;assert.ok(h&&h.name&&(h.reach>0||h.projectile),id);names.add(h.name);}
   assert.equal(names.size,CHARACTER_IDS.length);
 });
-test("Red Sail's U is a flying slash: it reaches far ahead, pierces, and does not hit behind",()=>{
-  const far=duel('swordsman',q=>Object.assign(q,{x:3.2,z:0,fx:-1,fz:0}));
-  assert.ok(far.q.hp<100,'the slash wave travels about 3 units');
-  assert.equal(duel('swordsman',q=>Object.assign(q,{x:5.5,z:0,fx:-1,fz:0})).q.hp,100,'but not across the arena');
+test("Red Sail's U is a Hawk-Eye ground slash: a chop in front, then a wind along the floor that flies far, pierces, can be jumped and does not hit behind",()=>{
+  const near=duel('swordsman',q=>Object.assign(q,{x:2.2,z:0,fx:-1,fz:0}));assert.ok(near.q.hp<100,'the chop hits at close range');
+  const far=duel('swordsman',q=>Object.assign(q,{x:7,z:0,fx:-1,fz:0}));assert.ok(far.q.hp<100,'the ground wind travels 7 units');
+  assert.equal(duel('swordsman',q=>Object.assign(q,{x:11.5,z:0,fx:-1,fz:0})).q.hp,100,'but not across the arena');
   const two=(()=>{const w=createWorld({chars:['swordsman','brawler','gunner'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
-    const [p,q,r]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:2.4,z:0});Object.assign(r,{x:3.2,z:0});p.attackCD=0;heavy(w,p,{});
-    for(let t=0;t<.9;t+=STEP)step(w,{});return [q.hp,r.hp];})();
+    const [p,q,r]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:4.5,z:0});Object.assign(r,{x:7,z:0});p.attackCD=0;heavy(w,p,{});
+    for(let t=0;t<1;t+=STEP)step(w,{});return [q.hp,r.hp];})();
   assert.ok(two[0]<100&&two[1]<100,'the wave pierces through both');
-  const behind=duel('swordsman',q=>Object.assign(q,{x:-4,z:0,fx:1,fz:0}));
-  assert.equal(behind.q.hp,100);
+  const jumped=duel('swordsman',q=>Object.assign(q,{x:6,z:0,y:1.6,fx:-1,fz:0,grounded:false,vy:0}));
+  assert.equal(jumped.q.hp,100,'a fighter in the air is not hit by a ground slash');
+  assert.equal(duel('swordsman',q=>Object.assign(q,{x:-4,z:0,fx:1,fz:0})).q.hp,100,'nothing behind');
 });
 test("the guardian's U throws his shield out and back, hitting on both legs",()=>{
   const w=createWorld({chars:['guardian','brawler'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
@@ -194,4 +195,14 @@ test("the cook's whirlwind kick throws one leg wind that flies about 6 units",()
   const wind=duel('cook',q=>Object.assign(q,{x:5,z:0,fx:-1,fz:0}));assert.ok(wind.q.hp<100,'the wind reaches 5 units');
   assert.equal(duel('cook',q=>Object.assign(q,{x:8,z:0,fx:-1,fz:0})).q.hp,100,'but not across the arena');
   assert.equal(duel('cook',q=>Object.assign(q,{x:3.5,z:2.6,fx:-1,fz:0})).q.hp,100,'a single wave: the diagonals are not covered');
+});
+
+test("the cook's U is a Street-Fighter-style spinning kick: he advances while spinning and lands several small hits, ending in a launch",()=>{
+  const w=createWorld({chars:['cook','brawler'],stage:'classic'});w.training=true;w.online=true;w.crates=[];w.intro=0;
+  const [p,q]=w.fighters;Object.assign(p,{x:0,z:0,fx:1,fz:0,aimAssist:false});Object.assign(q,{x:1.8,z:0,fx:-1,fz:0});p.attackCD=0;q.hp=100;
+  heavy(w,p,{});const hits=[];let startX=p.x;
+  for(let t=0;t<1.2;t+=STEP){step(w,{});for(const e of w.events)if(e.type==='hit'&&e.id===q.id)hits.push(Math.round(e.damage));w.events.length=0;if(q.knocked<=0)q.x=Math.max(q.x,p.x+1.5);}
+  assert.ok(hits.length>=3,`several hits (${hits.join(',')})`);assert.ok(hits[hits.length-1]>hits[0],'the last one is the big one');
+  assert.ok(q.hp<=100-10,`total damage ${(100-q.hp).toFixed(0)}`);assert.ok(p.x-startX>1.5,`he advanced (${(p.x-startX).toFixed(1)})`);
+  const winds=0;assert.equal(winds,0);
 });

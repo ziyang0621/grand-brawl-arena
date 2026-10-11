@@ -6,7 +6,7 @@ const advance=(w,seconds,input={})=>{for(let t=0;t<seconds;t+=STEP)step(w,input)
 
 // Player 0 stands still on a deck; the CPU (player 1) starts on the floor and has to get up to it.
 function chase({stage,deck,chars=['swordsman','guardian'],seconds=14,cpuAt=[6,4],foeAt}){
-  const w=createWorld({stage,chars});w.crates=[];w.nextCannonTick=w.nextWaveTick=1e9;w.intro=0;
+  const w=createWorld({stage,chars});w.crates=[];w.nextCannonTick=w.nextWaveTick=w.nextMonsterTick=w.nextSupplyTick=1e9;w.intro=0;
   const d=STAGES[stage].platforms.find(x=>x.id===deck),[p,q]=w.fighters;
   const fx=foeAt?.x??d.x,fz=foeAt?.z??d.z;
   Object.assign(p,{x:fx,z:fz,y:d.top,grounded:true,support:d.id,fx:1,fz:0});Object.assign(q,{x:cpuAt[0],z:cpuAt[1],fx:-1,fz:0});
@@ -46,7 +46,7 @@ test('when a tide is coming the CPU leaves the floor for a deck',()=>{
   assert.ok(q.hp===start||q.hp>=start-1,'no wave damage');assert.ok(safe);
 });
 test('a CPU jumps a rolling snowball',()=>{
-  const w=createWorld({stage:'snow'});w.crates=[];w.nextCannonTick=w.nextWaveTick=1e9;w.intro=0;
+  const w=createWorld({stage:'snow'});w.crates=[];w.nextCannonTick=w.nextWaveTick=w.nextMonsterTick=w.nextSupplyTick=1e9;w.intro=0;
   const [p,q]=w.fighters;Object.assign(p,{x:-12,z:-6});Object.assign(q,{x:0,z:3});
   w.cannonballs.push({id:0,owner:-1,kind:'snowball',x:2.6,y:.75,z:3,vx:-9,vy:0,vz:0,life:3});
   let lifted=false;for(let t=0;t<1;t+=STEP){step(w,{});if(q.y>.4)lifted=true;}
@@ -80,7 +80,7 @@ test('a chest on a deck drops its loot on the deck and it can be collected there
   for(const h of w.pickups)assert.equal(h.y,deck.top,'loot rests on the deck');
 });
 test('a CPU with no item climbs for a chest on a high deck',()=>{
-  const w=createWorld({stage:'desert'});w.nextCannonTick=w.nextWaveTick=1e9;w.intro=0;
+  const w=createWorld({stage:'desert'});w.nextCannonTick=w.nextWaveTick=w.nextMonsterTick=w.nextSupplyTick=1e9;w.intro=0;
   const [p,q]=w.fighters;Object.assign(p,{x:-13,z:7.5});Object.assign(q,{x:0,z:2});
   w.crates.forEach(c=>{if(!c.floor)c.hp=0;});
   let peak=0;for(let t=0;t<30;t+=STEP){step(w,{});peak=Math.max(peak,q.y);}
@@ -89,7 +89,7 @@ test('a CPU with no item climbs for a chest on a high deck',()=>{
 
 test('a CPU does not bounce between a ladder and the deck edge',()=>{
   for(const [stage,foeDeck] of [['desert','tier-3'],['desert','ruin-tall'],['snow','snow-hill'],['port','crows-nest']]){
-    const w=createWorld({stage});w.nextCannonTick=w.nextWaveTick=1e9;w.intro=0;
+    const w=createWorld({stage});w.nextCannonTick=w.nextWaveTick=w.nextMonsterTick=w.nextSupplyTick=1e9;w.intro=0;
     const d=STAGES[stage].platforms.find(x=>x.id===foeDeck),[p,q]=w.fighters;
     Object.assign(p,{x:d.x,z:d.z,y:d.top,grounded:true,support:d.id});Object.assign(q,{x:6,z:3});
     let attaches=0,was=false;

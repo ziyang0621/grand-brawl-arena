@@ -156,7 +156,9 @@ function driveGlb(m,p,dt,walking){
     else time=(held*30*FR24)%(g.actions.skill.getClip().duration||.33);}
   else if(p.attackTime>0){
     name=(p.attackType==='heavy'&&CHARACTERS[p.char].heavy?.projectile&&['gunner','stormcaller'].includes(p.char)?'shoot':ATTACK_CLIP(p.attackType))||(p.combo%2===1?'attack_b':'attack_a');enter(name);
-    const {phase,contact}=attackPhase(p);time=(phase<contact?9*phase/contact:9+13*(phase-contact)/(1-contact))*FR24;
+    const mu=g.tripo&&p.char==='cook'&&p.attackType==='heavy'?CHARACTERS.cook.heavy.multi:null;
+    if(mu){const k=clamp(1-p.attackTime/mu.duration,0,1);time=(k<.14?9*k/.14:k<.82?9:9+13*(k-.82)/.18)*FR24;}   // chamber the leg, hold it out through the spin, recover
+    else{const {phase,contact}=attackPhase(p);time=(phase<contact?9*phase/contact:9+13*(phase-contact)/(1-contact))*FR24;}
   }
   else if(p.blocking){name='guard';time=Math.min(enter(name),12*FR24);}
   else if(p.carrying||p.grabbedTarget!==null){
@@ -381,7 +383,7 @@ function eventSound(e){
     case 'rockWarn':case 'hazardWarn':case 'waveWarning':P('warn',{k:1});break;
     case 'rockImpact':P('rock');break;
     case 'snowBurst':P('ice');break;
-    case 'shotFire':if(e.style==='wind')P('whirl');else if(e.style==='slash')P('slashWave');else if(e.style==='shield')P('shieldThrow');else if(e.char==='gunner'||e.heavy)P('sniper');else P(e.style==='bolt'?'zap':'shot',{bolt:e.style==='bolt'});break;
+    case 'shotFire':if(e.style==='wind')P('whirl');else if(e.style==='slash'||e.style==='groundslash')P('slashWave');else if(e.style==='shield')P('shieldThrow');else if(e.char==='gunner'||e.heavy)P('sniper');else P(e.style==='bolt'?'zap':'shot',{bolt:e.style==='bolt'});break;
     case 'shieldCatch':P('shieldCatch');particles(e,'#8fc7ff',8);break;
     case 'shotHit':P('hit',{level:0});break;
     case 'grab':case 'lift':P('grab');break;
@@ -862,12 +864,16 @@ function updateCamera(dt){
 }
 function animateFighter(p,i,m,dt){
   const c=p.char,facing=Math.atan2(p.fx,p.fz),t=world.tick*STEP;
+  const mu=c==='cook'&&p.attackTime>0&&p.attackType==='heavy'?CHARACTERS.cook.heavy.multi:null;
+  const hover=mu?mu.hover*Math.sin(Math.PI*clamp(1-p.attackTime/mu.duration,0,1)):0;   // the spinning kick lifts him off the ground
   const standoff=p.climbing?.4:0;   // the climber hangs a little away from the wall so the body does not sink into the deck
-  m.root.position.set(p.x-p.fx*standoff,p.y,p.z-p.fz*standoff);
+  m.root.position.set(p.x-p.fx*standoff,p.y+hover,p.z-p.fz*standoff);
   let spin=p.skillTime>0&&!p.pendingSkill&&c==='swordsman'?(1-p.skillTime/.4)*Math.PI*4:0;
   // Tripo cook's U is a whirlwind kick: the WHOLE model turns once (the clip keeps the leg out and the torso square), because
   // spinning only the spine inside the clip twists the chest apart.
-  if(m.glb?.tripo&&c==='cook'&&p.attackTime>0&&p.attackType==='heavy'){const {phase,contact}=attackPhase(p),k=clamp(phase/contact,0,1);spin=Math.PI*2*k*k*(3-2*k);}
+  if(m.glb?.tripo&&c==='cook'&&p.attackTime>0&&p.attackType==='heavy'){
+    const mu=CHARACTERS.cook.heavy.multi,k=clamp(1-p.attackTime/mu.duration,0,1),e=clamp((k-.06)/.8,0,1);   // three fast turns while the kick is out
+    spin=Math.PI*2*mu.turns*(e*e*(3-2*e));}
   m.body.rotation.set(0,facing+spin,0);
   const walking=p.grounded&&Math.hypot(p.vx,p.vz)>1;
   m.legs.forEach((leg,j)=>leg.rotation.set(walking?Math.sin(p.walk+j*Math.PI)*.6:!p.grounded?-.4:-.045,0,p.grounded?(j?1:-1)*(walking?.025:c==='brawler'?.105:.065):0));
@@ -1158,13 +1164,15 @@ function updateVisuals(dt){
   stage?.syncZones?.(world.zones);updateMonsters();
   for(const b of world.bombs){let g=bombModels.get(b.id);if(!g){g=new THREE.Group();const bottle=b.kind==='poison'||b.kind==='virus'||b.kind==='slow'||b.kind==='trap';if(bottle){const color=b.kind==='virus'?'#8d55bd':b.kind==='slow'?'#4c9ee8':b.kind==='trap'?'#c98c45':'#55a866';const glow=b.kind==='virus'?'#d19aff':b.kind==='slow'?'#bde8ff':b.kind==='trap'?'#f3d38a':'#a7f58c';cylinder(.18,.23,.48,color,g,0,0,0);sphere(.16,glow,g,0,.3,0);box(.16,.08,.16,'#e7d1a7',g,0,.28,0);}else{sphere(.26,'#29394b',g,0,0,0);const fuse=box(.055,.23,.055,'#ffd366',g,.06,.3,0);fuse.rotation.z=-.3;sphere(.07,'#fff1a2',g,.1,.42,0);}ink(g,.03);scene.add(g);bombModels.set(b.id,g);}g.position.set(b.x,b.y,b.z);g.rotation.z+=dt*(b.kind==='bomb'?6:3);g.userData.trail=(g.userData.trail||0)-dt;if(g.userData.trail<=0){g.userData.trail=.04;trailBit(b);}}
   for(const [id,m] of bombModels)if(!world.bombs.some(b=>b.id===id)){scene.remove(m);bombModels.delete(id);}
-  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g&&s.style==='wind'){g=new THREE.Group();   // the cook's leg wind: a wide, pale crescent that spins as it flies
+  for(const s of world.shots||[]){let g=shotModels.get(s.id);if(!g&&s.style==='groundslash'){g=new THREE.Group();   // Hawk-Eye style: a long thin black blade of wind sliding along the floor, white-edged
+    fxMesh(new THREE.BoxGeometry(2.3,.2,.34),'#0b0c10',g,0,.12,0,.97);fxMesh(new THREE.BoxGeometry(2.5,.08,.75),'#ffffff',g,0,.03,0,.7);fxMesh(new THREE.BoxGeometry(2,.5,.1),'#bfe6ff',g,0,.38,.05,.45);fxMesh(new THREE.BoxGeometry(1.2,.9,.06),'#ffffff',g,0,.62,.1,.28);scene.add(g);shotModels.set(s.id,g);}
+  else if(!g&&s.style==='wind'){g=new THREE.Group();   // the cook's leg wind: a wide, pale crescent that spins as it flies
     const arc=(r,tube,color,op)=>{const m=fxMesh(new THREE.TorusGeometry(r,tube,6,28,Math.PI*1.1),color,g,0,0,0,op);m.rotation.x=Math.PI/2;return m;};arc(1.15,.12,'#ffffff',.85);arc(1.3,.3,'#bfe6ff',.38);arc(.9,.06,'#fff2a0',.8);scene.add(g);shotModels.set(s.id,g);}
   else if(!g&&s.style==='slash'){g=new THREE.Group();   // Red Sail's flying slash: a bright crescent lying forward with a wider glow behind it
     const arc=(r,tube,color,op)=>{const m=fxMesh(new THREE.TorusGeometry(r,tube,6,28,Math.PI),color,g,0,0,0,op);m.rotation.x=Math.PI/2;return m;};arc(.95,.1,'#fff4c0',.95);arc(1.05,.22,'#ffae3c',.5);arc(.8,.05,'#ffffff',.9);scene.add(g);shotModels.set(s.id,g);}
   else if(!g&&s.style==='shield'){g=new THREE.Group();   // the guardian's boomerang shield: a spinning blue disc with a gold rim
     const disc=fxMesh(new THREE.CylinderGeometry(.62,.62,.12,24),'#4a86c8',g,0,0,0,1,false),rim=fxMesh(new THREE.TorusGeometry(.62,.07,8,28),'#e8d38e',g,0,0,0,1,false);rim.rotation.x=Math.PI/2;fxMesh(new THREE.SphereGeometry(.14,10,8),'#fff4c0',g,0,.1,0,1,false);disc.userData.spin=true;scene.add(g);shotModels.set(s.id,g);}
-  if(!g){g=new THREE.Group();const bolt=s.style==='bolt';fxMesh(new THREE.SphereGeometry(bolt?.26:.18,10,8),bolt?'#fff6a0':'#ffe08a',g,0,0,0,1);if(bolt)fxMesh(new THREE.IcosahedronGeometry(.4,0),'#8fe0ff',g,0,0,0,.5);const trail=fxMesh(new THREE.CylinderGeometry(.02,.16,1.2,8),bolt?'#7fd0ff':'#ff8a3c',g,0,0,0,.7);trail.rotation.x=Math.PI/2;trail.position.z=-.6;scene.add(g);shotModels.set(s.id,g);}g.position.set(s.x,s.y,s.z);if(s.style==='shield'){g.rotation.y=world.tick*.5;g.rotation.x=.25;}else g.rotation.y=Math.atan2(s.vx,s.vz);}
+  if(!g){g=new THREE.Group();const bolt=s.style==='bolt';fxMesh(new THREE.SphereGeometry(bolt?.26:.18,10,8),bolt?'#fff6a0':'#ffe08a',g,0,0,0,1);if(bolt)fxMesh(new THREE.IcosahedronGeometry(.4,0),'#8fe0ff',g,0,0,0,.5);const trail=fxMesh(new THREE.CylinderGeometry(.02,.16,1.2,8),bolt?'#7fd0ff':'#ff8a3c',g,0,0,0,.7);trail.rotation.x=Math.PI/2;trail.position.z=-.6;scene.add(g);shotModels.set(s.id,g);}g.position.set(s.x,s.y,s.z);if(s.style==='groundslash'){g.rotation.y=Math.atan2(s.vx,s.vz)+Math.PI/2;g.userData.trail=(g.userData.trail||0)-dt;if(g.userData.trail<=0){g.userData.trail=.045;const scar=fxMesh(new THREE.BoxGeometry(.36,.03,1.1),'#12131a',scene,s.x,.06,s.z,.85);scar.rotation.y=g.rotation.y-Math.PI/2;effects.push({m:scar,life:.75,max:.75});}}if(s.style==='shield'){g.rotation.y=world.tick*.5;g.rotation.x=.25;}else g.rotation.y=Math.atan2(s.vx,s.vz);}
   for(const [id,g] of shotModels)if(!(world.shots||[]).some(s=>s.id===id)){scene.remove(g);g.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});shotModels.delete(id);}
   for(const c of world.clouds){let g=cloudModels.get(c.id);if(!g){g=createCloudVisual(c.kind);scene.add(g);cloudModels.set(c.id,g);}updateCloudVisual(g,c,world.tick*STEP);}
   for(const [id,m] of cloudModels)if(!world.clouds.some(c=>c.id===id)){scene.remove(m);m.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});cloudModels.delete(id);}

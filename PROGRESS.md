@@ -812,3 +812,13 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
   monsters every 22-35 s (was 12-18; first at 30 s) and crowd supplies every 45-65 s, and none while 3 or more loose crates are already on the floor.
 - Tests adapted: set pieces >= 1 per stage; the keg chain test adds its second keg itself.
 
+## Cook U: a Street-Fighter-style spinning kick (tatsumaki)
+- `heavy.multi` on the cook: 4 hits over .62 s (damage 2, 2, 3, 6; force 1.6, 1.6, 1.8, 9 so the first three keep the target in place and the last launches him), the cook is carried forward at 5.2 units/s, hits are .1 s of attack time apart (plus the hit-stops).
+  `hit()` accepts `options.multi` to ignore the target's brief invulnerability; the wind crescent is thrown once, on the first hit. The renderer spins the whole model three turns (ease in/out), lifts it .45 off the floor and holds the clip's extended-leg frame through the spin.
+- AI-vs-AI win rate stays near 50% (total 13 damage + the crescent's 6).
+
+## Red Sail U: a Hawk-Eye ground slash
+- 鹰眼斩: a forward chop (melee 10, reach 2.6) and, on the same hit frame, a wind that slides along the floor (`projectile.ground`: speed 16, life .52 = about 8 units, 9 damage, slows .6 s, pierces). Ground shots hit only fighters on the floor (`y < .9`, radius .95), so jumping over it works; it scars the ground (black strips fading in .75 s).
+  The AI uses it from up to 7 units. The old flying crescent (chest-high, 3 units) is gone for Red Sail; the cook's leg wind still uses the `wind` style.
+- AI-vs-AI win rates after this: swordsman 61%, cook 63%, stormcaller 35%: the swordsman and cook are a little high and the stormcaller low (to revisit).
+
