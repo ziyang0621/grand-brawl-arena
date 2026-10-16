@@ -301,13 +301,31 @@ function cancelSkill(w,p){
   p.pendingSkill=null;p.skillWindup=0;p.skillTime=0;
   emit(w,'skillCancel',{id:p.id,x:p.x,y:p.y+1,z:p.z});
 }
+// Cinematic length per special level (s). The world is frozen meanwhile; at the end every target takes a little extra and is launched.
+export const CINEMA_TIME=[0,1.8,2.4,3.0];
+function stepCinema(w,dt){
+  const c=w.cinema;c.t+=dt;if(c.t<c.T)return;
+  w.cinema=null;
+  const p=w.fighters.find(f=>f.id===c.id);
+  for(const id of c.targets){const q=w.fighters.find(f=>f.id===id);if(!q||q.hp<=0)continue;
+    q.hp=Math.max(0,q.hp-c.level*3);   // the special's own knockback (set when it hit) plays out after the cinematic
+    q.vy=Math.max(q.vy,6);q.grounded=false;q.support=null;q.knocked=Math.max(q.knocked,.9);q.invuln=Math.max(q.invuln,.4);}
+  emit(w,'cinemaEnd',{id:c.id,kind:c.kind,level:c.level,x:c.tx,y:c.ty+1,z:c.tz});
+}
 function releaseSkill(w,p){
   const {level,radius,damage,force,kind,height}=p.pendingSkill,self=kind==='whirlwind'||kind==='shieldQuake';
   const center=self?{x:p.x,z:p.z}:{x:p.pendingSkill.cx,z:p.pendingSkill.cz},from=self?p:{...center,owner:p.id,fx:p.fx,fz:p.fz};
   p.pendingSkill=null;p.skillWindup=0;p.skillTime=.4;p.invuln=.18;
   w.hitStop=Math.max(w.hitStop,.05+level*.04);   // a beat of freeze on release, longer for the higher levels
   emit(w,'skill',{id:p.id,char:p.char,x:center.x,y:p.y+.7,z:center.z,casterX:p.x,casterZ:p.z,level,radius,kind});
-  for(const q of w.fighters)if(q!==p&&distance(center,q)<radius&&Math.abs(p.y-q.y)<height){const blocked=q.blocking;if(hit(w,from,q,damage,force,{guardBreak:level===3,kind})&&kind==='thunder'&&(!blocked||level===3)){q.slowTime=Math.max(q.slowTime,2.2);emit(w,'slow',{id:q.id,x:q.x,y:q.y+1,z:q.z});}}
+  const landed=[];
+  for(const q of w.fighters)if(q!==p&&distance(center,q)<radius&&Math.abs(p.y-q.y)<height){const blocked=q.blocking;const ok=hit(w,from,q,damage,force,{guardBreak:level===3,kind});if(ok&&(!blocked||level===3))landed.push(q);if(ok&&kind==='thunder'&&(!blocked||level===3)){q.slowTime=Math.max(q.slowTime,2.2);emit(w,'slow',{id:q.id,x:q.x,y:q.y+1,z:q.z});}}
+  // A special that connects plays its own short cinematic (see stepCinema / arena.js runCinema). CPU-only simulations skip it.
+  if(landed.length&&!w.autoplay){
+    const T=CINEMA_TIME[level],t0=landed[0];
+    w.cinema={id:p.id,char:p.char,kind,level,targets:landed.map(q=>q.id),t:0,T,x:p.x,z:p.z,tx:t0.x,ty:t0.y,tz:t0.z};
+    emit(w,'cinemaStart',{id:p.id,char:p.char,kind,level,x:t0.x,y:t0.y+1,z:t0.z});
+  }
   for(const c of w.crates)if(c.hp>0&&distance(center,c)<radius&&Math.abs(p.y-c.y)<2.5)breakCrate(w,c,2);
   for(const pc of w.pieces)if(pc.state==='standing'&&distance(center,pc)<radius+pc.r&&p.y<pc.h)hurtPiece(w,pc,damage*1.3,{owner:p.id,x:center.x,z:center.z});
 }
@@ -806,6 +824,7 @@ function ringOut(w,p){
 }
 export function step(w,input={},dt=STEP){
   if(w.ended)return;
+  if(w.cinema){stepCinema(w,dt);return;}
   if(w.hitStop>0){w.hitStop=Math.max(0,w.hitStop-dt);return;}
   if(w.intro>0){w.intro=Math.max(0,w.intro-dt);if(w.intro===0)emit(w,'fight',{roundNo:w.roundNo});return;}
   if(w.roundOver>0){

@@ -835,3 +835,9 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - `tools/shoot.mjs` (the headless screenshot helper) now lives in the repo: the scratchpad copy kept getting cleaned up.
 - Cost: 3 x (20 generate + decimate + 25 rig) + 25 for the islander re-rig.
 
+## Special-move cinematics
+- When an L special lands (not blocked, or level 3), the core sets `w.cinema` and freezes the fight for `CINEMA_TIME[level]` (1.8 / 2.4 / 3.0 s; `step()` returns early, the round clock stops); at the end each target takes `level x 3` more and is left knocked and airborne with the special's own knockback. CPU-only simulations (`autoplay`) skip it, so balance numbers are unchanged. Tests: `tests/cinema.test.js`.
+- `runCinema()` in arena.js plays one choreography per special, driven only by `world.cinema.t` (so it also works on the guest): Red Sail six crossing slashes and a red X; the guardian leaps 4.8 high and slams with ice pillars; the brawler a rain of fist bursts and a giant fist; the gunner falls back while shells rain down; the cook circles the target kicking, then a pillar of fire; the storm caller a storm cloud, a volley of bolts and a giant one.
+  The attacker's and targets' models are moved and posed directly (clips scrubbed by frame), the camera orbits beside the attack line at 8-11 units, the letterbox and cut-in show, and every effect fires once on its beat.
+- Gotchas found by the captures: a close camera put the attacker in front of the lens (pulled back to 8-11 units, side-on); the frozen world kept the target's hit invulnerability so the blink hid him for the whole cinematic (bodies are forced visible meanwhile); the guardian's light pillars blew out the screen (thinner, .32 opacity).
+
