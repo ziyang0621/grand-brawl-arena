@@ -15,3 +15,6 @@ __pycache__/
 *.pyc
 models/tripo-roster/*/rig/tripo-out/*/task.json
 models/tripo-roster/*/rig/tripo-out/*/rendered_image.webp
+# Tripo crowd: like the roster, keep only the prompts, the rigs and the logs
+models/tripo-crowd/*/gen/
+models/tripo-crowd/*/lo/

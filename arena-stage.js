@@ -385,5 +385,5 @@ export function buildStage(stageId){
 }
 export function disposeStage(stage){
   stage.group.parent?.remove(stage.group);
-  stage.group.traverse(o=>{if((o.isMesh||o.isPoints)&&!o.userData.ink)o.geometry.dispose();if(o.material&&!o.userData.ink&&!isSharedMaterial(o.material)){o.material.map?.dispose();o.material.dispose();}});
+  stage.group.traverse(o=>{if(o.userData.shared)return;if((o.isMesh||o.isPoints)&&!o.userData.ink)o.geometry.dispose();if(o.material&&!o.userData.ink&&!isSharedMaterial(o.material)){o.material.map?.dispose();o.material.dispose();}});
 }

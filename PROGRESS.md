@@ -826,3 +826,12 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - The wide black bar was too wide and too hard to read; the 鹰眼斩 wind is now a narrow red dorsal fin (an extruded triangle, tip leaning back, a pale wake under it) with red scars on the floor; the hit radius shrank from .95 to .6 so what you see is what hits (sidestepping works as well as jumping).
 - Bug found by the capture: the generic `rotation.y = atan2(vx, vz)` for shots ran after the fin's own heading and turned it edge-on; shots with their own heading are now excluded from it.
 
+## Tripo spectators
+- The stage crowds (the cheering onlookers, the cannon crew and the snowball throwers) were block figures that did not match the scanned fighters. Three Tripo spectators now replace them:
+  a deckhand (port), a turbaned townsman (desert, which used to borrow the port's sailors) and a villager in a fur-trimmed coat (snow). Prompts and the pipeline: `models/tripo-crowd/<id>/prompt.txt`, `models/tripo-crowd/process.sh` (generate, decimate to 10k faces, biped rig).
+- The islander's first rig was broken (the fur coat hid her right arm: one bone, no fingers); a re-rig with `--spec mixamo` gave a full arm chain. Her mitten hands have no finger bones, so `animate_tripo_crowd.py` falls back to the named `0_<Side>_Limb_1/2` bones when the geometric discovery cannot find wrists.
+- `tools/blender/animate_tripo_crowd.py <id>` bakes idle / cheer / reach (lighting a fuse) / pat (packing a snowball) / throw by pointing the arm bones (no IK; seen from afar), halves the textures and writes `models/tripo-crowd-<id>.glb`.
+- `arena-crew.js` still builds the block figure first and swaps in the scan once it has loaded (`upgrade()`); the pose functions drive clips when a scan is present. Their meshes are flagged `shared` so `disposeStage` does not free the loader cache. `serve.js` routes `models/tripo-crowd-*.glb`.
+- `tools/shoot.mjs` (the headless screenshot helper) now lives in the repo: the scratchpad copy kept getting cleaned up.
+- Cost: 3 x (20 generate + decimate + 25 rig) + 25 for the islander re-rig.
+

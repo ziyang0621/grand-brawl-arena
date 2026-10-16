@@ -2,9 +2,32 @@
 // so a hazard coming from outside the arena has a visible culprit with a wind-up the player can read.
 import * as THREE from './vendor/three.module.js';
 import {mesh,box,sphere,cylinder,cone,fxMesh,ink} from './arena-gfx.js';
+import {loadGlbModel,instantiate} from './arena-glb.js';
+
+// Tripo-scanned spectators (tools/blender/animate_tripo_crowd.py) replace the block figures once they have loaded, so the crowd matches
+// the fighters' look. Until then (or if a file is missing) the block figure stays. Clips: idle, cheer, reach, pat, throw.
+const CROWD_GLB={sailor:'models/tripo-crowd-sailor.glb',islander:'models/tripo-crowd-islander.glb',desert:'models/tripo-crowd-desert.glb'};
+const CROWD_SCALE=2.9;
+function upgrade(g,kind){
+  const url=CROWD_GLB[kind];if(!url)return;
+  loadGlbModel(url).then(model=>{
+    if(g.userData.glb)return;
+    const glb=instantiate(model,{ink:.012,preserveMaterials:true});
+    glb.root.rotation.y=-Math.PI/2;glb.root.scale.setScalar(CROWD_SCALE);
+    glb.root.traverse(o=>{if(o.isMesh)o.userData.shared=true;});   // geometry and materials belong to the loader cache: never dispose them with the stage
+    for(const part of [g.userData.body,...g.userData.legs])part.visible=false;
+    g.add(glb.root);g.userData.glb=glb;
+    // the torch moves from the block figure's hand to a fixed spot by the scan's right hand
+    const torch=g.userData.torch;g.add(torch);torch.position.set(.35,1.45,.9);torch.rotation.set(.6,0,0);
+    glb.set('idle',0);glb.update(0);
+  }).catch(()=>{});
+}
+function clip(c,name,time){const glb=c.userData.glb;if(!glb)return false;const a=glb.actions[name];if(!a)return false;const d=a.getClip().duration;glb.set(name,((time%d)+d)%d,{fade:.18});glb.update(0);return true;}
+function clipAt(c,name,k){const glb=c.userData.glb;if(!glb)return false;const a=glb.actions[name];if(!a)return false;glb.set(name,Math.max(0,Math.min(1,k))*a.getClip().duration,{fade:.12});glb.update(0);return true;}
 
 const LOOKS={
   sailor:{shirt:'#f4f1e6',stripe:'#2f6fb0',pants:'#2b3a55',skin:'#f0c49a',hair:'#3a2a1e',hat:'bandana',hatColor:'#d4462f'},
+  desert:{shirt:'#f4ead2',stripe:'#c93a3a',pants:'#d8b072',skin:'#d9a57a',hair:'#1e1a17',hat:'beanie',hatColor:'#f1e3c0'},
   islander:{shirt:'#d9455f',stripe:'#ffffff',pants:'#4a5568',skin:'#f5cda8',hair:'#6b4a2a',hat:'beanie',hatColor:'#6fb7e8'}
 };
 // Faces forward (+z). Pivots: body at the hips (lean / bounce), arms at the shoulders.
@@ -26,13 +49,14 @@ export function crewMate(kind='sailor'){
   const torch=new THREE.Group();torch.position.set(0,-.85,.12);arms[1].add(torch);torch.visible=false;
   cylinder(.04,.05,.7,'#6a4a2a',torch,0,.3,0,6);
   const flame=fxMesh(new THREE.SphereGeometry(.17,8,6),'#ff9a2a',torch,0,.75,0,.95);flame.scale.set(1,1.5,1);
-  ink(g,.04);g.userData={body,head,legs,arms,torch,flame};return g;
+  ink(g,.04);g.userData={body,head,legs,arms,torch,flame};upgrade(g,kind);return g;
 }
 
 // Cannon crew: lights the fuse as the wind-up fills (k 0..1), then hops back and cheers.
 export function poseCannonCrew(c,k,t,fired,after){
   const {body,head,arms,legs,torch,flame}=c.userData;
   torch.visible=true;flame.scale.set(1+.15*Math.sin(t*30),1.5+.35*Math.sin(t*23),1);
+  if(c.userData.glb){if(!fired)clipAt(c,'reach',Math.min(1,k*1.4));else{torch.visible=false;c.position.y=Math.sin(Math.min(1,after/.45)*Math.PI)*.4;clip(c,'cheer',after);}return;}
   if(!fired){
     const reach=Math.min(1,k*1.4);
     body.rotation.x=.12+reach*.25;body.position.y=.95-reach*.08;head.rotation.x=-.15;head.rotation.y=Math.sin(t*3)*.1;
@@ -47,6 +71,7 @@ export function poseCannonCrew(c,k,t,fired,after){
 // Snowball thrower: packs the ball (pats it, ball grows), winds back, then hurls it.
 export function poseSnowCrew(c,k,t,fired,after){
   const {body,head,arms,legs}=c.userData;
+  if(c.userData.glb){if(!fired){if(k<.7)clip(c,'pat',t);else clipAt(c,'throw',(k-.7)/.3*.45);}else if(after<.5)clipAt(c,'throw',.45+after/.5*.55);else clip(c,'cheer',after);return;}
   if(!fired){
     const pat=Math.sin(t*(10+k*8));
     body.rotation.x=.25+k*.15;head.rotation.x=.2;
@@ -67,13 +92,13 @@ export function poseSnowCrew(c,k,t,fired,after){
 // [x, z, y, look, facing offset]; kept outside the playable z range (|z| <= 8).
 const CROWD={
   port:{kind:'sailor',spots:[[-7.5,-8.6,.7],[-5,-8.7,.7],[5,-8.7,.7],[7.5,-8.6,.7]]},
-  desert:{kind:'sailor',spots:[[-12.5,-9.6,0],[-10.5,-10.4,0],[10.5,-10.4,0],[12.5,-9.6,0]]},
+  desert:{kind:'desert',spots:[[-12.5,-9.6,0],[-10.5,-10.4,0],[10.5,-10.4,0],[12.5,-9.6,0]]},
   snow:{kind:'islander',spots:[[-12.5,-9.6,0],[-10.5,-10.4,0],[10.5,-10.4,0],[12.5,-9.6,0]]}
 };
 export function addCrowd(group,stageId,anim){
   const cfg=CROWD[stageId]||CROWD.port,mates=[];
   cfg.spots.forEach(([x,z,y],i)=>{
-    const m=crewMate(i%2?cfg.kind:(cfg.kind==='sailor'?'sailor':'islander'));m.position.set(x,y,z);m.rotation.y=Math.sign(-x)*.35;m.scale.setScalar(1.2);
+    const m=crewMate(cfg.kind);m.position.set(x,y,z);m.rotation.y=Math.sign(-x)*.35;m.scale.setScalar(1.2);
     group.add(m);mates.push({m,ph:i*1.7});
   });
   // React to the fight: cheer(1) is a roar (K.O., finisher), smaller values are a ripple for a good hit.
@@ -82,6 +107,7 @@ export function addCrowd(group,stageId,anim){
     crowd.hold-=dt;if(crowd.hold<=0)crowd.level=Math.max(0,crowd.level-dt*1.5);
     for(const {m,ph} of mates){
       const {body,head,arms,legs}=m.userData,t=time+ph,cycle=(t*.45)%1,idle=cycle>.7?Math.sin((cycle-.7)/.3*Math.PI):0,cheer=Math.max(idle,crowd.level*(.75+.25*Math.sin(t*9)));
+      if(m.userData.glb){clip(m,cheer>.45?'cheer':'idle',cheer>.45?t*(1+crowd.level*.5):t*.8);continue;}
       m.position.y=(m.userData.baseY??=m.position.y)+Math.abs(Math.sin(t*(2.4+cheer*5)))*(.06+cheer*.35);
       body.rotation.x=.04+Math.sin(t*1.6)*.03;head.rotation.z=Math.sin(t*1.3)*.08;head.rotation.x=-.1*cheer;
       arms[0].rotation.set(-.3-cheer*2.8,0,-(.15+cheer*.45)-Math.sin(t*2)*.05);arms[1].rotation.set(-.3-cheer*2.8+Math.sin(t*9)*.15*cheer,0,.15+cheer*.45+Math.sin(t*2.2)*.05);
