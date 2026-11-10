@@ -5,6 +5,7 @@ style    which attack choreography to bake: fist | swordshield | gun | kick | st
 weapon   what is bound to the right wrist (None = bare hands): sword | pistol | staff
 off_hand extra prop bound to the left forearm: buckler | None
 merge_weights  {bone: (side, 'thigh'|...)} fold a helper bone's weights into a leg bone
+sway     overrides for tripo_sway.DEFAULTS (hair_start / hair_full / cloth_start / skin_tolerance / hair / head_hair / cloth)
 eyes     optional hand-measured eye centres in armature space, only for faces the texture search cannot read
          (for example hair that covers one eye); otherwise they are found from the texture
 """
@@ -16,12 +17,14 @@ SPECS = {
         'stretch': True,           # the heavy is a rubber rocket punch: the right arm grows (bone scale) as it strikes
         'face': {'centre': (.002, .2663), 'look': (400, 450), 'skin': [(330, 520), (470, 520)],
                  'eyes': {1: (488, 440, 130, 118), -1: (318, 440, 130, 118)}, 'brows': {1: (497, 348, 190, 64), -1: (292, 348, 190, 64)}, 'mouth': (400, 552, 260, 100)},
+        'sway': {'hair_start': .75, 'hair_full': 1.25}      # a big skull with tall spikes: the default 1.3 x radius would miss them,
     },
     'guardian': {
         'source': 'models/tripo-roster/guardian/rig-mixamo/tripo-out/*/model.glb',
         'style': 'swordshield', 'weapon': 'sword', 'off_hand': 'buckler',
         'face': {'centre': (.002, .4323), 'look': (400, 520), 'skin': [(345, 555), (455, 555)],
                  'eyes': {1: (443, 508, 60, 50), -1: (352, 508, 60, 50)}, 'brows': {1: (452, 487, 85, 34), -1: (348, 487, 85, 34)}, 'mouth': (398, 580, 80, 30)},
+        'sway': {'head_hair': False}                      # the cap must not flutter; his scarf (a helper-bone chain) still does,
     },
     'gunner': {
         'source': 'models/tripo-roster/gunner/rig/tripo-out/*/model.glb',
@@ -36,6 +39,7 @@ SPECS = {
         'elbow_pole': (-.9, .35),
         'face': {'centre': (.002, .3093), 'look': (410, 240), 'skin': [(370, 255), (445, 262)],
                  'eyes': {1: (445, 222, 55, 45), -1: (350, 235, 55, 45, 'ink')}, 'brows': {1: (440, 188, 70, 28)}, 'mouth': (395, 292, 70, 25)},
+        'sway': {'skin_tolerance': .07}                       # blond hair is close to his skin colour,
     },
     'stormcaller': {
         'source': 'models/tripo-roster/stormcaller/rig/tripo-out/*/model.glb',

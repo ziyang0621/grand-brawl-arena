@@ -1002,6 +1002,8 @@ arm.animation_data.action = bpy.data.actions['idle']
 bpy.context.scene.frame_set(0)
 bpy.context.scene.frame_start, bpy.context.scene.frame_end = 0, 96
 bpy.context.preferences.filepaths.save_version = 0
+import tripo_sway
+LOOK = tripo_sway.paint(bpy, arm, body_mesh, RIG, SPEC['face']['centre'], SPEC)   # hair / cloth sway weights and the head bones (see tripo_sway.py)
 extra = list(WEAPONS)
 if SPEC.get('face') and not NO_FACE:
     import tripo_face
@@ -1015,16 +1017,16 @@ for o in extra:
 
 bpy.context.view_layer.objects.active = arm
 bpy.ops.export_scene.gltf(filepath=str(OUTPUT), export_format='GLB', use_selection=True, export_animations=True, export_animation_mode='ACTIONS',
-                          export_force_sampling=True, export_skins=True, export_all_influences=False, export_optimize_animation_size=True, export_yup=True)
+                          export_force_sampling=True, export_skins=True, export_all_influences=False, export_optimize_animation_size=True, export_yup=True, export_attributes=True)
 META.write_text(json.dumps({'id': CID, 'style': STYLE, 'legScale': round(SL, 4), 'armScale': round(SA, 4),
                             'walk': {'amp': round(.18 * SL, 4), 'duty': .6}, 'run': {'amp': round(.23 * SL, 4), 'duty': .48},
-                            'hipHeight': round(M['hip_z'] + .5, 4), 'standLift': round(M['stand'], 4)}, indent=2))
+                            'hipHeight': round(M['hip_z'] + .5, 4), 'standLift': round(M['stand'], 4), 'look': LOOK}, indent=2))
 print('EXPORTED', OUTPUT)
 # ---- lite build for phones: the same model with every big texture halved (2048 -> 1024), about a quarter of the texture memory
 for img in bpy.data.images:
     if img.type == 'IMAGE' and img.size[0] >= 2048 and img.name not in ('Render Result', 'Viewer Node'):
         img.scale(1024, 1024)
 bpy.ops.export_scene.gltf(filepath=str(OUTPUT).replace('-animated.glb', '-animated-lite.glb'), export_format='GLB', use_selection=True, export_animations=True, export_animation_mode='ACTIONS',
-                          export_force_sampling=True, export_skins=True, export_all_influences=False, export_optimize_animation_size=True, export_yup=True)
+                          export_force_sampling=True, export_skins=True, export_all_influences=False, export_optimize_animation_size=True, export_yup=True, export_attributes=True)
 print('EXPORTED LITE')
 

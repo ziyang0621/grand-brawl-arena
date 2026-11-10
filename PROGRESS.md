@@ -860,3 +860,10 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Bug found by the first captures: the clip was not showing at all. `driveGlb` kept selecting its own clip every frame and `cineClip` cross-faded with `mixer.update(0)`, so the fade never advanced (the earlier spliced cinematics were partly hidden by the same fight). Now `driveGlb` skips the cast of a cinematic and `glb.pose()` hard-switches a clip at full weight.
 - Tools: Blender is now installed at `/Applications/Blender.app` (5.2.2 LTS, the official arm64 dmg, checksum verified); the old `/Volumes/Blender` path was a mounted image and is gone. `tools/blender/render_sheet.py <id> <clip> <out.png>` renders a contact sheet of any clip. Homebrew on this machine is an Intel build and no longer runs (macOS 27, arm64).
 
+
+## 眼神 / 表情渐变 / 头发衣摆摆动
+- `tools/blender/tripo_sway.py` 烘焙时给身体网格写入 `_HAIR`/`_CLOTH` 顶点属性(glTF 导出 `export_attributes=True`,three.js 读作 `_hair`/`_cloth`);`sway_preview.py` 可渲染权重预览。参数在 `tripo_specs.py` 的 `'sway'`。
+- 渲染端(`arena-tripo.js`):顶点着色器弹簧-阻尼跟随点(头骨→头发,Root→衣摆),每个角色独立材质 + 独立描边壳材质。
+- 头部/脖子朝对手转(`lookAt`,偏航±.85、俯仰±.3,攻击/格挡时减弱);瞳孔是贴图里画死的,所以"眼神"只是对眼窗口做很小的 UV 平移,效果很细微(位移仅千分之几),主要看头转向。
+- 表情贴片用权重缓动淡入淡出(`driveGlb`)。
+- 注意:衣摆权重在海盗/拳师身上很少;未在真机测试。

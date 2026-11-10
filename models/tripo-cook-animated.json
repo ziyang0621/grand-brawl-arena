@@ -12,5 +12,9 @@
     "duty": 0.48
   },
   "hipHeight": 0.5488,
-  "standLift": 0.0016
+  "standLift": 0.0016,
+  "look": {
+    "head": "Head_0",
+    "neck": "Spine_1"
+  }
 }

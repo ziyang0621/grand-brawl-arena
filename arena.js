@@ -13,7 +13,7 @@ import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
 import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
 import {createMonsterModel,poseMonster} from './arena-monsters.js';
 import {CINEMA_SPLASH} from './arena-core.js';
-import {configureTripo,TRIPO_CHARS,tripoUrl,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
+import {updateSway,lookAt,configureTripo,TRIPO_CHARS,tripoUrl,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -191,11 +191,12 @@ function driveGlb(m,p,dt,walking){
   g.setFace(f,dt);
   if(g.tripoFace){
     const e=tripoExpression({dead:p.hp<=0,hurt:hurtish,striking:p.attackTime>0||p.skillTime>0||Boolean(p.pendingSkill),skill:p.skillTime>0||Boolean(p.pendingSkill),attackTime:p.attackTime,guarding:p.blocking,straining:p.carrying||p.grabbedTarget!==null,won,lowHp:p.hp<25,blink:f.blink>.5,flush:p.attackBoostTime>0&&p.weapon!=='sword'}),F=g.tripoFace;
-    const show=(k,on)=>F[k].forEach(o=>o.visible=on);
+    // Expressions cross-fade: every decal group has a weight that eases towards 0 or 1 (a blink is fast, the rest take about a tenth of a second).
+    F.w??={};const show=(k,on)=>{const w=F.w[k]=(F.w[k]||0)+((on?1:0)-(F.w[k]||0))*(1-Math.exp(-dt*(k==='closed'?42:16)));F[k].forEach(o=>{o.visible=w>.03;o.material.opacity=w;});};
     show('hurt',e.eyes==='hurt');show('closed',e.eyes==='closed');show('angry',e.brows==='angry');show('sad',e.brows==='sad');
     for(const k of ['shout','grit','grin','frown'])show(k,e.mouth===k);
     show('tear',e.tear);show('blush',e.blush);
-    F.blush.forEach(o=>{o.material.opacity=.72+.18*Math.sin(world.tick*.1);});
+    F.blush.forEach(o=>{o.material.opacity=(F.w.blush||0)*(.72+.18*Math.sin(world.tick*.1));});
     for(const [k,s] of Object.entries(g.tripoMarks)){   // pop in, float, vanish
       const on=k===e.mark;s.userData.t=on?Math.min(1,(s.userData.t||0)+dt*7):Math.max(0,(s.userData.t||0)-dt*10);
       s.visible=s.userData.t>0;const pop=s.userData.t<1?1.35-.35*s.userData.t:1;
@@ -203,6 +204,14 @@ function driveGlb(m,p,dt,walking){
     }
   }
   g.update(dt);
+  if(g.tripo){   // the head follows the nearest living enemy; hair and cloth trail behind (arena-tripo.js)
+    const cast=world.cinema&&(p.id===world.cinema.id||world.cinema.targets.includes(p.id));
+    let foe=null,best=1e9;for(const q of world.fighters){if(q===p||q.hp<=0||q.team===p.team)continue;const d=Math.hypot(q.x-p.x,q.z-p.z);if(d<best){best=d;foe=q;}}
+    const calm=p.hp>0&&p.knocked<=0&&p.stun<=0&&p.hurtTime<=0&&p.grabbedBy===null&&p.skillTime<=0&&!p.pendingSkill&&!p.climbing&&!p.mantle&&!cast;
+    g.lookTarget??={x:0,y:0,z:0};if(foe){g.lookTarget.x=foe.x;g.lookTarget.z=foe.z;g.lookTarget.y=foe.y+g.root.scale.y*.8;}
+    lookAt(g,dt,foe?g.lookTarget:null,Math.atan2(p.fx,p.fz),foe&&calm?(p.attackTime>0?.4:p.blocking?.7:1):0);
+    updateSway(g,dt,performance.now()/1000);
+  }
 }
 function ensureModels(){
   world.fighters.forEach((p,i)=>{
