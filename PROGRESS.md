@@ -848,3 +848,8 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
 - Red Sail's finish pose is now back-turned beyond the target as seen from the camera (the old arms-out pose stood in front of the lens).
 - Capture gotcha: software-rendered frames take ~300 ms in headless Chrome, so a CSS animation is over before the screenshot; freeze it with a negative `animation-delay` plus `animation-play-state: paused` in the same eval that triggers it.
 
+## Level-3 ultimates break the stage
+- When a level-3 cinematic ends, `breakStage()` opens a scar where it landed: a water crack (1.5 x 3.8, lying across the attack line) on the port deck and the snow island, a quicksand pit (r 1.7) in the desert. It slides away along the attack line until the attacker is clear (.6 margin), is skipped next to decks or above ground level, breaks crates and hurts set pieces within 3.2, and closes after `STAGE_SCAR_TIME` (12 s) through the zones' `life`.
+  The renderer needs nothing new for the hole itself (`syncZones`); the `stageBreak` event adds a flashing crack, flying planks / slabs, dust and a splash. Test in `tests/cinema.test.js`.
+- Pending: dedicated `ult` clips are written in `animate_tripo_char.py` (`STYLE_ULT`) and `animate_tripo_pirate.py` but NOT baked or wired into `runCinema`: Blender is no longer on this machine (it ran from a mounted disk image). After installing it, rebuild all six models, then make `runCinema` scrub `ult` by `k x 72` frames.
+

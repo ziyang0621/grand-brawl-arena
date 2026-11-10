@@ -631,6 +631,14 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='shock'){particles(e,'#8fe0ff',14);starBurst(e,1.8,'#bff4ff');ringEffect(e,'#7fd0ff',2.2,.25);P2('zap',e);announce(e.id===localPlayerId?'触电！下一击伤害 +25%':'触电！下一击伤害 +25%');}
   if(e.type==='cinemaStart'){splashCard(e);letterbox(world.cinema?.T||3);announce(`${CHARACTERS[e.char]?.skillName||'必杀'}！`);audio.dip(world.cinema?.T||2);}
   if(e.type==='cinemaEnd'){c_stageCheer();flash(.3);}
+  if(e.type==='stageBreak'){   // the ultimate split the floor: a jagged crack flashes along the scar, planks or slabs fly, dust
+    const sandy=e.kind==='quicksand',long=Math.max(e.w,e.d),at={x:e.x,y:.3,z:e.z};
+    for(let j=0;j<7;j++){const t=(j/6-.5)*long*1.5,cx=e.alongX?(Math.random()-.5)*.8:t,cz=e.alongX?t:(Math.random()-.5)*.8,seg=fxMesh(new THREE.BoxGeometry(e.alongX?.16:long*.3,.05,e.alongX?long*.3:.16),'#fff6d8',scene,e.x+cx,.14,e.z+cz,.95);seg.rotation.y=(Math.random()-.5)*.7;effects.push({m:seg,life:.6,max:.6});}
+    debris(at,sandy?['#e2b774','#c9964f','#a76a3c']:world.stage==='snow'?['#dff6ff','#b4e4ff','#ffffff']:['#c08a50','#a06a36','#5e4636'],22,{size:.3,speed:9,flat:true});
+    dust(e.x,.1,e.z,18,long*.6);ringEffect({x:e.x,y:.15,z:e.z},sandy?'#e2b774':'#dff6ff',long,.5);shakeCam(.55);
+    if(!sandy)splash(at,'#7fd0ff','#ffffff');P2('crash',e);
+    announce(sandy?'奥义震塌了地面！流沙坑出现':world.stage==='snow'?'奥义劈裂了冰面！小心冰窟窿':'奥义劈开了甲板！小心掉进海里');
+  }
   if(e.type==='ringOut'){
     const sand=e.kind==='sand';splash(e,sand?'#e2b774':'#7fd0ff',sand?'#fff0c8':'#ffffff');if(sand)dust(e.x,.1,e.z,10,1.2);ringEffect({...e,y:e.kind==='edge'?-1.3:.15},sand?'#e2b774':'#dff6ff',2.4,.5);
     shakeCam(.15);P2(sand?'land':'splash',e);speedLines(.3,.25);

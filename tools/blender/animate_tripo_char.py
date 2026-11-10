@@ -384,6 +384,8 @@ def pose(name, t):
         right, left, axis = melee(name, t, body, feet, right, left, axis)
     elif name == 'skill':
         right, left, axis = skill(name, t, body, feet, right, left, axis)
+    elif name == 'ult':
+        right, left, axis = STYLE_ULT[STYLE](t, body, feet, right, left, axis)
     elif name == 'guard':
         right, left = guard_hands(right, left)
         axis = Vector((.12, .4, .9)).normalized()
@@ -464,7 +466,7 @@ def pose(name, t):
     if name == 'carry_walk':
         right, left, axis = Vector((.0, .07, .245)), Vector((.0, -.07, .245)), Vector((.0, .6, .8)).normalized()
         body.update(lean=-3, yaw=body['yaw'] * .35, head_yaw=0, roll=body['roll'] * .5)
-    if SPEC['weapon'] == 'pistol' and name not in ATTACK_POWER and name not in ('skill', 'guard', 'carry', 'carry_walk', 'throw', 'toss', 'climb', 'climbTop'):
+    if SPEC['weapon'] == 'pistol' and name not in ATTACK_POWER and name not in ('skill', 'ult', 'guard', 'carry', 'carry_walk', 'throw', 'toss', 'climb', 'climbTop'):
         axis = gun_idle_axis(name, axis)
     apply_pose(body, right, left, axis, feet, name)
 
@@ -493,7 +495,7 @@ def apply_pose(body, right, left, axis, feet, name):
             # No foot bone: the last bone is the boot's lower half. Keep it continuing the shin (straight down), not turned.
             shin_dir = (pb[side['shin'].name].tail - pb[side['shin'].name].head).normalized()
             point(side['foot'].name, shin_dir)
-    if SPEC['weapon'] == 'staff' and name in ('idle', 'attack_a', 'attack_b', 'heavy', 'dash', 'shoot', 'skill', 'guard', 'grab'):
+    if SPEC['weapon'] == 'staff' and name in ('idle', 'attack_a', 'attack_b', 'heavy', 'dash', 'shoot', 'skill', 'ult', 'guard', 'grab'):
         left = right + axis * .24 + Vector((0, -.07, 0))      # the off hand rides the staff, a hand-span below the fist
     # Elbow bend direction: out and slightly back by default. The cook's narrow shoulders and long arms flare their elbows with that,
     # so his spec asks for 'back' (see tripo_specs.py); changing it for everyone doubled finger stretch on the others.
@@ -863,8 +865,106 @@ elif SPEC['weapon'] == 'staff':
 pose('idle', 0)
 WEAPONS = build_weapons()
 
+
+# ---------------------------------------------------------------- ultimates
+# One continuous 72-frame clip per style for the special-move cinematic (arena.js runCinema scrubs it by the cinematic's progress k and moves
+# the whole model: dashes, leaps, circling). Shared beats: action until ~.74, anticipation, the final blow lands at t = .82 exactly (the game
+# slows down into it and freezes on it), then the aftermath and back to the ready stance at 1.
+def fist_ult(t, body, feet, right, left, axis):
+    """A storm of jabs, a deep coil, then one giant straight (the arm stretches, see apply_stretch)."""
+    r0, l0 = Vector((.10, .045, -.035)), Vector((.12, -.05, -.015))
+    if t < .72:
+        ramp = smooth(min(1, t / .06))
+        blows = t / .72 * math.tau * 9
+        pr, pl = max(0, math.sin(blows)), max(0, -math.sin(blows))
+        right = r0 + Vector((.15, -.02, .03)) * pr * ramp + Vector((-.08, .03, 0)) * (1 - pr) * ramp
+        left = l0 + Vector((.13, .0, .03)) * pl * ramp + Vector((-.08, -.03, 0)) * (1 - pl) * ramp
+        body.update(yaw=16 * (pr - pl) * ramp, lean=10 * ramp, dz=PIRATE_STAND - .04 * ramp, head_pitch=-4 * ramp)
+        w = ramp
+    else:
+        T = [.72, .79, .82, .92, 1]
+        right = cr(keys(T, [r0 + Vector((-.08, .03, 0)), (-.07, .09, -.04), (.255, -.04, .03), (.24, -.04, .03), r0]), t)
+        left = cr(keys(T, [l0 + Vector((-.08, -.03, 0)), (.11, -.07, .03), (.0, -.14, -.05), (.02, -.12, -.04), l0]), t)
+        body.update(yaw=cr(keys(T, [0, -36, 4, 3, 0]), t), lean=cr(keys(T, [10, 2, 6, 5, 0]), t), dx=cr(keys(T, [0, -.05, .06, .05, 0]), t),
+                    dz=PIRATE_STAND + cr(keys(T, [-.04, -.075, -.06, -.05, 0]), t))
+        w = cr(keys(T, [1, 1, 1, 1, 0]), t)
+    feet[0].y += .05 * w; feet[1].y -= .05 * w; feet[1].x += .05 * w
+    return right, left, axis
+
+
+def swordshield_ult(t, body, feet, right, left, axis):
+    """Crouch, leap with the shield overhead, dive and plant it (t = .5), then rise and thrust the sword at the sky (t = .82)."""
+    T = [0, .12, .3, .44, .5, .74, .8, .82, .92, 1]
+    r0, l0 = Vector((.145, .025, -.155)), Vector((.075, -.035, -.19))
+    left = cr(keys(T, [l0, (.05, -.06, -.2), (.0, -.05, .26), (.12, -.04, .2), (.2, -.02, -.2), (.2, -.02, -.2), (.12, -.06, -.1), (.1, -.08, -.05), (.1, -.08, -.05), l0]), t)
+    right = cr(keys(T, [r0, (.1, .06, -.18), (-.05, .1, .05), (-.08, .1, .1), (-.02, .12, -.1), (-.02, .12, -.1), (.05, .08, -.05), (.03, .05, .27), (.03, .05, .27), r0]), t)
+    axis = cr(keys(T, [READY_AXIS, READY_AXIS, (-.3, .3, .9), (-.6, .2, .6), (.2, .5, .7), (.2, .5, .7), (.3, .2, .9), (0, 0, 1), (0, 0, 1), READY_AXIS]), t).normalized()
+    body.update(lean=cr(keys(T, [0, 12, -8, 30, 26, 26, 6, -8, -8, 0]), t),
+                dz=PIRATE_STAND + cr(keys(T, [0, -.08, 0, 0, -.1, -.1, -.04, .01, .01, 0]), t), head_pitch=cr(keys(T, [0, 0, 6, -8, -6, -6, 0, 8, 8, 0]), t))
+    tuck = max(0, cr(keys(T, [0, 0, .12, .06, 0, 0, 0, 0, 0, 0]), t))
+    wide = cr(keys(T, [0, 0, 0, .5, 1, 1, .6, .3, .3, 0]), t)
+    for i, sgn in ((0, 1), (1, -1)):
+        feet[i].z += tuck * (1 if i == 0 else .8); feet[i].y += sgn * .05 * wide
+    feet[1].x += .07 * wide
+    return right, left, axis
+
+
+def gun_ult(t, body, feet, right, left, axis):
+    """Empty the pistol at the sky (the shells come down on the target), level it two-handed, fire the last round at t = .82, then raise the smoking muzzle."""
+    T = [0, .1, .72, .79, .82, .9, 1]
+    r0, l0 = Vector((.145, .025, -.155)), Vector((.075, -.035, -.19))
+    AIM = Vector((1, 0, .05)).normalized()
+    shots = max(0, math.sin((t - .1) / .62 * math.tau * 8)) if .1 < t < .72 else 0
+    right = cr(keys(T, [r0, (.08, .06, .26), (.08, .06, .26), (.24, .02, .05), (.17, .03, .1), (.08, .07, .12), r0]), t)
+    axis = (cr(keys(T, [HOLD_AXIS[0], (.1, 0, 1), (.1, 0, 1), AIM, (.8, 0, .6), (.15, .1, 1), HOLD_AXIS[0]]), t) + Vector((.5, 0, -.2)) * shots * .35).normalized()
+    left = cr(keys(T, [l0, (.08, -.1, .02), (.08, -.1, .02), (.2, -.03, .03), (.14, -.04, .05), (.06, -.08, -.1), l0]), t)
+    wide = cr(keys(T, [0, 1, 1, 1, 1, .5, 0]), t)
+    feet[0].y += .05 * wide; feet[1].y -= .05 * wide
+    body.update(yaw=cr(keys(T, [0, 10, 10, -8, -8, 0, 0]), t), lean=cr(keys(T, [0, -14, -14, 6, -6, -3, 0]), t) - 4 * shots,
+                dz=PIRATE_STAND + cr(keys(T, [0, -.03, -.03, -.04, -.03, 0, 0]), t), head_pitch=cr(keys(T, [0, 10, 10, 0, 0, 0, 0]), t))
+    return right, left, axis
+
+
+def kick_ult(t, body, feet, right, left, axis):
+    """Six kicks, alternating legs, hands in the pockets; a deep crouch; then a rising vertical kick at t = .82."""
+    right, left = Vector((.04, .08, -.23)), Vector((.04, -.08, -.23))
+    if t < .76:
+        n = t / .76 * 6
+        i, u = min(5, int(n)), n - min(5, int(n))
+        h = math.sin(math.pi * u)
+        sgn = 1 if i % 2 == 0 else -1
+        feet[i % 2].x += .34 * h; feet[i % 2].z += .36 * h; feet[i % 2].y += -.05 * h * sgn
+        body.update(lean=-12 * h, roll=-7 * h * sgn, yaw=-12 * h * sgn, dz=PIRATE_STAND - .02 * h)
+    else:
+        T = [.76, .79, .82, .92, 1]
+        feet[0].x += cr(keys(T, [0, -.04, .22, .21, 0]), t)
+        feet[0].z += max(0, cr(keys(T, [0, 0, .76, .72, 0]), t))
+        body.update(lean=cr(keys(T, [0, 14, -24, -22, 0]), t), dz=PIRATE_STAND + cr(keys(T, [0, -.09, .02, .02, 0]), t))
+    return right, left, axis
+
+
+def staff_ult(t, body, feet, right, left, axis):
+    """Raise the staff and whirl it overhead (the storm gathers), draw it back, then bring it down pointing at the target at t = .82."""
+    T = [0, .14, .72, .78, .82, .92, 1]
+    r0, l0 = Vector((.145, .025, -.155)), Vector((.075, -.035, -.19))
+    right = cr(keys(T, [r0, (.02, .03, .26), (.02, .03, .26), (-.06, .06, .22), (.22, .0, .02), (.2, 0, .0), r0]), t)
+    axis = cr(keys(T, [READY_AXIS, (.75, 0, .55), (.75, 0, .55), (-.5, 0, .85), (.9, 0, -.4), (.9, 0, -.4), READY_AXIS]), t)
+    sway = 0
+    if .14 < t < .72:
+        a = (t - .14) / .58 * math.tau * 3
+        axis = Vector((math.cos(a) * .75, math.sin(a) * .75, .55))
+        sway = math.sin(a)
+    body.update(lean=cr(keys(T, [0, -8, -8, -14, 16, 12, 0]), t), yaw=6 * sway, roll=3 * sway,
+                dz=PIRATE_STAND + cr(keys(T, [0, .01, .01, .015, -.05, -.04, 0]), t), head_pitch=cr(keys(T, [0, 8, 8, 8, -4, -4, 0]), t))
+    wide = cr(keys(T, [0, .6, .6, .8, 1, 1, 0]), t)
+    feet[0].y += .04 * wide; feet[1].y -= .04 * wide; feet[1].x += .06 * wide
+    return right, left, axis.normalized()
+
+
+STYLE_ULT = {'fist': fist_ult, 'swordshield': swordshield_ult, 'gun': gun_ult, 'kick': kick_ult, 'staff': staff_ult}
+
 # ---------------------------------------------------------------- bake
-DURATIONS = {'climbTop': 12, 'climb': 24, 'carry_walk': 24, 'throw': 18, 'toss': 18, 'knock': 16, 'idle': 96, 'walk': 24, 'run': 16, 'attack_a': 22, 'attack_b': 22, 'heavy': 22,
+DURATIONS = {'ult': 72, 'climbTop': 12, 'climb': 24, 'carry_walk': 24, 'throw': 18, 'toss': 18, 'knock': 16, 'idle': 96, 'walk': 24, 'run': 16, 'attack_a': 22, 'attack_b': 22, 'heavy': 22,
              'dash': 22, 'shoot': 22, 'skill': 28, 'guard': 12, 'hurt': 10, 'jump': 18, 'fall': 22, 'land': 16, 'carry': 12, 'grab': 22}
 def apply_stretch(name, t):
     """Spec 'stretch': the right arm of a rubber-limbed fighter grows along its length during the heavy (bone scale on the upper arm and
@@ -873,7 +973,7 @@ def apply_stretch(name, t):
     if not SPEC.get('stretch'):
         return []
     arm_bones = [RIGHT['upper'].name, RIGHT['fore'].name, RIGHT['wrist'].name]
-    s = cr([(0, 1.0), (.23, 1.0), (.36, 1.5), (.41, 2.0), (.6, 1.9), (.82, 1.3), (1, 1.0)], t) if name == 'heavy' else 1.0
+    s = cr([(0, 1.0), (.23, 1.0), (.36, 1.5), (.41, 2.0), (.6, 1.9), (.82, 1.3), (1, 1.0)], t) if name == 'heavy' else cr([(0, 1.0), (.79, 1.0), (.82, 2.3), (.9, 2.1), (.97, 1.2), (1, 1.0)], t) if name == 'ult' else 1.0
     for n in arm_bones[:2]:
         pb[n].scale = Vector((1, s, 1))
     pb[arm_bones[2]].scale = Vector((1, 1 / s, 1))

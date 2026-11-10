@@ -541,6 +541,24 @@ def pose(name,t):
             feet[i].x+=.02+.06*lift;feet[i].z+=.14*lift
         right=Vector((.08,.075,.11+.13*math.sin(phase)));left=Vector((.08,-.075,.11-.13*math.sin(phase)));blade=Vector((.15,-.05,-.98)).normalized()
         body.update(lean=7,dz=STAND-.035+.008*math.cos(2*phase),dx=.035,roll=3*math.sin(phase),yaw=4*math.sin(phase),head_pitch=-6)
+    elif name=='ult':
+        # Ultimate (72 frames; arena.js runCinema moves him through the target once per slash): six running slashes that alternate sides, so each
+        # follow-through is the next wind-up; then a low stance with his back to the target and, at t = .82 exactly, a flick of the blade.
+        if t<.78:
+            n=t/.78*6;i=min(5,int(n));u=n-i;side=1 if i%2==0 else -1
+            right=cr([(0,(-.055,.16*side,.005)),(.45,(.23,-.025,-.045)),(1,(.12,-.165*side,-.08))],u)
+            blade=cr([(0,(-.1,.88*side,.65)),(.45,(1,-.16*side,.08)),(1,(.1,-1*side,.3))],u).normalized()
+            left=Vector((-.02,-.1,-.12))
+            body.update(yaw=cr([(0,25),(.45,-17),(1,-23)],u)*side,lean=14,dz=STAND-.03,head_yaw=cr([(0,-9),(.45,7),(1,7)],u)*side)
+            c=math.cos(math.pi*u)*side
+            feet[1].x+=.13*c;feet[0].x-=.13*c;feet[1 if c<0 else 0].z+=.05*math.sin(math.pi*u)
+        else:
+            T=[.78,.8,.82,.92,1]
+            right=cr(list(zip(T,[(.12,.165,-.08),(.16,.1,-.12),(.1,.2,-.14),(.1,.2,-.14),(.145,.025,-.155)])),t)
+            blade=cr(list(zip(T,[(.1,1,.3),(1,.2,-.1),(.3,.9,-.35),(.3,.9,-.35),READY_BLADE])),t).normalized()
+            left=cr(list(zip(T,[(-.02,-.1,-.12),(.05,-.08,-.16),(.06,-.07,-.17),(.06,-.07,-.17),(.075,-.035,-.19)])),t)
+            body.update(yaw=cr(list(zip(T,[23,8,0,0,0])),t),lean=cr(list(zip(T,[14,12,12,10,0])),t),dz=STAND+cr(list(zip(T,[-.03,-.07,-.07,-.06,0])),t))
+            w=cr(list(zip(T,[0,1,1,1,0])),t);feet[1].x+=.1*w;feet[0].x-=.06*w;feet[0].y+=.03*w;feet[1].y-=.03*w
     elif name=='climbTop':
         # Ladder top / bottom and ledge pull-up (see animate_tripo_char.py).
         T=[0,.3,.6,1]
@@ -621,7 +639,7 @@ for poly,i in zip(mesh.polygons,material_ids): poly.material_index=i
 sword.vertex_groups.new(name=HAND).add(list(range(len(verts))),1,'REPLACE')
 sword.modifiers.new('Wrist skin','ARMATURE').object=arm
 
-durations={'climbTop':12,'climb':24,'carry_walk':24,'knock':16,'throw':18,'toss':18,'idle':96,'walk':24,'run':16,'attack_a':22,'attack_b':22,'heavy':22,'dash':22,'shoot':22,'skill':28,'guard':12,'hurt':10,'jump':18,'fall':22,'land':16,'carry':12,'grab':22}
+durations={'ult':72,'climbTop':12,'climb':24,'carry_walk':24,'knock':16,'throw':18,'toss':18,'idle':96,'walk':24,'run':16,'attack_a':22,'attack_b':22,'heavy':22,'dash':22,'shoot':22,'skill':28,'guard':12,'hurt':10,'jump':18,'fall':22,'land':16,'carry':12,'grab':22}
 for name,duration in durations.items():
     action=bpy.data.actions.new(name=name);arm.animation_data.action=action
     for frame in range(duration+1):

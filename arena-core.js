@@ -311,7 +311,27 @@ function stepCinema(w,dt){
   for(const id of c.targets){const q=w.fighters.find(f=>f.id===id);if(!q||q.hp<=0)continue;
     q.hp=Math.max(0,q.hp-c.level*3);   // the special's own knockback (set when it hit) plays out after the cinematic
     q.vy=Math.max(q.vy,6);q.grounded=false;q.support=null;q.knocked=Math.max(q.knocked,.9);q.invuln=Math.max(q.invuln,.4);}
+  if(c.level===3)breakStage(w,c,p);
   emit(w,'cinemaEnd',{id:c.id,kind:c.kind,level:c.level,x:c.tx,y:c.ty+1,z:c.tz});
+}
+// A level-3 ultimate that connects also breaks the stage where it landed: the port deck and the snow island's ice split open (a water hole),
+// the desert floor caves in (a quicksand pit). The scar lies across the attack line, never under the attacker, and closes after 12 seconds.
+export const STAGE_SCAR_TIME=12;
+function breakStage(w,c,p){
+  const stage=stageOf(w.stage);if(!stage.edge||c.ty>.6)return;                       // real stages, ground level only
+  const ax=p?p.x:c.x,az=p?p.z:c.z,alongX=Math.abs(c.tx-ax)>=Math.abs(c.tz-az);
+  const sand=stage.look==='stone',hw=sand?1.7:alongX?.75:1.9,hd=sand?1.7:alongX?1.9:.75;
+  let x=clamp(c.tx,-12.5,12.5),z=clamp(c.tz,-6.8,6.8);
+  // keep the attacker (and anyone else still standing nearby who is not a target) on solid ground: slide the scar away along the attack line
+  const dirX=alongX?Math.sign(c.tx-ax)||1:0,dirZ=alongX?0:Math.sign(c.tz-az)||1;
+  for(let i=0;i<12&&Math.abs(ax-x)<hw+.6&&Math.abs(az-z)<hd+.6;i++){x+=dirX*.3;z+=dirZ*.3;}
+  if(stage.platforms.some(d=>Math.abs(x-d.x)<d.w/2+hw&&Math.abs(z-d.z)<d.d/2+hd))return;   // not into a deck
+  const id='scar'+w.nextCloud++;
+  const zone=sand?{kind:'quicksand',x,z,r:hw,r0:hw,id,dyn:true,life:STAGE_SCAR_TIME}:{kind:'water',x,z,w:hw*2,d:hd*2,w0:hw*2,d0:hd*2,id,dyn:true,life:STAGE_SCAR_TIME};
+  w.zones.unshift(zone);
+  for(const cr of w.crates)if(cr.hp>0&&cr.hp<100&&!cr.falling&&cr.heldBy===null&&cr.y<1&&distance(cr,zone)<3.2)breakCrate(w,cr,2);
+  for(const pc of w.pieces)if(pc.state==='standing'&&distance(pc,zone)<3.2+pc.r)hurtPiece(w,pc,60,{owner:c.id,x:ax,z:az});
+  emit(w,'stageBreak',{kind:zone.kind,x,z,w:hw*2,d:hd*2,alongX,id});
 }
 function releaseSkill(w,p){
   const {level,radius,damage,force,kind,height}=p.pendingSkill,self=kind==='whirlwind'||kind==='shieldQuake';
