@@ -12,6 +12,7 @@ import {freezeSkinnedGeometry} from './arena-tailoring.js';
 import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
 import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
 import {createMonsterModel,poseMonster} from './arena-monsters.js';
+import {CINEMA_SPLASH} from './arena-core.js';
 import {configureTripo,TRIPO_CHARS,tripoUrl,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
@@ -30,6 +31,7 @@ catch(e){$('loading').textContent='3D 显示未能启动，请在支持 WebGL �
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
 $('arena').appendChild(renderer.domElement);
 const hemi=new THREE.HemisphereLight('#fff6dc','#5f8aa0',1.5);scene.add(hemi);
+const cineLight=new THREE.PointLight('#fff1d6',0,16,1.6);scene.add(cineLight);   // the spotlight of a special-move cinematic; always in the scene (intensity 0) so switching it on never recompiles shaders
 const sun=new THREE.DirectionalLight('#fff3d6',2.1);sun.position.set(-10,22,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-18,right:18,top:14,bottom:-14});sun.shadow.normalBias=.035;scene.add(sun);
 
 const portraits=renderPortraits();
@@ -536,15 +538,23 @@ function updateMonsters(){
 }
 // ---- Special-move cinematics: when an L special connects the core freezes the fight (world.cinema) and this plays a few seconds of
 // choreography: the attacker is moved and posed around the target, effects fire on beats, the camera orbits in close. Purely visual. ----
-let cine=null,cineCam=null;
+let cine=null,cineCam=null,cineHold=false,cineDim=0;
+// Timeline of a cinematic after the splash card: normal speed, a slow-motion approach to the final blow, a frozen impact frame, then the release.
+function cineK(u){return u<.6?u/.6*.78:u<.72?.78+(u-.6)/.12*.04:u<.84?.82:.82+(u-.84)/.16*.18;}
+function cineMood(dt){   // dim the stage and put a spotlight on the fighters while a cinematic plays
+  const c=world.cinema,goal=c?1:0;cineDim+=(goal-cineDim)*(1-Math.exp(-dt*9));if(cineDim<.004)cineDim=0;
+  hemi.intensity=1.5*(1-.62*cineDim);sun.intensity=2.1*(1-.7*cineDim);cineLight.intensity=cineDim*70;
+  if(c)cineLight.position.set(c.tx,c.ty+4.2,c.tz+1.5);
+  $('cinedim').classList.toggle('on',Boolean(c));
+}
 const lerp=(a,b,t)=>a+(b-a)*t;
 function cineClip(m,name,frame){const g=m?.glb;if(!g||!g.actions[name])return;g.set(name,Math.min(frame/24,g.actions[name].getClip().duration),{fade:.06});g.update(0);}
 function slashLine(at,color,len=2.8,thick=.12,life=.35){const s=fxMesh(new THREE.BoxGeometry(len,thick,thick),color,scene,at.x,at.y,at.z,.95);s.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);effects.push({m:s,life,max:life});return s;}
 function runCinema(dt){
-  const c=world.cinema;if(!c){cine=null;cineCam=null;return;}
+  const c=world.cinema;cineMood(dt);if(!c){cine=null;cineCam=null;cineHold=false;return;}
   const key=c.id+':'+c.kind+':'+c.T+':'+c.tx.toFixed(2)+c.tz.toFixed(2);
   if(!cine||cine.key!==key)cine={key,fired:new Set(),a0:Math.atan2(c.x-c.tx,c.z-c.tz)};
-  const k=clamp(c.t/c.T,0,1),T={x:c.tx,y:c.ty,z:c.tz},a0=cine.a0,ai=world.fighters.findIndex(f=>f.id===c.id),A=models[ai];
+  const u=clamp((c.t-CINEMA_SPLASH)/(c.T-CINEMA_SPLASH),0,1),k=cineK(u),T={x:c.tx,y:c.ty,z:c.tz},a0=cine.a0,ai=world.fighters.findIndex(f=>f.id===c.id),A=models[ai];
   const Bs=c.targets.map(id=>models[world.fighters.findIndex(f=>f.id===id)]).filter(Boolean);
   const once=(name,at,fn)=>{if(k>=at&&!cine.fired.has(name)){cine.fired.add(name);fn();}};
   const every=(name,from,to,stepK,fn)=>{for(let x=from;x<=Math.min(k,to)+1e-6;x+=stepK){const n=name+x.toFixed(3);if(!cine.fired.has(n)){cine.fired.add(n);fn(x);}}};
@@ -553,6 +563,8 @@ function runCinema(dt){
   const faceTo=(pos)=>Math.atan2(T.x-pos.x,T.z-pos.z);
   const hitAt=(y=1.2,j=.5)=>({x:T.x+(Math.random()-.5)*j,y:T.y+y+(Math.random()-.5)*j,z:T.z+(Math.random()-.5)*j});
   const fin=k>=.82;
+  cineHold=u>=.725&&u<.84;   // the impact frame: the final blow's effects hang in the air
+  if(u>=.72&&!cine.fired.has('impact')){cine.fired.add('impact');if(!reduceMotion){const el=$('arena');el.classList.add('impact');setTimeout(()=>el.classList.remove('impact'),120);}speedLines(.9,.45);}
   if(A)A.body.visible=true;for(const B of Bs)B.body.visible=true;   // the frozen world keeps their hit invulnerability, whose blink would hide them for the whole cinematic
   // targets shudder through the barrage, then hang in a knocked pose
   for(const B of Bs){B.root.position.x+=fin?0:Math.sin(c.t*70)*.06;cineClip(B,fin?'knock':'hurt',fin?6:4+3*Math.abs(Math.sin(c.t*12)));}
@@ -562,7 +574,7 @@ function runCinema(dt){
     if(k<.78){const n=6,i=Math.min(n-1,Math.floor(k/.78*n)),u=(k/.78*n)-i,ang=a0+i*2.4,from=at(ang,2.3),to=at(ang+Math.PI,2.3),pos={x:lerp(from.x,to.x,u),y:T.y,z:lerp(from.z,to.z,u)};
       place(pos,Math.atan2(to.x-from.x,to.z-from.z));cineClip(A,i%2?'attack_b':'attack_a',6+8*u);
       once('pass'+i,(i+.5)/n*.78,()=>{slashLine(hitAt(),'#ff3b2f',3.2,.14);slashLine(hitAt(),'#fff2e0',2.4,.06);starBurst(hitAt(),1.5,'#ffd0c0');P2('slashWave',T);});}
-    else{const pos=at(a0+Math.PI,2.6);place(pos,faceTo(pos)+Math.PI);cineClip(A,'skill',21);}
+    else{const pos=at(camA+Math.PI-.5,2.4);place(pos,faceTo(pos)+Math.PI);cineClip(A,'attack_a',15);}   // the finish: beyond the target as seen from the camera, back turned, blade held out
     once('fin',.82,()=>{for(const r of [.78,-.78]){const x=fxMesh(new THREE.BoxGeometry(5,.3,.3),'#ff2a1f',scene,T.x,T.y+1.3,T.z,.95);x.rotation.set(0,a0+Math.PI/2,r);effects.push({m:x,life:.7,max:.7});}flash(.3);shakeCam(.4);sfx({x:T.x,y:T.y+2.4,z:T.z},'斩!!','#ff4a3a',1.6);P2('explosion',T);});
   }else if(c.kind==='shieldQuake'){
     camH=k<.5?1.8+k*3:3.2;lookY=k<.5?1.2+k*5:1.2;camR=lerp(11,9,k);
@@ -603,6 +615,8 @@ function runCinema(dt){
   const ca=camA;cineCam={pos:new THREE.Vector3(T.x+Math.sin(ca)*camR,T.y+camH,T.z+Math.cos(ca)*camR),look:new THREE.Vector3(T.x,T.y+lookY,T.z)};
 }
 
+// The splash card that opens a cinematic: the attacker's portrait slides in over spinning rays in his colour and the move's name slams down.
+function splashCard(e){const el=$('splash'),ch=CHARACTERS[e.char]||characterOf(world.fighters[e.id]);el.className='';void el.offsetWidth;el.style.setProperty('--c',ch.color);el.style.setProperty('--a',ch.accent||'#ffd24a');$('splashArt').src=portraits[e.char]||'';$('splashName').textContent=ch.skillName;$('splashLv').textContent=e.level===3?'LV 3 · 奥义':`LV ${e.level} · 必杀`;el.className='show'+(e.id%2===1?' right':'');}
 function cutin(e){const c=$('cutin'),ch=CHARACTERS[e.char]||characterOf(world.fighters[e.id]);c.className='';void c.offsetWidth;c.style.setProperty('--cut',ch.color);$('cutinPortrait').src=portraits[e.char]||'';$('cutinName').textContent=ch.skillName;$('cutinLevel').textContent=e.level===3?'LV 3 · 奥义':`LV ${e.level} · 必杀`;c.className='show'+(e.id%2===1?' right':'')+(e.level===3?' lv3':'');}
 function slowMotion(scale,seconds){timeScale=scale;slowUntil=performance.now()+seconds*1000;}
 function focusOn(x,y,z,dist,seconds){focusShot={x,y,z,dist,until:performance.now()+seconds*1000};}
@@ -615,8 +629,8 @@ function events(){const batch=world.events.splice(0);if(netRole==='host')netEven
   if(e.type==='skillCancel'){announce('必杀被打断！');starBurst(e,1.3,'#bfe6ff');particles(e,'#fff0bd',8);tone(130,.15,'triangle');}
   if(e.type==='flank'){announce(e.id===localPlayerId?'侧后方受击！转身再防御':'绕过防御！');}
   if(e.type==='shock'){particles(e,'#8fe0ff',14);starBurst(e,1.8,'#bff4ff');ringEffect(e,'#7fd0ff',2.2,.25);P2('zap',e);announce(e.id===localPlayerId?'触电！下一击伤害 +25%':'触电！下一击伤害 +25%');}
-  if(e.type==='cinemaStart'){cutin({...e});letterbox(world.cinema?.T||2.4);speedLines(.6,.4);announce(`${CHARACTERS[e.char]?.skillName||'必杀'}！`);audio.dip(world.cinema?.T||2);}
-  if(e.type==='cinemaEnd'){c_stageCheer();}
+  if(e.type==='cinemaStart'){splashCard(e);letterbox(world.cinema?.T||3);announce(`${CHARACTERS[e.char]?.skillName||'必杀'}！`);audio.dip(world.cinema?.T||2);}
+  if(e.type==='cinemaEnd'){c_stageCheer();flash(.3);}
   if(e.type==='ringOut'){
     const sand=e.kind==='sand';splash(e,sand?'#e2b774':'#7fd0ff',sand?'#fff0c8':'#ffffff');if(sand)dust(e.x,.1,e.z,10,1.2);ringEffect({...e,y:e.kind==='edge'?-1.3:.15},sand?'#e2b774':'#dff6ff',2.4,.5);
     shakeCam(.15);P2(sand?'land':'splash',e);speedLines(.3,.25);
@@ -1284,7 +1298,7 @@ function updateVisuals(dt){
   }
   pickupModels.forEach((m,i)=>{const p=world.pickups[i];m.visible=!!p;if(p){const u=m.userData;if(u.type!==p.type){u.type=p.type;u.core.visible=p.type==='bomb';u.band.visible=p.type==='meat';u.fuse.visible=p.type==='bomb';u.poison.visible=p.type==='poison';u.bubbles.visible=p.type==='poison';u.virus.visible=p.type==='virus';u.virusGlow.visible=p.type==='virus';u.blade.visible=p.type==='sword';u.hilt.visible=p.type==='sword';u.beer.visible=p.type==='beer';u.foam.visible=p.type==='beer';u.slow.visible=p.type==='slow';u.snow.visible=p.type==='slow';u.trap.visible=p.type==='trap';u.sand.visible=p.type==='trap';u.rollball.visible=p.type==='rollball';u.ring.material.color.set(p.type==='poison'?'#8dffac':p.type==='virus'?'#c084ff':p.type==='bomb'?'#ffcf68':p.type==='meat'?'#ff9b6b':p.type==='beer'?'#ffd66e':p.type==='slow'?'#8ab8ff':p.type==='trap'?'#e8b45a':p.type==='rollball'?'#e6f6ff':'#fff0a5');u.beam.material.color.copy(u.ring.material.color);}
     pickupAmbient(m,p,dt);m.position.set(p.x,(p.y||0)+.1+Math.sin(world.tick*.05)*.1,p.z);m.rotation.y+=dt;}});
-  for(let i=effects.length-1;i>=0;i--){const e=effects[i];if(e.delay>0){e.delay-=dt;if(e.delay<=0)e.m.visible=true;continue;}e.life-=dt;if(e.life<=0){removeEffect(e);effects.splice(i,1);continue;}const k=e.life/e.max;if(e.strip){e.m.children[0].material.opacity=.15+.3*Math.abs(Math.sin(k*18));continue;}if(e.v){e.m.position.addScaledVector(e.v,dt);if(e.puff)e.v.multiplyScalar(Math.exp(-dt*4));else if(!e.sprite)e.v.y-=dt*16;}if(e.chunk){e.v.y-=dt*22;e.m.position.addScaledVector(e.v,dt);e.m.rotation.x+=e.spin.x*dt;e.m.rotation.y+=e.spin.y*dt;e.m.rotation.z+=e.spin.z*dt;
+  if(!cineHold)for(let i=effects.length-1;i>=0;i--){const e=effects[i];if(e.delay>0){e.delay-=dt;if(e.delay<=0)e.m.visible=true;continue;}e.life-=dt;if(e.life<=0){removeEffect(e);effects.splice(i,1);continue;}const k=e.life/e.max;if(e.strip){e.m.children[0].material.opacity=.15+.3*Math.abs(Math.sin(k*18));continue;}if(e.v){e.m.position.addScaledVector(e.v,dt);if(e.puff)e.v.multiplyScalar(Math.exp(-dt*4));else if(!e.sprite)e.v.y-=dt*16;}if(e.chunk){e.v.y-=dt*22;e.m.position.addScaledVector(e.v,dt);e.m.rotation.x+=e.spin.x*dt;e.m.rotation.y+=e.spin.y*dt;e.m.rotation.z+=e.spin.z*dt;
       if(e.m.position.y<e.floor){e.m.position.y=e.floor;if(Math.abs(e.v.y)>2){e.v.y*=-.35;e.v.x*=.6;e.v.z*=.6;}else{e.v.set(0,0,0);e.spin.set(0,0,0);}}
       e.m.material.opacity=Math.min(1,k*2.5);continue;}
     if(e.fireball){const t=1-k;e.m.scale.setScalar(e.fireball*(.35+t*.9));e.m.material.opacity=Math.min(1,k*1.8);continue;}

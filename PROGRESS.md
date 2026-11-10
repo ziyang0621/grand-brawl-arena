@@ -841,3 +841,10 @@ Cloudflare Quick Tunnel 地址是临时的，可能随时失效；不要把历�
   The attacker's and targets' models are moved and posed directly (clips scrubbed by frame), the camera orbits beside the attack line at 8-11 units, the letterbox and cut-in show, and every effect fires once on its beat.
 - Gotchas found by the captures: a close camera put the attacker in front of the lens (pulled back to 8-11 units, side-on); the frozen world kept the target's hit invulnerability so the blink hid him for the whole cinematic (bodies are forced visible meanwhile); the guardian's light pillars blew out the screen (thinner, .32 opacity).
 
+## Cinematic polish: splash card, stage dim, slow motion and impact frame
+- Every cinematic now opens with a .75 s full-screen splash card (`CINEMA_SPLASH`; `CINEMA_TIME` grew to 2.7 / 3.3 / 3.9 s): the attacker's bust slides in over spinning rays in his colours and the move's name slams down (`splashCard()`, `#splash`). The charge banner (`cutin`) stays for the wind-up.
+- While it plays the stage is dimmed (`cineMood`: hemisphere light x.38, sun x.3, a vignette `#cinedim`) and a point light sits over the target. The light is always in the scene at intensity 0, so switching it on does not recompile shaders.
+- Timeline after the splash (`cineK`): normal speed to the last blow, a slow-motion approach (k .78 -> .82 over 12% of the time), a frozen impact frame (12%: effects stop aging via `cineHold`, the canvas flashes inverted black-and-white for 120 ms, speed lines), then the release and a white flash at the end.
+- Red Sail's finish pose is now back-turned beyond the target as seen from the camera (the old arms-out pose stood in front of the lens).
+- Capture gotcha: software-rendered frames take ~300 ms in headless Chrome, so a CSS animation is over before the screenshot; freeze it with a negative `animation-delay` plus `animation-play-state: paused` in the same eval that triggers it.
+

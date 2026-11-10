@@ -302,7 +302,8 @@ function cancelSkill(w,p){
   emit(w,'skillCancel',{id:p.id,x:p.x,y:p.y+1,z:p.z});
 }
 // Cinematic length per special level (s). The world is frozen meanwhile; at the end every target takes a little extra and is launched.
-export const CINEMA_TIME=[0,1.8,2.4,3.0];
+export const CINEMA_SPLASH=.75;   // the full-screen splash card that opens every cinematic (render side); the choreography uses the rest
+export const CINEMA_TIME=[0,2.7,3.3,3.9];
 function stepCinema(w,dt){
   const c=w.cinema;c.t+=dt;if(c.t<c.T)return;
   w.cinema=null;

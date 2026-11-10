@@ -298,3 +298,23 @@ body.brawl #callout{top:112px}
 #letterbox i{position:absolute;left:0;right:0;height:0;background:#000;transition:height .18s ease-out}
 #letterbox i:first-child{top:0}#letterbox i:last-child{bottom:0}
 #letterbox.on i{height:11vh}
+
+/* Special-move cinematic: stage dim, splash card, impact frame */
+#cinedim{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .25s;background:radial-gradient(ellipse at 50% 55%,transparent 26%,#050814d9 80%)}
+#cinedim.on{opacity:1}
+#arena.impact canvas{filter:invert(1) grayscale(1) contrast(1.6)}
+#splash{position:fixed;inset:0;z-index:7;pointer-events:none;opacity:0;overflow:hidden;background:#0b0d14}
+#splash.show{animation:splashCard .75s linear forwards}
+#splash .rays{position:absolute;inset:-60%;background:repeating-conic-gradient(from 0deg,var(--c,#d4462f) 0 5deg,#0b0d14 5deg 9deg,var(--a,#ffd24a) 9deg 10deg,#0b0d14 10deg 16deg);animation:splashSpin 3s linear infinite;opacity:.9}
+#splash img{position:absolute;left:4%;bottom:-6%;height:112%;filter:drop-shadow(10px 0 0 #0b0d14) drop-shadow(-6px 0 0 #fff)}
+#splash.show img{animation:splashArt .75s cubic-bezier(.2,.9,.2,1) both}
+#splash .txt{position:absolute;right:6%;bottom:16%;text-align:right;transform:rotate(-5deg)}
+#splash small{display:block;font:italic 900 clamp(16px,2.4vw,30px) system-ui,sans-serif;letter-spacing:.2em;color:var(--a,#ffd24a);text-shadow:3px 3px 0 #0b0d14}
+#splash b{display:block;font:italic 900 clamp(44px,8.5vw,128px)/1 "Noto Sans SC","PingFang SC",system-ui,sans-serif;color:#fff;-webkit-text-stroke:6px #0b0d14;paint-order:stroke fill;text-shadow:7px 7px 0 var(--c,#d4462f),11px 11px 0 #0b0d14}
+#splash.show b{animation:splashName .75s cubic-bezier(.2,1.4,.3,1) both}
+#splash.right img{left:auto;right:4%;transform:scaleX(-1)}#splash.right .txt{right:auto;left:6%;text-align:left;transform:rotate(5deg)}
+@keyframes splashCard{0%{opacity:0}8%{opacity:1}86%{opacity:1}100%{opacity:0}}
+@keyframes splashSpin{to{transform:rotate(360deg)}}
+@keyframes splashArt{0%{translate:-60% 0;opacity:0}22%{translate:0 0;opacity:1}100%{translate:4% 0}}
+@keyframes splashName{0%,18%{scale:2.6;opacity:0}36%{scale:1;opacity:1}100%{scale:1.04}}
+@media (prefers-reduced-motion:reduce){#splash .rays{animation:none}}
