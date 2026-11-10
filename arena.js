@@ -13,7 +13,7 @@ import {poseCombat,poseStance,attackPhase} from './arena-posing.js';
 import {loadGlbModel,instantiate,principalAxis} from './arena-glb.js';
 import {createMonsterModel,poseMonster} from './arena-monsters.js';
 import {CINEMA_SPLASH} from './arena-core.js';
-import {updateSway,lookAt,configureTripo,TRIPO_CHARS,tripoUrl,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
+import {updateSway,lookAt,releaseLook,configureTripo,TRIPO_CHARS,tripoUrl,tossFrame,tripoExpression,tripoCarryHeight} from './arena-tripo.js';
 import {updateGuard} from './arena-guards.js';
 import {buildStage,disposeStage,THEMES} from './arena-stage.js';
 import {buildPiece,updatePiece,disposePiece} from './arena-pieces.js';
@@ -203,6 +203,7 @@ function driveGlb(m,p,dt,walking){
       s.scale.setScalar(1.05*s.userData.t*pop*(1+.06*Math.sin(world.tick*.25)));s.position.set(.62,g.markY+.05*Math.sin(world.tick*.18),.1);
     }
   }
+  if(g.tripo)releaseLook(g);
   g.update(dt);
   if(g.tripo){   // the head follows the nearest living enemy; hair and cloth trail behind (arena-tripo.js)
     const cast=world.cinema&&(p.id===world.cinema.id||world.cinema.targets.includes(p.id));
@@ -558,7 +559,7 @@ function cineMood(dt){   // dim the stage and put a spotlight on the fighters wh
   $('cinedim').classList.toggle('on',Boolean(c));
 }
 const lerp=(a,b,t)=>a+(b-a)*t;
-function cineClip(m,name,frame){m?.glb?.pose(name,frame/24);}
+function cineClip(m,name,frame){if(m?.glb?.tripo)releaseLook(m.glb);m?.glb?.pose(name,frame/24);}
 function slashLine(at,color,len=2.8,thick=.12,life=.35){const s=fxMesh(new THREE.BoxGeometry(len,thick,thick),color,scene,at.x,at.y,at.z,.95);s.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);effects.push({m:s,life,max:life});return s;}
 function runCinema(dt){
   const c=world.cinema;cineMood(dt);if(!c){cine=null;cineCam=null;cineHold=false;return;}

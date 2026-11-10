@@ -149,8 +149,16 @@ export function updateSway(g,dt,time){
 }
 const UP=new THREE.Vector3(0,1,0),_q=new THREE.Quaternion(),_q2=new THREE.Quaternion(),_v=new THREE.Vector3(),_f=new THREE.Vector3(),_r=new THREE.Vector3();
 // Turn the head (and a share of the neck) towards a world point. `facing` is the fighter's yaw; `weight` 0..1 eases the whole effect in and out.
+// Undo last frame's turn. Clips leave bones they do not animate (often the neck and head) alone, so without this the turn piles up frame after
+// frame and the head spins like a fan. Call before the mixer updates.
+export function releaseLook(g){
+  const L=g.tripoLook;if(!L?.saved)return;
+  for(const [bone,q] of L.saved)bone.quaternion.copy(q);
+  L.saved.length=0;
+}
 export function lookAt(g,dt,target,facing,weight){
   const L=g.tripoLook;if(!L?.head)return;
+  L.saved??=[];L.saved.length=0;
   L.w+=(weight-L.w)*(1-Math.exp(-dt*7));
   if(L.w<.01||!target){if(g.tripoSway?.eye)g.tripoSway.eye.gaze.value.multiplyScalar(.8);return;}
   L.head.getWorldPosition(_v);
@@ -170,6 +178,7 @@ export function lookAt(g,dt,target,facing,weight){
   }
   for(const [bone,share] of [[L.neck,L.neckShare],[L.head,1-L.neckShare]]){
     if(!bone||!bone.parent)continue;
+    L.saved.push([bone,bone.quaternion.clone()]);
     _q.setFromAxisAngle(UP,L.yaw*L.w*share);
     _q2.setFromAxisAngle(_r,-L.pitch*L.w*share);if(_f.clone().applyQuaternion(_q2).y*L.pitch<0)_q2.invert();
     bone.parent.updateWorldMatrix(true,false);bone.updateWorldMatrix(false,false);
