@@ -62,6 +62,12 @@ export function instantiate(model,{ink=.022,inkColor='#101216',hide=[],preserveM
       if(next!==current){next.reset();next.play();next.paused=true;if(current)next.crossFadeFrom(current,fade,false);current=next;}
       next.paused=true;next.time=Math.max(0,Math.min(time,next.getClip().duration));
     },
+    // Hard switch for scripted sequences (cinematics): this clip at this time, at full weight, now. No cross-fade, so it also works with mixer.update(0).
+    pose(name,time){
+      const next=actions[name];if(!next)return false;
+      if(next!==current){for(const a of Object.values(actions))if(a!==next)a.stop();next.reset();next.play();current=next;}
+      next.enabled=true;next.setEffectiveWeight(1);next.paused=true;next.time=Math.max(0,Math.min(time,next.getClip().duration));mixer.update(0);return true;
+    },
     // Expression keys: blink squint open shut wide grit angry sad up (0..1). Values ease towards their targets.
     setFace(target,dt){
       for(const key of ['blink','squint','open','shut','wide','grit','angry','sad','up']){

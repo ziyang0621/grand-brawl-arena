@@ -132,6 +132,7 @@ const FR24=1/24,WALK_DUR=24*FR24,RUN_DUR=16*FR24;const CLIMB_RISE=2.2;
 const ATTACK_CLIP=a=>['heavy','upper','slam'].includes(a)?'heavy':['dash','rush','shieldBash'].includes(a)?'dash':a==='shot'?'shoot':a==='grab'?'grab':null;
 function driveGlb(m,p,dt,walking){
   const g=m.glb;if(!g)return;
+  if(world.cinema&&(p.id===world.cinema.id||world.cinema.targets.includes(p.id)))return;   // a cinematic poses its cast itself (runCinema)
   // Guests only receive 20 Hz snapshots, so positions arrive in jumps; advancing the stride from
   // velocity keeps the legs smooth instead of stepping 20 times a second.
   const travelled=netRole==='guest'?Math.hypot(p.vx||0,p.vz||0)*dt:g.lastXZ?Math.hypot(p.x-g.lastXZ[0],p.z-g.lastXZ[1]):0;
@@ -548,7 +549,7 @@ function cineMood(dt){   // dim the stage and put a spotlight on the fighters wh
   $('cinedim').classList.toggle('on',Boolean(c));
 }
 const lerp=(a,b,t)=>a+(b-a)*t;
-function cineClip(m,name,frame){const g=m?.glb;if(!g||!g.actions[name])return;g.set(name,Math.min(frame/24,g.actions[name].getClip().duration),{fade:.06});g.update(0);}
+function cineClip(m,name,frame){m?.glb?.pose(name,frame/24);}
 function slashLine(at,color,len=2.8,thick=.12,life=.35){const s=fxMesh(new THREE.BoxGeometry(len,thick,thick),color,scene,at.x,at.y,at.z,.95);s.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);effects.push({m:s,life,max:life});return s;}
 function runCinema(dt){
   const c=world.cinema;cineMood(dt);if(!c){cine=null;cineCam=null;cineHold=false;return;}
@@ -569,48 +570,55 @@ function runCinema(dt){
   // targets shudder through the barrage, then hang in a knocked pose
   for(const B of Bs){B.root.position.x+=fin?0:Math.sin(c.t*70)*.06;cineClip(B,fin?'knock':'hurt',fin?6:4+3*Math.abs(Math.sin(c.t*12)));}
   let camR=lerp(10,8,k),camH=3.2,camA=a0+Math.PI/2+k*.9,lookY=1.2;   // from the side of the attack line, far enough that the attacker never fills the screen
+  // Tripo models carry a dedicated 72-frame 'ult' clip per character (tools/blender: STYLE_ULT); it is scrubbed by k, so it slows and freezes with the
+  // cinematic. Models without it fall back to poses from their ordinary clips.
+  const hasUlt=Boolean(A?.glb?.actions?.ult),U=(fb,ff)=>hasUlt?cineClip(A,'ult',k*72):cineClip(A,fb,ff);
   if(c.kind==='whirlwind'){
     camA=a0+Math.PI/2+k*1.6;
     if(k<.78){const n=6,i=Math.min(n-1,Math.floor(k/.78*n)),u=(k/.78*n)-i,ang=a0+i*2.4,from=at(ang,2.3),to=at(ang+Math.PI,2.3),pos={x:lerp(from.x,to.x,u),y:T.y,z:lerp(from.z,to.z,u)};
-      place(pos,Math.atan2(to.x-from.x,to.z-from.z));cineClip(A,i%2?'attack_b':'attack_a',6+8*u);
+      place(pos,Math.atan2(to.x-from.x,to.z-from.z));U(i%2?'attack_b':'attack_a',6+8*u);
       once('pass'+i,(i+.5)/n*.78,()=>{slashLine(hitAt(),'#ff3b2f',3.2,.14);slashLine(hitAt(),'#fff2e0',2.4,.06);starBurst(hitAt(),1.5,'#ffd0c0');P2('slashWave',T);});}
-    else{const pos=at(camA+Math.PI-.5,2.4);place(pos,faceTo(pos)+Math.PI);cineClip(A,'attack_a',15);}   // the finish: beyond the target as seen from the camera, back turned, blade held out
+    else{const pos=at(camA+Math.PI-.5,2.4);place(pos,faceTo(pos)+Math.PI);U('attack_a',15);}   // the finish: beyond the target as seen from the camera, back turned, blade held out
     once('fin',.82,()=>{for(const r of [.78,-.78]){const x=fxMesh(new THREE.BoxGeometry(5,.3,.3),'#ff2a1f',scene,T.x,T.y+1.3,T.z,.95);x.rotation.set(0,a0+Math.PI/2,r);effects.push({m:x,life:.7,max:.7});}flash(.3);shakeCam(.4);sfx({x:T.x,y:T.y+2.4,z:T.z},'斩!!','#ff4a3a',1.6);P2('explosion',T);});
   }else if(c.kind==='shieldQuake'){
-    camH=k<.5?1.8+k*3:3.2;lookY=k<.5?1.2+k*5:1.2;camR=lerp(11,9,k);
+    camH=k<.5?2.4+k*3:3.2;lookY=k<.5?1.6+k*3:1.2;camR=k<.5?12.5:lerp(11,9,k);
     const start=at(a0,2.2);
-    if(k<.35){const u=k/.35,pos={x:lerp(start.x,T.x,u*.6),y:T.y+Math.sin(u*Math.PI/2)*4.8,z:lerp(start.z,T.z,u*.6)};place(pos,faceTo(start));cineClip(A,'jump',8+u*8);}
+    if(hasUlt){const v=clamp((k-.12)/.38,0,1),pos=k<.5?{x:lerp(start.x,T.x,v*.4545),y:T.y+3.2*Math.sin(Math.PI*v),z:lerp(start.z,T.z,v*.4545)}:at(a0,1.2);place(pos,faceTo(pos));U();}   // crouch, leap (apex at k = .31), dive, land at .5
+    else if(k<.35){const u=k/.35,pos={x:lerp(start.x,T.x,u*.6),y:T.y+Math.sin(u*Math.PI/2)*4.8,z:lerp(start.z,T.z,u*.6)};place(pos,faceTo(start));cineClip(A,'jump',8+u*8);}
     else if(k<.5){const u=(k-.35)/.15,pos={x:lerp(start.x,T.x,.6),y:T.y+4.8*(1-u*u),z:lerp(start.z,T.z,.6)};place(pos,faceTo(start));cineClip(A,'heavy',4+u*5);}
     else{const pos=at(a0,1.2);place(pos,faceTo(pos));cineClip(A,'heavy',9);}
     once('slam',.5,()=>{for(let j=0;j<3;j++)ringEffect({x:T.x,y:T.y+.15,z:T.z},j%2?'#ffffff':'#4aa8ff',3+j*1.4,.5+j*.1,j*.08);
-      for(let j=0;j<8;j++){const a=j/8*Math.PI*2,pil=fxMesh(new THREE.CylinderGeometry(.22,.4,4.5,10),'#7fd0ff',scene,T.x+Math.cos(a)*2.6,2.25,T.z+Math.sin(a)*2.6,.32);effects.push({m:pil,life:.9,max:.9,delay:.05+j*.03});pil.visible=false;}
       flash(.18);shakeCam(.45);dust(T.x,.1,T.z,16,2.2);sfx({x:T.x,y:T.y+2.4,z:T.z},'轰!!','#4aa8ff',1.6);P2('crash',T);});
-    once('fin',.85,()=>{starBurst({x:T.x,y:T.y+1.2,z:T.z},2.8,'#dff6ff');P2('shieldCatch',T);});
+    once('fin',.82,()=>{   // the sword goes up: ice pillars burst out of the ground around the target
+      for(let j=0;j<8;j++){const a=j/8*Math.PI*2,pil=fxMesh(new THREE.CylinderGeometry(.22,.4,4.5,10),'#7fd0ff',scene,T.x+Math.cos(a)*1.6,2.25,T.z+Math.sin(a)*1.6,.45);effects.push({m:pil,life:.9,max:.9,delay:.02+j*.02});pil.visible=false;}
+      starBurst({x:T.x,y:T.y+1.2,z:T.z},2.8,'#dff6ff');flash(.2);shakeCam(.35);sfx({x:T.x,y:T.y+2.8,z:T.z},'破!!','#7fd0ff',1.5);P2('shieldCatch',T);P2('ice',T);});
   }else if(c.kind==='fistStorm'){
-    const pos=at(a0,2.7);place(pos,faceTo(pos));cineClip(A,'heavy',fin?12:8+2*Math.abs(Math.sin(c.t*30)));
-    every('fist',.05,.76,.035,()=>{const from={x:pos.x,y:pos.y+1.3,z:pos.z},to=hitAt(1.2,1.1),v=new THREE.Vector3(to.x-from.x,to.y-from.y,to.z-from.z).multiplyScalar(1/.1),f=fxMesh(new THREE.SphereGeometry(.28,8,6),'#ff8a3c',scene,from.x,from.y,from.z,1,false);effects.push({m:f,life:.1,max:.1,v});starBurst(to,.9,'#fff2d0');});
+    const pos=at(a0,2.7);place(pos,faceTo(pos));U('heavy',fin?12:8+2*Math.abs(Math.sin(c.t*30)));
+    every('fist',.05,.72,.035,()=>{const from={x:pos.x,y:pos.y+1.3,z:pos.z},to=hitAt(1.2,1.1),v=new THREE.Vector3(to.x-from.x,to.y-from.y,to.z-from.z).multiplyScalar(1/.1),f=fxMesh(new THREE.SphereGeometry(.28,8,6),'#ff8a3c',scene,from.x,from.y,from.z,1,false);effects.push({m:f,life:.1,max:.1,v});starBurst(to,.9,'#fff2d0');});
     every('pop',.08,.76,.12,()=>P2('hit',T));
     once('word',.2,()=>sfx({x:T.x,y:T.y+2.5,z:T.z},'啪啪啪啪!!','#ffcf5a',1.4));
-    once('fin',.82,()=>{const g=fxMesh(new THREE.SphereGeometry(1.1,14,10),'#ff8a3c',scene,T.x,T.y+1.2,T.z,.95,false);effects.push({m:g,life:.35,max:.35});ringEffect({x:T.x,y:T.y+1.2,z:T.z},'#ffcf5a',3.4,.4);flash(.3);shakeCam(.45);P2('rubber',T);P2('explosion',T);});
+    once('fin',.82,()=>{const g=fxMesh(new THREE.SphereGeometry(.65,14,10),'#ff8a3c',scene,T.x,T.y+1.2,T.z,.8,false);effects.push({m:g,life:.35,max:.35});ringEffect({x:T.x,y:T.y+1.2,z:T.z},'#ffcf5a',3.4,.4);flash(.3);shakeCam(.45);P2('rubber',T);P2('explosion',T);});
   }else if(c.kind==='barrage'){
     camH=7;camR=lerp(11,9,k);lookY=.8;
-    const pos=at(a0,5.5);place(pos,faceTo(pos));cineClip(A,'shoot',9);
-    every('shell',.08,.78,.045,()=>{const to=hitAt(0,2.2),s=fxMesh(new THREE.CylinderGeometry(.06,.2,2.6,6),'#ffb35a',scene,to.x,8,to.z,.95);effects.push({m:s,life:.22,max:.22,v:new THREE.Vector3(0,-34,0)});setTimeout(()=>{particles({x:to.x,y:.3,z:to.z},'#ff8a3c',6);starBurst({x:to.x,y:.8,z:to.z},1.2,'#ffcf6a');},180);});
+    const pos=at(a0,5.5);place(pos,faceTo(pos));U('shoot',9);
+    every('shell',.12,.74,.045,()=>{const to=hitAt(0,2.2),s=fxMesh(new THREE.CylinderGeometry(.06,.2,2.6,6),'#ffb35a',scene,to.x,8,to.z,.95);effects.push({m:s,life:.22,max:.22,v:new THREE.Vector3(0,-34,0)});setTimeout(()=>{particles({x:to.x,y:.3,z:to.z},'#ff8a3c',6);starBurst({x:to.x,y:.8,z:to.z},1.2,'#ffcf6a');},180);});
     every('boom',.1,.78,.15,()=>P2('sniper',T));
-    once('fin',.84,()=>{for(let j=0;j<3;j++)ringEffect({x:T.x,y:.2+j*.4,z:T.z},'#ff8a3c',2.4+j,.5,j*.06);particles({x:T.x,y:1,z:T.z},'#ffcf6a',30);flash(.35);shakeCam(.45);sfx({x:T.x,y:T.y+2.6,z:T.z},'轰轰轰!!','#ff8a3c',1.6);P2('explosion',T);});
+    once('fin',.82,()=>{{const dx=T.x-pos.x,dz=T.z-pos.z,L=Math.hypot(dx,dz),tr=fxMesh(new THREE.BoxGeometry(.16,.16,L),'#fff2c0',scene,(pos.x+T.x)/2,T.y+1.25,(pos.z+T.z)/2,.95);tr.rotation.y=Math.atan2(dx,dz);effects.push({m:tr,life:.25,max:.25});}for(let j=0;j<3;j++)ringEffect({x:T.x,y:.2+j*.4,z:T.z},'#ff8a3c',2.4+j,.5,j*.06);particles({x:T.x,y:1,z:T.z},'#ffcf6a',30);flash(.35);shakeCam(.45);sfx({x:T.x,y:T.y+2.6,z:T.z},'轰轰轰!!','#ff8a3c',1.6);P2('explosion',T);});
   }else if(c.kind==='flameKick'){
     camA=a0+Math.PI/2+k*1.4;
-    if(k<.8){const ang=a0+k*9,pos=at(ang,1.7);place(pos,faceTo(pos)+c.t*18);cineClip(A,'heavy',9);
+    if(hasUlt){const rise=k<.8?0:1.3*Math.sin(clamp((k-.8)/.1,0,1)*Math.PI/2)*(1-clamp((k-.93)/.07,0,1)),ang=a0+Math.min(k,.76)*5.5,pos=at(ang,1.5,rise);place(pos,faceTo(pos));U();   // circles the target kicking, then rises with the last kick
+      every('kick',.06,.74,.127,()=>{particles(hitAt(1,.8),'#ff8a2a',8);starBurst(hitAt(),1.3,'#ffd34a');P2('hit',T);});if(k<.76)particles({x:pos.x,y:pos.y+.5,z:pos.z},'#ff7a2a',1);}
+    else if(k<.8){const ang=a0+k*9,pos=at(ang,1.7);place(pos,faceTo(pos)+c.t*18);cineClip(A,'heavy',9);
       if(A)particles({x:pos.x,y:pos.y+.8,z:pos.z},'#ff7a2a',1);
       every('kick',.06,.78,.07,()=>{particles(hitAt(1,.8),'#ff8a2a',8);starBurst(hitAt(),1.3,'#ffd34a');P2('hit',T);});}
     else{const u=(k-.8)/.2,pos=at(a0,.9,3.2*Math.sin(Math.min(1,u*1.5)*Math.PI/2));place(pos,faceTo(pos));cineClip(A,'heavy',9);}
     once('fin',.82,()=>{const pil=fxMesh(new THREE.CylinderGeometry(.6,1.1,7,12),'#ff6a1a',scene,T.x,3.5,T.z,.75);effects.push({m:pil,life:.7,max:.7});const core=fxMesh(new THREE.CylinderGeometry(.3,.6,7,12),'#ffd34a',scene,T.x,3.5,T.z,.85);effects.push({m:core,life:.6,max:.6});flash(.3);shakeCam(.4);sfx({x:T.x,y:T.y+2.6,z:T.z},'烈焰!!','#ff7a2a',1.6);P2('flame',T);});
   }else if(c.kind==='thunder'){
     camH=3.6;lookY=2.6;camR=lerp(11,9,k);
-    const pos=at(a0,4.2);place(pos,faceTo(pos));cineClip(A,'skill',8);
+    const pos=at(a0,4.2);place(pos,faceTo(pos));U('skill',8);
     once('cloud',0,()=>{for(let j=0;j<7;j++){const cl=fxMesh(new THREE.SphereGeometry(1+Math.random()*.6,10,8),'#4a4f63',scene,T.x+(Math.random()-.5)*3,7+Math.random(),T.z+(Math.random()-.5)*2,.92,false);effects.push({m:cl,life:c.T,max:c.T});}});
-    every('bolt',.15,.76,.09,()=>{const to=hitAt(0,1.4),b=fxMesh(new THREE.CylinderGeometry(.08,.16,7,6),'#fff6b0',scene,to.x,3.5,to.z,.95);effects.push({m:b,life:.09,max:.09});ringEffect({x:to.x,y:.15,z:to.z},'#bff4ff',1.2,.2);flash(.08);P2('zap',T);});
-    once('fin',.84,()=>{const b=fxMesh(new THREE.CylinderGeometry(.45,.7,9,10),'#ffffff',scene,T.x,4.5,T.z,.95);effects.push({m:b,life:.25,max:.25});const g=fxMesh(new THREE.CylinderGeometry(1.1,1.4,9,10),'#9fe4ff',scene,T.x,4.5,T.z,.5);effects.push({m:g,life:.35,max:.35});flash(.5);shakeCam(.45);sfx({x:T.x,y:T.y+2.6,z:T.z},'雷霆!!','#ffe27a',1.6);P2('explosion',T);});
+    every('bolt',.16,.72,.09,()=>{const to=hitAt(0,1.4),b=fxMesh(new THREE.CylinderGeometry(.08,.16,7,6),'#fff6b0',scene,to.x,3.5,to.z,.95);effects.push({m:b,life:.09,max:.09});ringEffect({x:to.x,y:.15,z:to.z},'#bff4ff',1.2,.2);flash(.08);P2('zap',T);});
+    once('fin',.82,()=>{const b=fxMesh(new THREE.CylinderGeometry(.45,.7,9,10),'#ffffff',scene,T.x,4.5,T.z,.95);effects.push({m:b,life:.25,max:.25});const g=fxMesh(new THREE.CylinderGeometry(1.1,1.4,9,10),'#9fe4ff',scene,T.x,4.5,T.z,.5);effects.push({m:g,life:.35,max:.35});flash(.5);shakeCam(.45);sfx({x:T.x,y:T.y+2.6,z:T.z},'雷霆!!','#ffe27a',1.6);P2('explosion',T);});
   }
   const ca=camA;cineCam={pos:new THREE.Vector3(T.x+Math.sin(ca)*camR,T.y+camH,T.z+Math.cos(ca)*camR),look:new THREE.Vector3(T.x,T.y+lookY,T.z)};
 }

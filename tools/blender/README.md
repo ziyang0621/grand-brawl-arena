@@ -34,7 +34,7 @@ npm test
 npm start
 ```
 
-On this Mac the Blender executable used was `/Volumes/Blender/Blender.app/Contents/MacOS/Blender`; this mounted-volume path is not portable. Use an installed Blender executable on another machine. Node 20+ is required.
+On this Mac the Blender executable used was `/Applications/Blender.app/Contents/MacOS/Blender`; this mounted-volume path is not portable. Use an installed Blender executable on another machine. Node 20+ is required.
 
 - Input (kept unchanged): `models/tripo-pirate/tripo-out/tripo-pirate-rig-ebbdda11/model.glb`.
 - Outputs: `models/tripo-pirate-animated.glb` and `models/tripo-pirate-animated.blend`. The script rebuilds these files; save manual Blender work separately before running it again.
