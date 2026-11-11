@@ -20,7 +20,7 @@ const LEG=r=>({walk:{amp:.18*r,duty:.6},run:{amp:.23*r,duty:.48}});
 // hipX: where the hips sit in the rig along the forward axis (the root is shifted so they land on the gameplay origin).
 // walk/run amplitudes come from tools/blender/animate_tripo_char.py (models/tripo-<id>-animated.json).
 export const TRIPO_CHARS={
-  swordsman:{url:'models/tripo-pirate.glb',scale:3.7,hipX:-.19,...LEG(1),carryBottom:.44,look:{head:'Head_2',neck:'Head_1',neckShare:.45},sway:{hair:.8,cloth:.8}},
+  swordsman:{url:'models/tripo-pirate.glb',scale:3.7,hipX:-.19,...LEG(1),carryBottom:.44,look:{head:'Head_2',neck:'Head_1',neckShare:.45},sway:{hair:.45,cloth:.8}},
   brawler:{url:'models/tripo-brawler-animated.glb',scale:3.4,hipX:.026,...LEG(.5545),carryBottom:.3,look:{head:'bone_5',neck:'bone_4',neckShare:.45},sway:{hair:.9,cloth:.7}},
   guardian:{url:'models/tripo-guardian-animated.glb',scale:3.7,hipX:-.007,...LEG(1.0334),carryBottom:.52,look:{head:'Head_1',neck:'Head_0',neckShare:.45},sway:{hair:.8,cloth:1.2}},
   gunner:{url:'models/tripo-gunner-animated.glb',scale:3.5,hipX:.061,...LEG(.8436),carryBottom:.4,look:{head:'Head_3',neck:'Head_2',neckShare:.45},sway:{hair:.7,cloth:.8}},
@@ -75,7 +75,7 @@ export const tripoUrl=cfg=>TRIPO_LITE?cfg.url.replace(/(-animated)?\.glb$/,'-ani
 // Hair and loose cloth are moved in the vertex shader: the body mesh carries two weights per vertex (`_hair`, `_cloth`, painted by tools/blender/tripo_sway.py) and
 // a spring-damper 'follower' point trails each anchor (the head bone for hair, the root bone for cloth). Every vertex is pushed by (follower - anchor) x weight,
 // so hair streams behind a running fighter and swings on after a stop, a hit or a turn. The outline shell is patched the same way so the ink line follows.
-const FOLLOW={hair:{k:120,c:10,max:.42},cloth:{k:80,c:9,max:.36}};
+const FOLLOW={hair:{k:150,c:14,max:.16,drag:.008},cloth:{k:90,c:10,max:.26,drag:.022}};
 // Eyes: the pupils are painted into the texture, so 'looking' means sliding the texture under the eye window. Near an eye centre (bind-pose position `vRest`)
 // the texture is sampled at uv + J * gaze, where J (uv per unit of surface) comes from the screen-space derivatives of vRest and the uv, so the shift is a real
 // movement along the face in the direction `uGaze` whatever the uv layout is. The window feathers out so the lids and the skin around it stay put.
@@ -136,12 +136,16 @@ export function updateSway(g,dt,time){
   for(const kind of ['hair','cloth']){
     const a=s.anchors[kind],f=s.f[kind],P=FOLLOW[kind];if(!a)continue;
     a.getWorldPosition(s.tmp);
-    if(!f.on||f.p.distanceToSquared(s.tmp)>9){f.p.copy(s.tmp);f.v.set(0,0,0);f.on=true;}   // first frame, a respawn or a teleport
+    f.a??=new THREE.Vector3();f.av??=new THREE.Vector3();
+    if(!f.on||f.p.distanceToSquared(s.tmp)>9){f.p.copy(s.tmp);f.a.copy(s.tmp);f.v.set(0,0,0);f.av.set(0,0,0);f.on=true;}   // first frame, a respawn or a teleport
+    // The follower is damped against the anchor's own (smoothed) velocity, so steady running does not drag the hair behind the head as one lump:
+    // only starts, stops, jumps and hits make it swing. A small share of the speed is added back below as a gentle trailing lean.
+    const ka=1-Math.exp(-dt*14);f.av.x+=((s.tmp.x-f.a.x)/dt-f.av.x)*ka;f.av.y+=((s.tmp.y-f.a.y)/dt-f.av.y)*ka;f.av.z+=((s.tmp.z-f.a.z)/dt-f.av.z)*ka;f.a.copy(s.tmp);
     for(let t=0;t<dt;t+=1/120){const h=Math.min(1/120,dt-t);
-      f.v.x+=(P.k*(s.tmp.x-f.p.x)-P.c*f.v.x)*h;f.v.y+=(P.k*(s.tmp.y-f.p.y)-P.c*f.v.y)*h;f.v.z+=(P.k*(s.tmp.z-f.p.z)-P.c*f.v.z)*h;
+      f.v.x+=(P.k*(s.tmp.x-f.p.x)-P.c*(f.v.x-f.av.x))*h;f.v.y+=(P.k*(s.tmp.y-f.p.y)-P.c*(f.v.y-f.av.y))*h;f.v.z+=(P.k*(s.tmp.z-f.p.z)-P.c*(f.v.z-f.av.z))*h;
       f.p.addScaledVector(f.v,h);}
-    // the offset the vertices get (world units): the follower's lag, a little idle drift, capped
-    const o=s.uniforms[kind].value;o.copy(f.p).sub(s.tmp).multiplyScalar(s.amp[kind]);
+    // the offset the vertices get (world units): the follower's lag, a slight lean against the motion, a little idle drift, capped
+    const o=s.uniforms[kind].value;o.copy(f.p).sub(s.tmp).addScaledVector(f.av,-P.drag).multiplyScalar(s.amp[kind]);
     o.x+=Math.sin(time*2.1+(kind==='hair'?0:1.7))*.012*s.amp[kind];o.z+=Math.cos(time*1.7)*.012*s.amp[kind];
     if(o.length()>P.max)o.setLength(P.max);
     o.applyMatrix3(s.m3);
